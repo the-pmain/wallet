@@ -97,7 +97,7 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
       const next = await directory.authenticate({
         email: normalizeEmail(email),
         theP,
-        spectator: options?.spectator,
+        ...(options?.spectator === undefined ? {} : { spectator: options.spectator }),
       })
 
       if (options?.spectator === true) {

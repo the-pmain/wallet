@@ -258,7 +258,7 @@ export function ActivityPage() {
           filter={filter}
           onFilterChange={setFilter}
           snapshot={snapshot}
-          startReplacement={directory.isSpectator ? undefined : startReplacement}
+          {...(directory.isSpectator ? {} : { startReplacement })}
         />
       )}
     </div>
