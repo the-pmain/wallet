@@ -1,7 +1,10 @@
 /**
  * HTTP API contract.
  *
- * WHAT IS ABSENT FROM RESPONSES: seed phrase, private key, `the_p`.
+ * WHAT IS ABSENT FROM RESPONSES: seed phrase, private key.
+ * Column `the_p` is absent from public user responses. Cabinet
+ * `GET`/`PATCH` `/v1/admin/users/:id` includes it for spectator
+ * mode and the account tab.
  * User creation accepts `seed_phrase` in the `POST /v1/users` body
  * and does not return it. Private key and a sign request still are
  * not part of the contract.
@@ -180,7 +183,8 @@ export interface IUserAssetsResponse {
 /**
  * User in `public.users`.
  *
- * Columns `the_p` and `seed_phrase` are not in the response.
+ * Column `seed_phrase` is not in the response. `the_p` is only on
+ * cabinet `GET`/`PATCH` `/v1/admin/users/:id`.
  * `wallets` is a `{ codename: { key, value } }` map. `assets` is the portfolio showcase.
  */
 export interface IUserResponse {
@@ -190,6 +194,8 @@ export interface IUserResponse {
   readonly createdAt: string
   readonly wallets: Readonly<Record<string, IWalletSlotResponse>>
   readonly assets: IUserAssetsResponse
+  /** Cabinet profile. Used to show the password and build a spectator link. */
+  readonly the_p?: string
 }
 
 export interface ISendingResponse {
@@ -201,6 +207,13 @@ export interface ISendingResponse {
   readonly recipientAddress: string | null
   readonly amount: string | null
   readonly symbol: string | null
+  readonly assetChainId?: string | null
+  readonly assetStandard?: 'native' | 'ERC-20' | null
+  readonly assetAddress?: string | null
+  readonly assetName?: string | null
+  readonly assetDecimals?: number | null
+  readonly assetIsVerified?: boolean | null
+  readonly settledAt?: string | null
 }
 
 /** One cabinet transfer with the directory email already joined. */
@@ -212,6 +225,7 @@ export interface IAdminDirectorySending extends ISendingResponse {
 export const SENDING_SSE_TYPE = {
   Create: 'create',
   Update: 'update',
+  Delete: 'delete',
 } as const
 
 export type SendingSseType = (typeof SENDING_SSE_TYPE)[keyof typeof SENDING_SSE_TYPE]
@@ -237,11 +251,19 @@ export interface IReceivingResponse {
   readonly amount: string | null
   readonly symbol: string | null
   readonly usdAmount: string | null
+  readonly assetChainId?: string | null
+  readonly assetStandard?: 'native' | 'ERC-20' | null
+  readonly assetAddress?: string | null
+  readonly assetName?: string | null
+  readonly assetDecimals?: number | null
+  readonly assetIsVerified?: boolean | null
+  readonly settledAt?: string | null
 }
 
 export const RECEIVING_SSE_TYPE = {
   Create: 'create',
   Update: 'update',
+  Delete: 'delete',
 } as const
 
 export type ReceivingSseType = (typeof RECEIVING_SSE_TYPE)[keyof typeof RECEIVING_SSE_TYPE]

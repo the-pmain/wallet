@@ -57,6 +57,42 @@ export function tryParseUsdToMinimalUnits(
   return (usdCents * scale) / priceCents
 }
 
+/** Human transfer amount from stored minimal units. */
+export function cryptoInputFromStoredBalance(balance: string, decimals: number): string {
+  try {
+    return humanAmountFromMinimalUnits(BigInt(balance), decimals)
+  } catch {
+    return '0'
+  }
+}
+
+/** Validates a crypto amount and converts it to minimal token units. */
+export function tryParseCryptoToMinimalUnits(
+  amountInput: string,
+  decimals: number,
+): bigint | null {
+  const trimmed = amountInput.trim()
+
+  if (trimmed === '' || !/^\d+(\.\d+)?$/u.test(trimmed)) {
+    return null
+  }
+
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) {
+    return null
+  }
+
+  const [whole = '0', fraction = ''] = trimmed.split('.')
+
+  if (fraction.length > decimals) {
+    return null
+  }
+
+  const scale = 10n ** BigInt(decimals)
+  const fractionValue = fraction === '' ? 0n : BigInt(fraction.padEnd(decimals, '0'))
+
+  return BigInt(whole) * scale + fractionValue
+}
+
 /** Human transfer amount from minimal units, e.g. `0.200526`. */
 export function humanAmountFromMinimalUnits(units: bigint, decimals: number): string {
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) {
@@ -129,6 +165,126 @@ export function cryptoEquivalentFromUsdInput(
   const whole = toWholeUnits(parsed, token.decimals)
 
   return `≈ ${formatCryptoEquivalent(whole)} ${token.symbol}`
+}
+
+export type AssetAmountUnit = 'usd' | 'crypto'
+
+/** Parses the admin draft in the selected unit into minimal token units. */
+export function parseAssetDraftToMinimalUnits(
+  draft: string,
+  token: IRemoteAssetToken,
+  unit: AssetAmountUnit,
+  priceUsd: number | null,
+): bigint | null {
+  if (unit === 'crypto') {
+    return tryParseCryptoToMinimalUnits(draft, token.decimals)
+  }
+
+  return tryParseUsdToMinimalUnits(draft, priceUsd, token.decimals)
+}
+
+/** Draft text for the stored balance in the selected unit. */
+export function storedDraftForUnit(
+  token: IRemoteAssetToken,
+  unit: AssetAmountUnit,
+  priceUsd: number | null,
+): string {
+  if (unit === 'crypto') {
+    return cryptoInputFromStoredBalance(token.balance, token.decimals)
+  }
+
+  return priceUsd === null
+    ? '0'
+    : usdInputFromStoredBalance(token.balance, token.decimals, priceUsd)
+}
+
+/** Converts a typed draft when the admin switches USD ↔ crypto. */
+export function convertAssetDraft(
+  draft: string,
+  token: IRemoteAssetToken,
+  from: AssetAmountUnit,
+  to: AssetAmountUnit,
+  priceUsd: number | null,
+): string {
+  if (from === to) {
+    return draft
+  }
+
+  if (to === 'crypto') {
+    return cryptoInputFromStoredBalance(token.balance, token.decimals)
+  }
+
+  const usd = usdAmountFromCryptoInput(draft, priceUsd)
+
+  if (usd !== null) {
+    return usd
+  }
+
+  return priceUsd === null
+    ? '0'
+    : usdInputFromStoredBalance(token.balance, token.decimals, priceUsd)
+}
+
+/** Live equivalent of the draft in the other unit. */
+export function assetDraftEquivalent(
+  draft: string,
+  token: IRemoteAssetToken,
+  unit: AssetAmountUnit,
+  priceUsd: number | null,
+): string | null {
+  if (unit === 'crypto') {
+    return usdEquivalentFromCryptoAmount(draft, priceUsd)
+  }
+
+  return cryptoEquivalentFromUsdInput(draft, token, priceUsd)
+}
+
+/** USD value of one row as it is typed right now. Empty or invalid is 0. */
+export function usdValueFromAssetDraft(
+  draft: string,
+  unit: AssetAmountUnit,
+  priceUsd: number | null,
+): number {
+  const trimmed = draft.trim().replace(',', '.')
+
+  if (trimmed === '' || !/^\d+(\.\d+)?$/u.test(trimmed)) {
+    return 0
+  }
+
+  const amount = Number(trimmed)
+
+  if (!Number.isFinite(amount) || amount < 0) {
+    return 0
+  }
+
+  if (unit === 'usd') {
+    return amount
+  }
+
+  if (priceUsd === null || priceUsd <= 0) {
+    return 0
+  }
+
+  return amount * priceUsd
+}
+
+/** Sum of every holding currently typed in the assets panel. */
+export function sumAssetDraftUsd(
+  tokens: readonly IRemoteAssetToken[],
+  drafts: readonly string[],
+  units: readonly AssetAmountUnit[],
+  quotes: PriceMap,
+): number {
+  return tokens.reduce(
+    (total, token, index) =>
+      total +
+      usdValueFromAssetDraft(
+        drafts[index] ?? '',
+        units[index] ?? 'crypto',
+        quotePriceUsd(token, quotes),
+      ),
+    0,
+  )
 }
 
 export function formatUsdDraft(value: number): string {

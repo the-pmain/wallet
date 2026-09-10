@@ -15,7 +15,6 @@ import {
   type IRemoteUser,
   type IUserWalletsMap,
 } from '@/features/onboarding'
-import { AutoLockWarning, useSecurity } from '@/features/security'
 import {
   AccountAvatar,
   SESSION_STATE,
@@ -26,6 +25,8 @@ import {
 import { useTranslation } from '@/shared/i18n'
 import { cn } from '@/shared/lib/utils'
 import { BrandMark, BrandWordmark, Button, PAGE_COLUMN, Skeleton, Toaster } from '@/shared/ui'
+
+import { SpectatorBanner, SpectatorMark } from '@/features/onboarding/ui/SpectatorBanner'
 
 import { AmbientBackground } from './AmbientBackground'
 import { NAVIGATION } from './navigation'
@@ -76,7 +77,6 @@ export function AppShell() {
   const onboardingState = useOnboardingState()
   const directory = useDirectorySession()
   const location = useLocation()
-  const { autoLock } = useSecurity()
   const isCabinet = useCabinetLayout()
   const directoryUser = directory.user
   const showShellContent =
@@ -165,6 +165,7 @@ export function AppShell() {
       */}
       <div className="wallet-phone-column relative z-10 min-w-0 lg:max-w-none">
         <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-md">
+          <SpectatorBanner />
           <div
             className={cn(
               PAGE_COLUMN,
@@ -214,16 +215,6 @@ export function AppShell() {
           A key on the path restarts the enter animation on each navigation.
           Without it React reuses the node and the transition looks like a jump.
         */}
-        {/* Warning sits above the content and outside the route key:
-            navigating must not reset it — time until lock is unchanged. */}
-        <div className={cn(PAGE_COLUMN, 'relative z-10 w-full min-w-0 pt-2')}>
-          <AutoLockWarning
-            isVisible={autoLock.isWarning}
-            remainingMs={autoLock.remainingMs}
-            onExtend={autoLock.extend}
-          />
-        </div>
-
         {/* `relative z-10` is required: the background is positioned, and
             without an explicit layer unpositioned content would sink under it.
 
@@ -444,6 +435,7 @@ function IdentityChip({
       <div className="flex min-w-0 flex-col items-start">
         <span className="flex max-w-full items-center gap-1 text-sm leading-none font-semibold">
           <span className="truncate">{title}</span>
+          <SpectatorMark />
           <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
         </span>
         {subtitle === null ? null : (

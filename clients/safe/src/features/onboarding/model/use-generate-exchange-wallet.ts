@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react'
 import { useWallet } from '@/features/wallet'
 
 import { useDirectorySession } from './directory-session'
+import { SPECTATOR_ACTION_BLOCKED } from './spectator-session'
 import {
   generateExchangeReceiveWallet,
   generateReceivingFundsWallet,
@@ -38,6 +39,11 @@ function useGenerateDirectoryWallet(
   }, [])
 
   const generate = useCallback(async (): Promise<IRemoteUser | null> => {
+    if (directory.isSpectator) {
+      setError(SPECTATOR_ACTION_BLOCKED)
+      return null
+    }
+
     setGenerating(true)
     setError(null)
 
@@ -61,7 +67,7 @@ function useGenerateDirectoryWallet(
     } finally {
       setGenerating(false)
     }
-  }, [directory, generateWallet, remoteDirectory, wallet])
+  }, [directory.isSpectator, directory, generateWallet, remoteDirectory, wallet])
 
   return { isGenerating, error, generate }
 }

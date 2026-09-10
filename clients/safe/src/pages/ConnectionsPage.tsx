@@ -2,6 +2,7 @@ import { ArrowLeft, Info, Plug, QrCode } from 'lucide-react'
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 
+import { SPECTATOR_ACTION_BLOCKED, useDirectorySession } from '@/features/onboarding'
 import { DappProposalCard, DappRequestCard, QrScanner, SessionList, useDapp } from '@/features/dapp'
 import { useWalletSnapshot } from '@/features/wallet'
 import {
@@ -31,7 +32,9 @@ import {
 export function ConnectionsPage() {
   const dapp = useDapp()
   const snapshot = useWalletSnapshot()
+  const directory = useDirectorySession()
   const uriId = useId()
+  const areActionsLocked = directory.isSpectator
 
   const [uri, setUri] = useState('')
   const [isBusy, setBusy] = useState(false)
@@ -51,6 +54,11 @@ export function ConnectionsPage() {
   }, [init])
 
   async function run(action: () => Promise<void>): Promise<void> {
+    if (areActionsLocked) {
+      setError(SPECTATOR_ACTION_BLOCKED)
+      return
+    }
+
     setBusy(true)
     setError(null)
 
@@ -65,6 +73,11 @@ export function ConnectionsPage() {
 
   function submit(event: FormEvent): void {
     event.preventDefault()
+
+    if (areActionsLocked) {
+      setError(SPECTATOR_ACTION_BLOCKED)
+      return
+    }
 
     void run(async () => {
       await dapp.pair(uri)
@@ -83,11 +96,17 @@ export function ConnectionsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Connections</h1>
       </header>
 
+      {areActionsLocked ? (
+        <Alert>
+          <AlertDescription>{SPECTATOR_ACTION_BLOCKED}</AlertDescription>
+        </Alert>
+      ) : null}
+
       {dapp.snapshot.proposal === null ? null : (
         <DappProposalCard
           proposal={dapp.snapshot.proposal}
           addressCount={snapshot.accounts.length}
-          isBusy={isBusy}
+          isBusy={isBusy || areActionsLocked}
           onApprove={() => void run(() => dapp.respondToProposal(true))}
           onReject={() => void run(() => dapp.respondToProposal(false))}
         />
@@ -96,7 +115,7 @@ export function ConnectionsPage() {
       {dapp.snapshot.request === null ? null : (
         <DappRequestCard
           pending={dapp.snapshot.request}
-          isBusy={isBusy}
+          isBusy={isBusy || areActionsLocked}
           onApprove={() => void run(() => dapp.respondToRequest(true))}
           onReject={() => void run(() => dapp.respondToRequest(false))}
         />
@@ -134,7 +153,7 @@ export function ConnectionsPage() {
                 value={uri}
                 placeholder="wc:…"
                 autoComplete="off"
-                disabled={isBusy || !dapp.snapshot.isReady}
+                disabled={isBusy || areActionsLocked || !dapp.snapshot.isReady}
                 onChange={(event) => {
                   setUri(event.target.value)
                   setError(null)
@@ -154,7 +173,7 @@ export function ConnectionsPage() {
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={isBusy || uri.trim() === '' || !dapp.snapshot.isReady}
+                disabled={isBusy || areActionsLocked || uri.trim() === '' || !dapp.snapshot.isReady}
               >
                 <Plug className="size-4" aria-hidden />
                 Connect
@@ -168,7 +187,7 @@ export function ConnectionsPage() {
               <Button
                 type="button"
                 variant="outline"
-                disabled={isBusy || !dapp.snapshot.isReady}
+                disabled={isBusy || areActionsLocked || !dapp.snapshot.isReady}
                 onClick={() => {
                   setError(null)
                   setScanning(true)
@@ -213,7 +232,7 @@ export function ConnectionsPage() {
         <CardContent className="p-0 sm:p-0">
           <SessionList
             sessions={dapp.snapshot.sessions}
-            isBusy={isBusy}
+            isBusy={isBusy || areActionsLocked}
             onDisconnect={(sessionId) => void run(() => dapp.disconnect(sessionId))}
           />
         </CardContent>

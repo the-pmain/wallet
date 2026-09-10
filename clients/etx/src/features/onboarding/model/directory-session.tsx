@@ -16,10 +16,19 @@ import {
   writeLoginCredentials,
 } from './login-credentials'
 import {
+  SPECTATOR_ACTION_BLOCKED,
+  captureSpectatorQuery,
+  clearCapturedSpectatorQuery,
+  clearSpectatorMode,
+  isSpectatorMode,
+  writeSpectatorMode,
+} from './spectator-session'
+import {
   RemoteAuthError,
   RemoteUserDirectory,
   type IRemoteReceiving,
   type IRemoteSending,
+  type ITransactionAssetMetadata,
   type IRemoteUser,
 } from './RemoteUserDirectory'
 
@@ -27,13 +36,18 @@ interface IDirectorySession {
   readonly user: IRemoteUser | null
   readonly isRefreshing: boolean
   readonly isRestoring: boolean
+  readonly isSpectator: boolean
   enter(user: IRemoteUser, email: string, theP: string): IRemoteUser
-  signIn(email: string, theP: string): Promise<IRemoteUser>
+  signIn(
+    email: string,
+    theP: string,
+    options?: { readonly spectator?: boolean },
+  ): Promise<IRemoteUser>
   registerSending(input: {
     readonly recipientAddress: string
     readonly amount: string
     readonly symbol: string
-  }): Promise<IRemoteSending>
+  } & ITransactionAssetMetadata): Promise<IRemoteSending>
   listSendings(): Promise<readonly IRemoteSending[]>
   listReceivings(): Promise<readonly IRemoteReceiving[]>
   refresh(): Promise<void>
@@ -50,13 +64,19 @@ const DirectorySessionContext = createContext<IDirectorySession | null>(null)
  * A stored session is restored with `GET /v1/users/:id`, not another
  * auth post: reload is not a new login.
  * Create writes a `POST /v1/users` row and remembers the response.
- * Sign-out clears `elmsafe.login-credentials`.
+ * Sign-out clears `etwallet.login-credentials` and the spectator
+ * flag when this tab was opened by super admin.
  */
 export function DirectorySessionProvider({ children }: { readonly children: ReactNode }) {
   const directory = useMemo(() => createDirectory(), [])
   const [user, setUser] = useState<IRemoteUser | null>(null)
   const [isRefreshing, setRefreshing] = useState(false)
-  const [isRestoring, setRestoring] = useState(() => readLoginCredentials() !== null)
+  const [isSpectator, setSpectator] = useState(
+    () => captureSpectatorQuery() !== null || isSpectatorMode(),
+  )
+  const [isRestoring, setRestoring] = useState(
+    () => captureSpectatorQuery() !== null || readLoginCredentials() !== null,
+  )
 
   const enter = useCallback((next: IRemoteUser, email: string, theP: string): IRemoteUser => {
     writeLoginCredentials({
@@ -69,11 +89,22 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
   }, [])
 
   const signIn = useCallback(
-    async (email: string, theP: string): Promise<IRemoteUser> => {
+    async (
+      email: string,
+      theP: string,
+      options?: { readonly spectator?: boolean },
+    ): Promise<IRemoteUser> => {
       const next = await directory.authenticate({
         email: normalizeEmail(email),
         theP,
+        spectator: options?.spectator,
       })
+
+      if (options?.spectator === true) {
+        writeSpectatorMode()
+        setSpectator(true)
+      }
+
       return enter(next, email, theP)
     },
     [directory, enter],
@@ -98,6 +129,9 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
     } catch (caught: unknown) {
       if (caught instanceof RemoteAuthError && caught.status === 401) {
         clearLoginCredentials()
+        clearSpectatorMode()
+        clearCapturedSpectatorQuery()
+        setSpectator(false)
         setUser(null)
       }
     } finally {
@@ -110,7 +144,11 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
       readonly recipientAddress: string
       readonly amount: string
       readonly symbol: string
-    }): Promise<IRemoteSending> => {
+    } & ITransactionAssetMetadata): Promise<IRemoteSending> => {
+      if (isSpectatorMode()) {
+        throw new RemoteAuthError(403, SPECTATOR_ACTION_BLOCKED)
+      }
+
       const stored = readLoginCredentials()
 
       if (stored === null || stored.id === '') {
@@ -124,6 +162,12 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
         recipientAddress: input.recipientAddress,
         amount: input.amount,
         symbol: input.symbol,
+        assetChainId: input.assetChainId,
+        assetStandard: input.assetStandard,
+        assetAddress: input.assetAddress,
+        assetName: input.assetName,
+        assetDecimals: input.assetDecimals,
+        assetIsVerified: input.assetIsVerified,
       })
     },
     [directory],
@@ -159,6 +203,9 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
 
   const signOut = useCallback(() => {
     clearLoginCredentials()
+    clearSpectatorMode()
+    clearCapturedSpectatorQuery()
+    setSpectator(false)
     setUser(null)
   }, [])
 
@@ -168,12 +215,36 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
 
   useEffect(() => {
     let cancelled = false
+    const fromQuery = captureSpectatorQuery()
+
+    if (fromQuery !== null) {
+      setSpectator(true)
+      void signIn(fromQuery.email, fromQuery.theP, { spectator: true })
+        .catch(() => {
+          clearSpectatorMode()
+          setSpectator(false)
+        })
+        .finally(() => {
+          clearCapturedSpectatorQuery()
+          if (!cancelled) {
+            setRestoring(false)
+          }
+        })
+
+      return () => {
+        cancelled = true
+      }
+    }
+
     const stored = readLoginCredentials()
 
     if (stored === null) {
+      setSpectator(false)
       setRestoring(false)
       return
     }
+
+    setSpectator(isSpectatorMode())
 
     /* Restore is a profile refresh, not a new sign-in. `signIn`
        posts `/v1/users/auth` and would record a login event on every
@@ -187,13 +258,14 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
     return () => {
       cancelled = true
     }
-  }, [refresh])
+  }, [refresh, signIn])
 
   const value = useMemo(
     () => ({
       user,
       isRefreshing,
       isRestoring,
+      isSpectator,
       enter,
       signIn,
       registerSending,
@@ -207,6 +279,7 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
       user,
       isRefreshing,
       isRestoring,
+      isSpectator,
       enter,
       signIn,
       registerSending,

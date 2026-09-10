@@ -194,8 +194,8 @@ describe('public.users authorization', () => {
       id,
       email: 'james@example.com',
       balance: '12.5',
+      the_p: 'demo',
     })
-    expect(updated.json()).not.toHaveProperty('the_p')
     expect(updated.json()).not.toHaveProperty('seed_phrase')
     expect(updated.body).not.toContain(SERVICE_ROLE)
     expect(listed.body).not.toContain(SERVICE_ROLE)

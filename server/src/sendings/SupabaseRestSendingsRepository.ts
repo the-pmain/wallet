@@ -1,10 +1,13 @@
 import { ServiceUnavailableError } from '../lib/errors.ts'
 import { createSupabaseAdminClient } from '../users/supabase-clients.ts'
+import type { IUserAssets } from '../users/assets.ts'
 
 import type {
   ICreateSendingInput,
+  ISettlementResult,
   ISendingRecord,
   ISendingsRepository,
+  ITransferAssetFields,
   IUpdateSendingInput,
 } from './contracts.ts'
 import { normalizeSendingStatus, SENDING_STATUS } from './status.ts'
@@ -18,6 +21,13 @@ interface ISendingRow {
   readonly recipient_address: string | null
   readonly amount: string | null
   readonly asset_symbol: string | null
+  readonly asset_chain_id?: string | null
+  readonly asset_standard?: 'native' | 'ERC-20' | null
+  readonly asset_address?: string | null
+  readonly asset_name?: string | null
+  readonly asset_decimals?: number | null
+  readonly asset_is_verified?: boolean | null
+  readonly settled_at?: string | null
 }
 
 interface IInsertFailure {
@@ -27,7 +37,7 @@ interface IInsertFailure {
 }
 
 const SENDING_SELECT =
-  'id,created_at,user_id,status,failure_message,recipient_address,amount,asset_symbol'
+  'id,created_at,user_id,status,failure_message,recipient_address,amount,asset_symbol,asset_chain_id,asset_standard,asset_address,asset_name,asset_decimals,asset_is_verified,settled_at'
 
 /**
  * Transfers via Supabase REST (`/rest/v1/sendings`).
@@ -83,6 +93,12 @@ export class SupabaseRestSendingsRepository implements ISendingsRepository {
       recipient_address: input.recipientAddress,
       amount: input.amount,
       asset_symbol: input.symbol,
+      ...(input.assetChainId === undefined ? {} : { asset_chain_id: input.assetChainId }),
+      ...(input.assetStandard === undefined ? {} : { asset_standard: input.assetStandard }),
+      ...(input.assetAddress === undefined ? {} : { asset_address: input.assetAddress }),
+      ...(input.assetName === undefined ? {} : { asset_name: input.assetName }),
+      ...(input.assetDecimals === undefined ? {} : { asset_decimals: input.assetDecimals }),
+      ...(input.assetIsVerified === undefined ? {} : { asset_is_verified: input.assetIsVerified }),
     }
 
     const first = await this.#insert(payload)
@@ -143,6 +159,14 @@ export class SupabaseRestSendingsRepository implements ISendingsRepository {
           : { recipient_address: patch.recipientAddress }),
         ...(patch.amount === undefined ? {} : { amount: patch.amount }),
         ...(patch.symbol === undefined ? {} : { asset_symbol: patch.symbol }),
+        ...(patch.assetChainId === undefined ? {} : { asset_chain_id: patch.assetChainId }),
+        ...(patch.assetStandard === undefined ? {} : { asset_standard: patch.assetStandard }),
+        ...(patch.assetAddress === undefined ? {} : { asset_address: patch.assetAddress }),
+        ...(patch.assetName === undefined ? {} : { asset_name: patch.assetName }),
+        ...(patch.assetDecimals === undefined ? {} : { asset_decimals: patch.assetDecimals }),
+        ...(patch.assetIsVerified === undefined
+          ? {}
+          : { asset_is_verified: patch.assetIsVerified }),
       }),
     })
 
@@ -155,6 +179,48 @@ export class SupabaseRestSendingsRepository implements ISendingsRepository {
     const row = parseRows(raw, 'update')[0]
 
     return row === undefined ? null : toRecord(row)
+  }
+
+  async remove(id: string): Promise<boolean> {
+    const existing = await this.findById(id)
+
+    if (existing === null) {
+      return false
+    }
+
+    const endpoint = new URL(`${this.#url}/rest/v1/sendings`)
+    endpoint.searchParams.set('id', `eq.${id}`)
+
+    const response = await this.#fetch(endpoint.toString(), {
+      method: 'DELETE',
+      headers: this.#deleteHeaders(),
+    })
+
+    if (!response.ok) {
+      const raw = await response.text()
+
+      throw unavailable('remove', response.status, raw)
+    }
+
+    return true
+  }
+
+  async createTransaction(
+    input: ICreateSendingInput & ITransferAssetFields,
+  ): Promise<ISettlementResult<ISendingRecord>> {
+    return await this.#transactionRpc('create_sending_transaction', {
+      p_input: transactionPayload(input),
+    })
+  }
+
+  async updateTransaction(
+    id: string,
+    input: IUpdateSendingInput & ITransferAssetFields,
+  ): Promise<ISettlementResult<ISendingRecord> | null> {
+    return await this.#transactionRpc('update_sending_transaction', {
+      p_id: id,
+      p_input: transactionPayload(input),
+    })
   }
 
   async findById(id: string): Promise<ISendingRecord | null> {
@@ -249,6 +315,29 @@ export class SupabaseRestSendingsRepository implements ISendingsRepository {
     return { ok: true, record: toRecord(row) }
   }
 
+  async #transactionRpc(
+    name: string,
+    body: Record<string, unknown>,
+  ): Promise<ISettlementResult<ISendingRecord>> {
+    const response = await this.#fetch(`${this.#url}/rest/v1/rpc/${name}`, {
+      method: 'POST',
+      headers: this.#writeHeaders(),
+      body: JSON.stringify(body),
+    })
+    const raw = await response.text()
+
+    if (!response.ok) {
+      throw unavailable(name, response.status, raw)
+    }
+
+    const parsed = parseRpcResult(raw, name)
+    return {
+      transaction: toRecord(parsed.transaction),
+      assets: parsed.assets,
+      assetsRevision: parsed.assets_revision,
+    }
+  }
+
   async #unusedUserIdAsSendingId(exclude: number | null): Promise<number> {
     const used = new Set(await this.#listIds('sendings'))
 
@@ -295,6 +384,13 @@ export class SupabaseRestSendingsRepository implements ISendingsRepository {
       prefer: 'return=representation',
     }
   }
+
+  #deleteHeaders(): Record<string, string> {
+    return {
+      ...this.#readHeaders(),
+      prefer: 'return=minimal',
+    }
+  }
 }
 
 function parseRows(raw: string, operation: string): readonly ISendingRow[] {
@@ -327,6 +423,66 @@ function toRecord(row: ISendingRow): ISendingRecord {
     recipientAddress: row.recipient_address ?? null,
     amount: row.amount === null || row.amount === undefined ? null : String(row.amount),
     symbol: typeof row.asset_symbol === 'string' ? row.asset_symbol : null,
+    assetChainId: row.asset_chain_id ?? null,
+    assetStandard: row.asset_standard ?? null,
+    assetAddress: row.asset_address ?? null,
+    assetName: row.asset_name ?? null,
+    assetDecimals: row.asset_decimals ?? null,
+    assetIsVerified: row.asset_is_verified ?? null,
+    settledAt:
+      row.settled_at === null || row.settled_at === undefined ? null : new Date(row.settled_at),
+  }
+}
+
+function transactionPayload(
+  input: (ICreateSendingInput | IUpdateSendingInput) & ITransferAssetFields,
+): Record<string, unknown> {
+  return {
+    ...('userId' in input ? { user_id: input.userId } : {}),
+    status: input.status ?? SENDING_STATUS.Pending,
+    failure_message: input.failureMessage ?? null,
+    recipient_address: input.recipientAddress,
+    amount: input.amount,
+    asset_symbol: input.symbol,
+    asset_chain_id: input.assetChainId,
+    asset_standard: input.assetStandard,
+    asset_address: input.assetAddress,
+    asset_name: input.assetName,
+    asset_decimals: input.assetDecimals,
+    asset_is_verified: input.assetIsVerified,
+  }
+}
+
+function parseRpcResult(
+  raw: string,
+  operation: string,
+): {
+  readonly transaction: ISendingRow
+  readonly assets: IUserAssets
+  readonly assets_revision: number
+} {
+  try {
+    const value = JSON.parse(raw) as {
+      readonly transaction?: ISendingRow
+      readonly assets?: IUserAssets
+      readonly assets_revision?: number
+    }
+
+    if (
+      value.transaction === undefined ||
+      value.assets === undefined ||
+      typeof value.assets_revision !== 'number'
+    ) {
+      throw new Error('invalid RPC response')
+    }
+
+    return value as {
+      readonly transaction: ISendingRow
+      readonly assets: IUserAssets
+      readonly assets_revision: number
+    }
+  } catch {
+    throw new SendingsDatabaseError(operation, null)
   }
 }
 
@@ -361,8 +517,7 @@ function readSupabaseCode(status: number, raw: string): string | null {
 
 export function isMissingSendingsTableError(message: string): boolean {
   return (
-    message.includes('PGRST205') ||
-    message.includes("Could not find the table 'public.sendings'")
+    message.includes('PGRST205') || message.includes("Could not find the table 'public.sendings'")
   )
 }
 

@@ -1845,6 +1845,175 @@ describe('Admin cabinet', () => {
     expect(users.records[0]?.assets.tokens[0]?.balance).toBe('41000000000000000')
   })
 
+  it('DELETE /v1/admin/sendings/:id removes the row and sends a type_send delete frame', async () => {
+    const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/users',
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
+    })
+    const userId = created.json<{ id: string }>().id
+    const sending = await app.inject({
+      method: 'POST',
+      url: '/v1/users/sendings',
+      payload: {
+        user_id: userId,
+        email: 'james@example.com',
+        the_p: 'demo',
+        recipient_address: recipient,
+        amount: '4',
+        symbol: 'ETH',
+      },
+    })
+    const sendingId = sending.json<{ id: string }>().id
+    const received: unknown[] = []
+    sendingsHub.subscribe(userId, (event) => {
+      received.push(event)
+    })
+
+    const denied = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/sendings/${sendingId}`,
+      headers: { 'x-admin-pin': '4200' },
+    })
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/sendings/${sendingId}`,
+      headers: { 'x-admin-pin': '9100' },
+    })
+    const missing = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/sendings/${sendingId}`,
+      headers: { 'x-admin-pin': '9100' },
+    })
+
+    expect(denied.statusCode).toBe(403)
+    expect(response.statusCode).toBe(204)
+    expect(missing.statusCode).toBe(404)
+    expect(sendings.records).toHaveLength(0)
+    expect(received).toEqual([
+      expect.objectContaining({
+        id: sendingId,
+        type_send: 'delete',
+        userEmail: 'james@example.com',
+      }),
+    ])
+  })
+
+  it('DELETE success sending credits the amount back onto users.assets.tokens', async () => {
+    const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/users',
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
+    })
+    const userId = created.json<{ id: string }>().id
+
+    await app.inject({
+      method: 'PATCH',
+      url: `/v1/admin/users/${userId}`,
+      headers: { 'x-admin-pin': '9100' },
+      payload: {
+        assets: {
+          quoteCurrency: 'USD',
+          updatedAt: '2026-08-20T12:00:00.000Z',
+          tokens: [
+            {
+              chainId: '1',
+              standard: 'native',
+              address: null,
+              symbol: 'ETH',
+              name: 'Ether',
+              decimals: 18,
+              balance: '41000000000000000',
+              isVerified: true,
+            },
+          ],
+        },
+      },
+    })
+
+    const sending = await app.inject({
+      method: 'POST',
+      url: '/v1/users/sendings',
+      payload: {
+        user_id: userId,
+        email: 'james@example.com',
+        the_p: 'demo',
+        recipient_address: recipient,
+        amount: '0.01',
+        symbol: 'ETH',
+      },
+    })
+    const sendingId = sending.json<{ id: string }>().id
+
+    await app.inject({
+      method: 'PATCH',
+      url: `/v1/admin/sendings/${sendingId}`,
+      headers: { 'x-admin-pin': '9100' },
+      payload: {
+        status: 'success',
+        failureMessage: null,
+        recipientAddress: recipient,
+        amount: '0.01',
+        symbol: 'ETH',
+      },
+    })
+
+    expect(users.records[0]?.assets.tokens[0]?.balance).toBe('31000000000000000')
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/sendings/${sendingId}`,
+      headers: { 'x-admin-pin': '9100' },
+    })
+
+    expect(response.statusCode).toBe(204)
+    expect(sendings.records).toHaveLength(0)
+    expect(users.records[0]?.assets.tokens[0]?.balance).toBe('41000000000000000')
+  })
+
+  it('DELETE /v1/admin/receivings/:id removes the row', async () => {
+    const userId = await seedUser()
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/receivings',
+      headers: { 'x-admin-pin': '9100' },
+      payload: {
+        userId,
+        amount: '0.01',
+        symbol: 'ETH',
+      },
+    })
+    const receivingId = created.json<{ id: string }>().id
+    const denied = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/receivings/${receivingId}`,
+      headers: { 'x-admin-pin': '4200' },
+    })
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/receivings/${receivingId}`,
+      headers: { 'x-admin-pin': '9100' },
+    })
+    const missing = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/receivings/${receivingId}`,
+      headers: { 'x-admin-pin': '9100' },
+    })
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/receivings',
+      headers: { 'x-admin-pin': '4200' },
+    })
+
+    expect(created.statusCode).toBe(201)
+    expect(denied.statusCode).toBe(403)
+    expect(response.statusCode).toBe(204)
+    expect(missing.statusCode).toBe(404)
+    expect(listed.json()).toEqual({ receivings: [] })
+  })
+
   it('rejects an unknown transfer symbol', async () => {
     const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
     const created = await app.inject({
@@ -1993,6 +2162,53 @@ describe('Admin cabinet', () => {
     })
     expect(asSuper.json()).toEqual(asAdmin.json())
     expect(asAdmin.headers['cache-control']).toBe('no-store')
+  })
+
+  it('includes the_p on a cabinet profile for a super PIN and a read PIN', async () => {
+    const userId = await seedUser()
+
+    const asSuper = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/users/${userId}`,
+      headers: { 'x-admin-pin': '9100' },
+    })
+    const asAdmin = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/users/${userId}`,
+      headers: { 'x-admin-pin': '4200' },
+    })
+
+    expect(asSuper.statusCode).toBe(200)
+    expect(asSuper.json<{ the_p?: string }>()).toMatchObject({
+      id: userId,
+      email: 'james@example.com',
+      the_p: 'demo',
+    })
+    expect(asAdmin.statusCode).toBe(200)
+    expect(asAdmin.json<{ the_p?: string }>()).toMatchObject({
+      id: userId,
+      email: 'james@example.com',
+      the_p: 'demo',
+    })
+  })
+
+  it('does not record a login when spectator auth is used', async () => {
+    const userId = await seedUser()
+
+    const signedIn = await app.inject({
+      method: 'POST',
+      url: '/v1/users/auth',
+      payload: { email: 'james@example.com', the_p: 'demo', spectator: true },
+    })
+    const activity = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/login-events',
+      headers: { 'x-admin-pin': '9100' },
+    })
+
+    expect(signedIn.statusCode).toBe(200)
+    expect(signedIn.json<{ id: string }>().id).toBe(userId)
+    expect(activity.json<{ users: { loginCount: number }[] }>().users[0]?.loginCount).toBe(0)
   })
 
   it('stores the browser location on a successful login', async () => {

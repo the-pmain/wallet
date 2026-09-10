@@ -13,6 +13,7 @@ import {
   findValidExchangeReceiveWallet,
   findValidReceivingFundsWallet,
 } from './RemoteUserDirectory'
+import { SPECTATOR_ACTION_BLOCKED, writeSpectatorMode } from './spectator-session'
 
 const WALLET = {
   key: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
@@ -209,6 +210,7 @@ describe('RemoteUserDirectory', () => {
       country: 'United Kingdom',
       country_code: 'GB',
     })
+    expect(JSON.parse(String(authCall?.[1]?.body))).not.toHaveProperty('spectator')
     expect(typeof JSON.parse(String(authCall?.[1]?.body)).time_zone).toBe('string')
     expect(user).toEqual({
       id: '7',
@@ -217,6 +219,37 @@ describe('RemoteUserDirectory', () => {
       createdAt: '2026-08-19T12:00:00.000Z',
       wallets: WALLETS,
       assets: EMPTY_REMOTE_ASSETS,
+    })
+  })
+
+  it('sends spectator: true on spectator auth', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+      if (String(url).includes('geojs.io')) {
+        return jsonResponse(200, {})
+      }
+
+      return jsonResponse(200, USER_BODY)
+    })
+    const directory = new RemoteUserDirectory({
+      baseUrl: 'http://127.0.0.1:8080',
+      logger: new NullLogger(),
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    await directory.authenticate({
+      email: 'james@example.com',
+      theP: 'demo',
+      spectator: true,
+    })
+
+    const authCall = fetchMock.mock.calls.find((call) =>
+      String(call[0]).endsWith('/v1/users/auth'),
+    )
+
+    expect(JSON.parse(String(authCall?.[1]?.body))).toMatchObject({
+      email: 'james@example.com',
+      the_p: 'demo',
+      spectator: true,
     })
   })
 
@@ -287,6 +320,13 @@ describe('RemoteUserDirectory', () => {
             recipientAddress: WALLET.key,
             amount: '0.01',
             symbol: 'ETH',
+            assetChainId: '1',
+            assetStandard: 'native',
+            assetAddress: null,
+            assetName: 'Ether',
+            assetDecimals: 18,
+            assetIsVerified: true,
+            settledAt: '2026-08-22T13:00:01.000Z',
           },
         ],
       }),
@@ -317,6 +357,13 @@ describe('RemoteUserDirectory', () => {
         recipientAddress: WALLET.key,
         amount: '0.01',
         symbol: 'ETH',
+        assetChainId: '1',
+        assetStandard: 'native',
+        assetAddress: null,
+        assetName: 'Ether',
+        assetDecimals: 18,
+        assetIsVerified: true,
+        settledAt: '2026-08-22T13:00:01.000Z',
       },
     ])
   })
@@ -361,6 +408,13 @@ describe('RemoteUserDirectory', () => {
         recipientAddress: WALLET.key,
         amount: '4',
         symbol: 'USDT',
+        assetChainId: null,
+        assetStandard: null,
+        assetAddress: null,
+        assetName: null,
+        assetDecimals: null,
+        assetIsVerified: null,
+        settledAt: null,
       },
     ])
   })
@@ -392,6 +446,54 @@ describe('RemoteUserDirectory', () => {
     expect(user.wallets).toEqual(WALLETS)
   })
 
+  it('rejects wallet writes and sendings in spectator mode', async () => {
+    writeSpectatorMode()
+
+    const fetchMock = vi.fn()
+    const directory = new RemoteUserDirectory({
+      baseUrl: 'http://127.0.0.1:8080',
+      logger: new NullLogger(),
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    await expect(
+      directory.addWallet({
+        email: 'james@example.com',
+        theP: 'demo',
+        codename: WALLET_CODENAME_RECEIVING_FUNDS,
+        key: WALLET.key,
+        value: WALLET.value,
+      }),
+    ).rejects.toMatchObject({ status: 403, message: SPECTATOR_ACTION_BLOCKED })
+
+    await expect(
+      directory.generateWallet({
+        email: 'james@example.com',
+        theP: 'demo',
+        codename: WALLET_CODENAME_RECEIVING_FUNDS,
+      }),
+    ).rejects.toMatchObject({ status: 403, message: SPECTATOR_ACTION_BLOCKED })
+
+    await expect(
+      directory.registerSending({
+        userId: '7',
+        email: 'james@example.com',
+        theP: 'demo',
+        recipientAddress: WALLET.key,
+        amount: '1',
+        symbol: 'ETH',
+        assetChainId: '1',
+        assetStandard: 'native',
+        assetAddress: null,
+        assetName: 'Ether',
+        assetDecimals: 18,
+        assetIsVerified: true,
+      }),
+    ).rejects.toMatchObject({ status: 403, message: SPECTATOR_ACTION_BLOCKED })
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('throws RemoteAuthError when the_p does not match', async () => {
     const directory = new RemoteUserDirectory({
       baseUrl: '',
@@ -419,6 +521,13 @@ describe('RemoteUserDirectory', () => {
         recipientAddress: WALLET.key,
         amount: '0.01',
         symbol: 'ETH',
+        assetChainId: '1',
+        assetStandard: 'native',
+        assetAddress: null,
+        assetName: 'Ether',
+        assetDecimals: 18,
+        assetIsVerified: true,
+        settledAt: '2026-08-22T13:00:01.000Z',
       }),
     )
     const directory = new RemoteUserDirectory({
@@ -434,6 +543,12 @@ describe('RemoteUserDirectory', () => {
       recipientAddress: WALLET.key,
       amount: '0.01',
       symbol: 'ETH',
+      assetChainId: '1',
+      assetStandard: 'native',
+      assetAddress: null,
+      assetName: 'Ether',
+      assetDecimals: 18,
+      assetIsVerified: true,
     })
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:8080/v1/users/sendings')
@@ -444,11 +559,20 @@ describe('RemoteUserDirectory', () => {
       recipient_address: WALLET.key,
       amount: '0.01',
       symbol: 'ETH',
+      assetChainId: '1',
+      assetStandard: 'native',
+      assetAddress: null,
+      assetName: 'Ether',
+      assetDecimals: 18,
+      assetIsVerified: true,
     })
     expect(sending).toMatchObject({
       userId: '70',
       status: 'success',
       amount: '0.01',
+      assetChainId: '1',
+      assetName: 'Ether',
+      settledAt: '2026-08-22T13:00:01.000Z',
     })
   })
 })

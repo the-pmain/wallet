@@ -1,4 +1,10 @@
 import type { SendingStatus } from '../sendings/status.ts'
+import type {
+  IOptionalTransferAssetFields,
+  ISettlementResult,
+  ITransferAssetFields,
+} from '../sendings/contracts.ts'
+import type { AssetStandard } from '../users/assets.ts'
 
 export const RECEIVINGS_STORE_KIND = {
   Memory: 'memory',
@@ -20,9 +26,16 @@ export interface IReceivingRecord {
   readonly symbol: string | null
   /** Admin USD draft that produced `amount`. Column `usd_amount`. */
   readonly usdAmount: string | null
+  readonly assetChainId: string | null
+  readonly assetStandard: AssetStandard | null
+  readonly assetAddress: string | null
+  readonly assetName: string | null
+  readonly assetDecimals: number | null
+  readonly assetIsVerified: boolean | null
+  readonly settledAt: Date | null
 }
 
-export interface ICreateReceivingInput {
+export interface ICreateReceivingInput extends IOptionalTransferAssetFields {
   readonly userId: string
   readonly status?: SendingStatus
   readonly failureMessage?: string | null
@@ -32,7 +45,7 @@ export interface ICreateReceivingInput {
   readonly usdAmount?: string | null
 }
 
-export interface IUpdateReceivingInput {
+export interface IUpdateReceivingInput extends IOptionalTransferAssetFields {
   readonly status: SendingStatus
   readonly failureMessage?: string | null
   readonly recipientAddress?: string | null
@@ -44,12 +57,20 @@ export interface IUpdateReceivingInput {
 export interface IReceivingsRepository {
   create(input: ICreateReceivingInput): Promise<IReceivingRecord>
   update(id: string, patch: IUpdateReceivingInput): Promise<IReceivingRecord | null>
+  remove(id: string): Promise<boolean>
   findById(id: string): Promise<IReceivingRecord | null>
   list(options?: { readonly limit?: number }): Promise<readonly IReceivingRecord[]>
   listByUserId(
     userId: string,
     options?: { readonly limit?: number },
   ): Promise<readonly IReceivingRecord[]>
+  createTransaction?(
+    input: ICreateReceivingInput & ITransferAssetFields,
+  ): Promise<ISettlementResult<IReceivingRecord>>
+  updateTransaction?(
+    id: string,
+    input: IUpdateReceivingInput & ITransferAssetFields,
+  ): Promise<ISettlementResult<IReceivingRecord> | null>
 }
 
 export interface IReceivingsStore {

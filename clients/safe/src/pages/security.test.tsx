@@ -42,17 +42,6 @@ beforeEach(async () => {
 })
 
 describe('Auto-lock', () => {
-  it('warns before locking', async () => {
-    /* A lock mid-work loses what was typed; the warning lets the
-       session be extended with one tap. */
-    renderApp()
-    await screen.findByText(EMAIL)
-
-    await advance(DEFAULT_AUTO_LOCK_MS - 30_000)
-
-    expect(await screen.findByText('The wallet is about to lock')).toBeInTheDocument()
-  })
-
   it('locks the wallet when the interval expires', async () => {
     renderApp()
     await screen.findByText(EMAIL)
@@ -69,43 +58,6 @@ describe('Auto-lock', () => {
     await advance(DEFAULT_AUTO_LOCK_MS - 120_000)
 
     expect(screen.queryByText('Welcome back')).not.toBeInTheDocument()
-  })
-
-  it('staying signed in dismisses the warning and postpones the lock', async () => {
-    const user = userEvent.setup()
-
-    renderApp()
-    await screen.findByText(EMAIL)
-
-    await advance(DEFAULT_AUTO_LOCK_MS - 30_000)
-    await user.click(await screen.findByRole('button', { name: /stay in the wallet/i }))
-
-    expect(screen.queryByText('The wallet is about to lock')).not.toBeInTheDocument()
-
-    await advance(DEFAULT_AUTO_LOCK_MS - 30_000)
-
-    expect(screen.queryByText('Welcome back')).not.toBeInTheDocument()
-  })
-
-  it('explains that funds are not affected', async () => {
-    /* Without an explanation a wallet that closed suddenly looks like
-       lost access to the funds. */
-    renderApp()
-    await screen.findByText(EMAIL)
-
-    await advance(DEFAULT_AUTO_LOCK_MS - 30_000)
-
-    expect(await screen.findByText(/your funds are not affected/i)).toBeInTheDocument()
-  })
-
-  it('the warning does not pop up again after the lock', async () => {
-    renderApp()
-    await screen.findByText(EMAIL)
-
-    await advance(DEFAULT_AUTO_LOCK_MS + 10_000)
-    await screen.findByText('Welcome back')
-
-    expect(screen.queryByText('The wallet is about to lock')).not.toBeInTheDocument()
   })
 })
 

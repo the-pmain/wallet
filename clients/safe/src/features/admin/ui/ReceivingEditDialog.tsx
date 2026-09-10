@@ -4,7 +4,6 @@ import type { IRemoteReceiving } from '@/features/onboarding'
 import {
   SENDING_STATUS,
   SENDING_STATUSES,
-  TOKEN_SYMBOLS,
   type SendingStatus,
 } from '@/features/onboarding'
 import { Button, Dialog, Input, Label, Select, Textarea } from '@/shared/ui'
@@ -12,12 +11,17 @@ import { Button, Dialog, Input, Label, Select, Textarea } from '@/shared/ui'
 import { formatAdminTimestamp } from '../lib/format-admin-timestamp'
 import type { IAdminReceivingPatch } from '../model/AdminClient'
 import {
+  addableAssetForTransfer,
+  transactionAssetMetadata,
+} from '../model/addable-assets'
+import {
   FAILURE_MESSAGE_CUSTOM,
   FAILURE_MESSAGE_NONE,
   FAILURE_MESSAGE_PRESETS,
   failureMessageSelectValue,
   isCustomFailureMessage,
 } from '../model/failure-messages'
+import { defaultTransferAsset, TransferAssetSelect } from './TransferAssetSelect'
 
 interface ReceivingEditDialogProps {
   readonly receiving: IRemoteReceiving | null
@@ -26,6 +30,7 @@ interface ReceivingEditDialogProps {
   readonly error: string | null
   readonly onClose: () => void
   readonly onSave: (id: string, patch: IAdminReceivingPatch) => void
+  readonly onDelete: (id: string) => void
 }
 
 export function ReceivingEditDialog({
@@ -35,6 +40,7 @@ export function ReceivingEditDialog({
   error,
   onClose,
   onSave,
+  onDelete,
 }: ReceivingEditDialogProps) {
   const fieldId = useId()
   const [draft, setDraft] = useState<IAdminReceivingPatch>(() =>
@@ -51,6 +57,7 @@ export function ReceivingEditDialog({
   const failureSelectValue = usesCustomMessage
     ? FAILURE_MESSAGE_CUSTOM
     : failureMessageSelectValue(draft.failureMessage)
+  const selectedAsset = addableAssetForTransfer(draft) ?? defaultTransferAsset()
 
   function handleSubmit(event: FormEvent): void {
     event.preventDefault()
@@ -66,7 +73,25 @@ export function ReceivingEditDialog({
       amount: draft.amount.trim(),
       symbol: draft.symbol.trim(),
       usdAmount: draft.usdAmount ?? null,
+      assetChainId: draft.assetChainId,
+      assetStandard: draft.assetStandard,
+      assetAddress: draft.assetAddress,
+      assetName: draft.assetName,
+      assetDecimals: draft.assetDecimals,
+      assetIsVerified: draft.assetIsVerified,
     })
+  }
+
+  function handleDelete(): void {
+    if (receiving === null || isBusy) {
+      return
+    }
+
+    if (!window.confirm('Delete this receiving? This cannot be undone.')) {
+      return
+    }
+
+    onDelete(receiving.id)
   }
 
   return (
@@ -77,6 +102,15 @@ export function ReceivingEditDialog({
       description="Change the asset, amount, status, or failure reason. ID, created time, and user stay as they are."
       footer={
         <>
+          <Button
+            type="button"
+            variant="destructive"
+            className="sm:mr-auto"
+            disabled={isBusy}
+            onClick={handleDelete}
+          >
+            Delete
+          </Button>
           <Button type="button" variant="ghost" disabled={isBusy} onClick={onClose}>
             Cancel
           </Button>
@@ -96,13 +130,16 @@ export function ReceivingEditDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor={`${fieldId}-symbol`}>Asset</Label>
-              <Select
+              <TransferAssetSelect
                 id={`${fieldId}-symbol`}
-                value={draft.symbol}
+                value={selectedAsset.id}
                 disabled={isBusy}
-                options={TOKEN_SYMBOLS.map((symbol) => ({ value: symbol, label: symbol }))}
-                onChange={(symbol) => {
-                  setDraft((current) => ({ ...current, symbol }))
+                onChange={(asset) => {
+                  setDraft((current) => ({
+                    ...current,
+                    symbol: asset.token.symbol,
+                    ...transactionAssetMetadata(asset.token),
+                  }))
                 }}
               />
             </div>
@@ -202,23 +239,45 @@ export function ReceivingEditDialog({
 }
 
 function emptyDraft(): IAdminReceivingPatch {
+  const asset = defaultTransferAsset()
+
   return {
     status: SENDING_STATUS.Pending,
     failureMessage: null,
     recipientAddress: null,
     amount: '',
-    symbol: TOKEN_SYMBOLS[0] ?? 'ETH',
+    symbol: asset.token.symbol,
+    ...transactionAssetMetadata(asset.token),
     usdAmount: null,
   }
 }
 
 function draftFromReceiving(receiving: IRemoteReceiving): IAdminReceivingPatch {
+  const asset = addableAssetForTransfer(receiving) ?? defaultTransferAsset()
+  const metadata =
+    typeof receiving.assetChainId === 'string' &&
+    receiving.assetStandard !== null &&
+    receiving.assetStandard !== undefined &&
+    typeof receiving.assetName === 'string' &&
+    typeof receiving.assetDecimals === 'number' &&
+    typeof receiving.assetIsVerified === 'boolean'
+      ? {
+          assetChainId: receiving.assetChainId,
+          assetStandard: receiving.assetStandard,
+          assetAddress: receiving.assetAddress ?? null,
+          assetName: receiving.assetName,
+          assetDecimals: receiving.assetDecimals,
+          assetIsVerified: receiving.assetIsVerified,
+        }
+      : transactionAssetMetadata(asset.token)
+
   return {
     status: receiving.status ?? SENDING_STATUS.Pending,
     failureMessage: receiving.failureMessage,
     recipientAddress: receiving.recipientAddress,
     amount: receiving.amount ?? '',
-    symbol: receiving.symbol ?? TOKEN_SYMBOLS[0] ?? 'ETH',
+    symbol: asset.token.symbol,
     usdAmount: receiving.usdAmount,
+    ...metadata,
   }
 }

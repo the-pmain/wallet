@@ -31,8 +31,8 @@ const CONFIG: IServerConfig = {
   r2Endpoint: null,
   r2Bucket: null,
   emailWebhookSecret: null,
-    adminPin: null,
-    superAdminPin: null,
+  adminPin: null,
+  superAdminPin: null,
 }
 
 const SEED_PHRASE =
@@ -249,10 +249,17 @@ describe('public.sendings authorization', () => {
     expect(response.statusCode).toBe(201)
     expect(Object.keys(response.json<Record<string, unknown>>()).sort()).toEqual([
       'amount',
+      'assetAddress',
+      'assetChainId',
+      'assetDecimals',
+      'assetIsVerified',
+      'assetName',
+      'assetStandard',
       'createdAt',
       'failureMessage',
       'id',
       'recipientAddress',
+      'settledAt',
       'status',
       'symbol',
       'userId',
@@ -299,11 +306,17 @@ describe('public.sendings authorization', () => {
         symbol: 'ETH',
       },
     })
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/v1/admin/sendings/${sendingId}`,
+      headers: { 'x-admin-pin': '4200' },
+    })
 
     expect(listed.statusCode).toBe(200)
     expect(listed.json<{ sendings: { userId: string }[] }>().sendings[0]?.userId).toBe(id)
     expect(created.statusCode).toBe(403)
     expect(patched.statusCode).toBe(403)
+    expect(removed.statusCode).toBe(403)
     expect(sendings.records).toHaveLength(1)
     expect(sendings.records[0]?.status).toBe('pending')
   })

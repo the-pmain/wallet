@@ -33,6 +33,8 @@ interface NftTransferCardProps {
 
   /** Вызывается после успешной отправки. */
   readonly onSent: (hash: TxHash) => void
+
+  readonly isLocked?: boolean
 }
 
 /**
@@ -47,7 +49,7 @@ interface NftTransferCardProps {
  * контракт коллекции. Экран называет оба адреса — иначе человек,
  * сверяющий их, решит, что кошелёк подменил получателя.
  */
-export function NftTransferCard({ item, onCancel, onSent }: NftTransferCardProps) {
+export function NftTransferCard({ item, onCancel, onSent, isLocked = false }: NftTransferCardProps) {
   const session = useWallet()
   const snapshot = useWalletSnapshot()
   const { settings, verifyPassword } = useSecurity()
@@ -68,7 +70,7 @@ export function NftTransferCard({ item, onCancel, onSent }: NftTransferCardProps
   const symbol = network?.nativeCurrency.symbol ?? ''
 
   async function prepare(): Promise<void> {
-    if (account === null || network === null) {
+    if (isLocked || account === null || network === null) {
       return
     }
 
@@ -118,7 +120,7 @@ export function NftTransferCard({ item, onCancel, onSent }: NftTransferCardProps
   }
 
   async function send(): Promise<void> {
-    if (prepared === null) {
+    if (isLocked || prepared === null) {
       return
     }
 
@@ -218,7 +220,7 @@ export function NftTransferCard({ item, onCancel, onSent }: NftTransferCardProps
             <Button
               className="sm:flex-1"
               variant="destructive"
-              disabled={isBusy}
+              disabled={isBusy || isLocked}
               onClick={() => {
                 if (settings.confirmBeforeSigning) {
                   setConfirming(true)
@@ -304,7 +306,7 @@ export function NftTransferCard({ item, onCancel, onSent }: NftTransferCardProps
         <div className="flex flex-col gap-2 sm:flex-row-reverse">
           <Button
             className="sm:flex-1"
-            disabled={isBusy || recipient.trim() === ''}
+            disabled={isBusy || isLocked || recipient.trim() === ''}
             onClick={() => void prepare()}
           >
             {isBusy ? 'Estimating the fee…' : 'Next'}

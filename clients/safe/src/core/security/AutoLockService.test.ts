@@ -5,14 +5,13 @@ import { FakeClock } from '@/test/doubles'
 import { AutoLockService } from './AutoLockService'
 
 const TIMEOUT_MS = 60_000
-const WARNING_MS = 10_000
 
 let clock: FakeClock
 let service: AutoLockService
 
 beforeEach(() => {
   clock = new FakeClock(1_700_000_000_000)
-  service = new AutoLockService({ clock }, { timeoutMs: TIMEOUT_MS, warningMs: WARNING_MS })
+  service = new AutoLockService({ clock }, { timeoutMs: TIMEOUT_MS })
 })
 
 describe('AutoLockService: countdown', () => {
@@ -122,66 +121,6 @@ describe('AutoLockService: timeout expiry', () => {
   })
 })
 
-describe('AutoLockService: warning', () => {
-  it('warns before lock', () => {
-    /* Locking mid-form loses what was typed. A warning lets the
-       session be extended in one motion. */
-    const warned = vi.fn()
-
-    service.on('autolock:warning', warned)
-    service.start()
-
-    clock.advance(TIMEOUT_MS - WARNING_MS + 1000)
-
-    expect(warned).toHaveBeenCalledTimes(1)
-  })
-
-  it('warns once, not on every tick', () => {
-    const warned = vi.fn()
-
-    service.on('autolock:warning', warned)
-    service.start()
-
-    clock.advance(TIMEOUT_MS - 2000)
-
-    expect(warned).toHaveBeenCalledTimes(1)
-  })
-
-  it('reports the remaining time', () => {
-    const warned = vi.fn()
-
-    service.on('autolock:warning', warned)
-    service.start()
-
-    clock.advance(TIMEOUT_MS - WARNING_MS + 1000)
-
-    expect(warned.mock.calls[0]?.[0]).toMatchObject({ remainingMs: expect.any(Number) })
-  })
-
-  it('activity clears the warning', () => {
-    /* Otherwise it would hang until a lock that will no longer happen. */
-    const resumed = vi.fn()
-
-    service.on('autolock:resumed', resumed)
-    service.start()
-
-    clock.advance(TIMEOUT_MS - WARNING_MS + 1000)
-    service.notifyActivity()
-
-    expect(resumed).toHaveBeenCalledTimes(1)
-  })
-
-  it('without a warning, activity does not report a resume', () => {
-    const resumed = vi.fn()
-
-    service.on('autolock:resumed', resumed)
-    service.start()
-    service.notifyActivity()
-
-    expect(resumed).not.toHaveBeenCalled()
-  })
-})
-
 describe('AutoLockService: changing the timeout', () => {
   it('a new timeout is applied from the start of the countdown', () => {
     /* Applying a new timeout to time already elapsed would lock the
@@ -198,19 +137,5 @@ describe('AutoLockService: changing the timeout', () => {
     service.setTimeout(30_000)
 
     expect(service.isRunning).toBe(false)
-  })
-
-  it('the warning is not longer than half of a short timeout', () => {
-    /* Otherwise it would show from the first second and stop meaning
-       "about to lock". */
-    const warned = vi.fn()
-
-    service.on('autolock:warning', warned)
-    service.setTimeout(20_000)
-    service.start()
-
-    clock.advance(5000)
-
-    expect(warned).not.toHaveBeenCalled()
   })
 })

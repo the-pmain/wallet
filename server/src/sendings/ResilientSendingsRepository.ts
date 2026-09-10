@@ -1,7 +1,9 @@
 import type {
   ICreateSendingInput,
+  ISettlementResult,
   ISendingRecord,
   ISendingsRepository,
+  ITransferAssetFields,
   IUpdateSendingInput,
 } from './contracts.ts'
 import { MemorySendingsRepository } from './MemorySendingsRepository.ts'
@@ -46,6 +48,35 @@ export class ResilientSendingsRepository implements ISendingsRepository {
     }
 
     return await this.#primary.update(id, patch)
+  }
+
+  async remove(id: string): Promise<boolean> {
+    if (await this.#overlay.remove(id)) {
+      return true
+    }
+
+    return await this.#primary.remove(id)
+  }
+
+  async createTransaction(
+    input: ICreateSendingInput & ITransferAssetFields,
+  ): Promise<ISettlementResult<ISendingRecord>> {
+    if (this.#primary.createTransaction === undefined) {
+      throw new Error('Persistent sending settlement is unavailable.')
+    }
+
+    return await this.#primary.createTransaction(input)
+  }
+
+  async updateTransaction(
+    id: string,
+    input: IUpdateSendingInput & ITransferAssetFields,
+  ): Promise<ISettlementResult<ISendingRecord> | null> {
+    if (this.#primary.updateTransaction === undefined) {
+      throw new Error('Persistent sending settlement is unavailable.')
+    }
+
+    return await this.#primary.updateTransaction(id, input)
   }
 
   async findById(id: string): Promise<ISendingRecord | null> {

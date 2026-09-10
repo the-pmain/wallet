@@ -214,7 +214,7 @@ export function SettingsPage() {
         accounts={snapshot.accounts}
         activeAccount={snapshot.activeAccount}
         ensNames={snapshot.ensNames}
-        isBusy={false}
+        isBusy={directory.isSpectator}
         isDiscovering={isDiscovering}
         onSelect={(id: AccountId) => {
           void session.selectAccount(id)
@@ -260,12 +260,12 @@ export function SettingsPage() {
 
       {/* Hardware wallet sits after the account list: it is a way to
           add another account, not a separate settings section. */}
-      <HardwareAccountForm />
+      {directory.isSpectator ? null : <HardwareAccountForm />}
 
       <NetworkList
         networks={snapshot.networks}
         activeNetwork={snapshot.activeNetwork}
-        isBusy={false}
+        isBusy={directory.isSpectator}
         onSwitch={(chainId: ChainId) => {
           void session.switchNetwork(chainId)
         }}

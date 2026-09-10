@@ -1,5 +1,5 @@
 import { AutoLockService, type IClock } from '@/core'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 
 /**
  * События браузера, считающиеся признаком присутствия пользователя.
@@ -9,18 +9,6 @@ import { useEffect, useMemo, useState } from 'react'
  * не наступит никогда на брошенном ноутбуке.
  */
 const ACTIVITY_EVENTS: readonly string[] = ['pointerdown', 'keydown', 'wheel', 'touchstart']
-
-/** Состояние автоблокировки для интерфейса. */
-export interface IAutoLockState {
-  /** Показывать предупреждение о скорой блокировке. */
-  readonly isWarning: boolean
-
-  /** Сколько осталось до блокировки. `null`, пока отсчёт не идёт. */
-  readonly remainingMs: number | null
-
-  /** Продлевает сессию: вызывается кнопкой «остаться». */
-  readonly extend: () => void
-}
 
 /** Параметры подключения автоблокировки. */
 export interface IUseAutoLockParams {
@@ -49,40 +37,17 @@ export interface IUseAutoLockParams {
  * всплытие, иначе отменил бы продление сессии, и кошелёк блокировался
  * бы посреди работы.
  */
-export function useAutoLock({
-  isUnlocked,
-  timeoutMs,
-  clock,
-  onExpire,
-}: IUseAutoLockParams): IAutoLockState {
+export function useAutoLock({ isUnlocked, timeoutMs, clock, onExpire }: IUseAutoLockParams): void {
   const service = useMemo(() => new AutoLockService({ clock }, { timeoutMs }), [clock, timeoutMs])
-
-  const [isWarning, setWarning] = useState(false)
-  const [remainingMs, setRemainingMs] = useState<number | null>(null)
 
   useEffect(() => {
     if (!isUnlocked) {
-      /* Состояние здесь не сбрасывается: синхронный `setState` в теле
-         эффекта вызывает каскадный рендер. Сброс выполняет очистка
-         предыдущего запуска — она отрабатывает раньше этой ветки. */
       service.stop()
 
       return
     }
 
-    const unsubscribeWarning = service.on('autolock:warning', ({ remainingMs: left }) => {
-      setWarning(true)
-      setRemainingMs(left)
-    })
-
-    const unsubscribeResumed = service.on('autolock:resumed', () => {
-      setWarning(false)
-      setRemainingMs(null)
-    })
-
     const unsubscribeExpired = service.on('autolock:expired', () => {
-      setWarning(false)
-      setRemainingMs(null)
       onExpire()
     })
 
@@ -101,24 +66,8 @@ export function useAutoLock({
         window.removeEventListener(event, handleActivity, { capture: true })
       }
 
-      unsubscribeWarning()
-      unsubscribeResumed()
       unsubscribeExpired()
       service.stop()
-
-      /* Предупреждение снимается вместе с отсчётом: иначе оно всплыло бы
-         сразу после следующей разблокировки, когда до блокировки ещё
-         целый срок. */
-      setWarning(false)
-      setRemainingMs(null)
     }
   }, [isUnlocked, service, onExpire])
-
-  return {
-    isWarning,
-    remainingMs,
-    extend: () => {
-      service.notifyActivity()
-    },
-  }
 }

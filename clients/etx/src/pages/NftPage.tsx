@@ -1,3 +1,4 @@
+import { useDirectorySession } from '@/features/onboarding'
 import { UntrustedText } from '@/features/security'
 import { ExternalLink, Images, RefreshCw, ShieldAlert } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -37,6 +38,7 @@ import {
 export function NftPage() {
   const session = useWallet()
   const snapshot = useWalletSnapshot()
+  const directory = useDirectorySession()
 
   const explorer = snapshot.activeNetwork?.blockExplorerUrls[0] ?? null
   const address = snapshot.activeAccount?.address ?? null
@@ -73,6 +75,7 @@ export function NftPage() {
 
         <NftTransferCard
           item={sending}
+          isLocked={directory.isSpectator}
           onCancel={() => {
             setSending(null)
           }}
@@ -194,6 +197,7 @@ export function NftPage() {
                   <NftRow
                     item={item}
                     explorer={explorer}
+                    canTransfer={!directory.isSpectator}
                     onSend={() => {
                       setSentHash(null)
                       setSending(item)
@@ -240,10 +244,12 @@ function NftRow({
   item,
   explorer,
   onSend,
+  canTransfer,
 }: {
   readonly item: INftItem
   readonly explorer: string | null
   readonly onSend: () => void
+  readonly canTransfer: boolean
 }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
@@ -278,7 +284,7 @@ function NftRow({
           <span className="text-base font-semibold tabular-nums">×{item.balance.toString()}</span>
         ) : null}
 
-        <Button variant="outline" size="sm" onClick={onSend}>
+        <Button variant="outline" size="sm" disabled={!canTransfer} onClick={onSend}>
           Transfer
         </Button>
 

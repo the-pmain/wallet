@@ -35,6 +35,58 @@ const FK_ERROR = {
 }
 
 describe('SupabaseRestSendingsRepository', () => {
+  it('calls and parses the atomic create RPC', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({
+            transaction: {
+              ...CREATED_ROW,
+              status: 'success',
+              asset_chain_id: '1',
+              asset_standard: 'native',
+              asset_address: null,
+              asset_name: 'Ether',
+              asset_decimals: 18,
+              asset_is_verified: true,
+              settled_at: '2026-09-10T12:00:00.000Z',
+            },
+            assets: { quoteCurrency: 'USD', updatedAt: '2026-09-10T12:00:00.000Z', tokens: [] },
+            assets_revision: 4,
+          }),
+        ),
+    })
+    const sendings = new SupabaseRestSendingsRepository({
+      supabaseUrl: 'https://example.supabase.co',
+      serviceRoleKey: 'service-role',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const result = await sendings.createTransaction({
+      userId: '72',
+      status: SENDING_STATUS.Success,
+      recipientAddress: CREATED_ROW.recipient_address,
+      amount: '0.01',
+      symbol: 'ETH',
+      assetChainId: '1',
+      assetStandard: 'native',
+      assetAddress: null,
+      assetName: 'Ether',
+      assetDecimals: 18,
+      assetIsVerified: true,
+    })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'https://example.supabase.co/rest/v1/rpc/create_sending_transaction',
+    )
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      p_input: { user_id: '72', asset_chain_id: '1', asset_decimals: 18 },
+    })
+    expect(result.transaction.settledAt?.toISOString()).toBe('2026-09-10T12:00:00.000Z')
+    expect(result.assetsRevision).toBe(4)
+  })
+
   it('writes user_id, status, recipient_address and amount', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

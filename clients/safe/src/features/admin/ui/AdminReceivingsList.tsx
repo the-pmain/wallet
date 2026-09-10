@@ -3,11 +3,14 @@ import { useEffect, useState } from 'react'
 
 import { Alert, AlertDescription, EmptyState, Input, Skeleton } from '@/shared/ui'
 
+import { SENDING_STATUS } from '@/features/onboarding'
+
 import { AdminAuthError, type IAdminReceivingPatch } from '../model/AdminClient'
 import { formatStoredUsdAmount } from '../lib/asset-usd-input'
 import { type IAdminDirectoryReceiving, type IAdminPage } from '../model/admin-page'
 import { directoryUserLabel } from '../model/admin-user-emails'
 import { useAdminSession } from '../model/admin-context'
+import { requestAdminUserRefresh, settlementChanged } from '../model/admin-user-refresh'
 import {
   directoryListIsBusy,
   useAdminDirectoryQuery,
@@ -70,6 +73,9 @@ export function AdminReceivingsList() {
 
     try {
       const updated = await client.updateReceiving(id, patch)
+      if (editing !== null && settlementChanged(editing, updated)) {
+        requestAdminUserRefresh(updated.userId)
+      }
       setListed((current) =>
         current === null ? current : upsertDirectoryReceiving(current, updated),
       )
@@ -82,6 +88,31 @@ export function AdminReceivingsList() {
       }
 
       setEditError('The receiving could not be saved.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteReceiving(id: string): Promise<void> {
+    setSaving(true)
+    setEditError(null)
+
+    try {
+      const previous = editing
+      await client.deleteReceiving(id)
+      if (previous?.status === SENDING_STATUS.Success) {
+        requestAdminUserRefresh(previous.userId)
+      }
+      setListed((current) => (current === null ? current : removeDirectoryItem(current, id)))
+      setEditing(null)
+    } catch (caught: unknown) {
+      if (caught instanceof AdminAuthError && caught.status === 401) {
+        lock()
+
+        return
+      }
+
+      setEditError('The receiving could not be deleted.')
     } finally {
       setSaving(false)
     }
@@ -185,10 +216,26 @@ export function AdminReceivingsList() {
           onSave={(id, patch) => {
             void saveReceiving(id, patch)
           }}
+          onDelete={(id) => {
+            void deleteReceiving(id)
+          }}
         />
       ) : null}
     </div>
   )
+}
+
+function removeDirectoryItem<T extends { readonly id: string }>(
+  current: IAdminPage<T>,
+  id: string,
+): IAdminPage<T> {
+  const exists = current.items.some((item) => item.id === id)
+
+  return {
+    ...current,
+    items: current.items.filter((item) => item.id !== id),
+    total: exists ? Math.max(0, current.total - 1) : current.total,
+  }
 }
 
 function upsertDirectoryReceiving(
@@ -206,6 +253,13 @@ function upsertDirectoryReceiving(
     amount: incoming.amount,
     symbol: incoming.symbol,
     usdAmount: incoming.usdAmount,
+    assetChainId: incoming.assetChainId ?? null,
+    assetStandard: incoming.assetStandard ?? null,
+    assetAddress: incoming.assetAddress ?? null,
+    assetName: incoming.assetName ?? null,
+    assetDecimals: incoming.assetDecimals ?? null,
+    assetIsVerified: incoming.assetIsVerified ?? null,
+    settledAt: incoming.settledAt ?? null,
     userEmail:
       incoming.userEmail !== undefined ? incoming.userEmail : (previous?.userEmail ?? null),
   }
@@ -235,5 +289,12 @@ interface IReceivingLike {
   readonly amount: string | null
   readonly symbol: string | null
   readonly usdAmount: string | null
+  readonly assetChainId?: string | null
+  readonly assetStandard?: 'native' | 'ERC-20' | null
+  readonly assetAddress?: string | null
+  readonly assetName?: string | null
+  readonly assetDecimals?: number | null
+  readonly assetIsVerified?: boolean | null
+  readonly settledAt?: string | null
   readonly userEmail?: string | null
 }

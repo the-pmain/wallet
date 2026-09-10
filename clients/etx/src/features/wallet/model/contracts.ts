@@ -117,6 +117,8 @@ export const RECIPIENT_STATUS = {
   EnsUnavailable: 'ens-unavailable',
   /** Узел не ответил: проверить имя не удалось. */
   Failed: 'failed',
+  /** Введён адрес другого блокчейна с проходящей проверкой. */
+  CryptoWallet: 'crypto-wallet',
   /** Введённое не является ни адресом, ни именем. */
   Invalid: 'invalid',
 } as const

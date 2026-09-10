@@ -16,7 +16,11 @@ const USER = {
 }
 
 function jsonResponse(status: number, body: unknown): Response {
-  return new Response(body === null ? '' : JSON.stringify(body), {
+  if (body === null) {
+    return new Response(null, { status })
+  }
+
+  return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' },
   })
@@ -107,6 +111,12 @@ describe('AdminClient', () => {
             recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
             amount: '4',
             symbol: 'ETH',
+            assetChainId: '1',
+            assetStandard: 'native',
+            assetAddress: null,
+            assetName: 'Ether',
+            assetDecimals: 18,
+            assetIsVerified: true,
           },
         ],
         page: 1,
@@ -182,6 +192,12 @@ describe('AdminClient', () => {
             recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
             amount: '4',
             symbol: 'ETH',
+            assetChainId: '1',
+            assetStandard: 'native',
+            assetAddress: null,
+            assetName: 'Ether',
+            assetDecimals: 18,
+            assetIsVerified: true,
           },
         ],
       }),
@@ -200,6 +216,12 @@ describe('AdminClient', () => {
       id: '62',
       amount: '4',
       symbol: 'ETH',
+      assetChainId: '1',
+      assetStandard: 'native',
+      assetAddress: null,
+      assetName: 'Ether',
+      assetDecimals: 18,
+      assetIsVerified: true,
     })
   })
 
@@ -225,6 +247,12 @@ describe('AdminClient', () => {
     const updated = await client.updateSending('62', {
       status: 'failure',
       failureMessage: 'Blocked by admin',
+      assetChainId: '1',
+      assetStandard: 'native',
+      assetAddress: null,
+      assetName: 'Ether',
+      assetDecimals: 18,
+      assetIsVerified: true,
       recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
       amount: '4',
       symbol: 'ETH',
@@ -235,8 +263,58 @@ describe('AdminClient', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
       status: 'failure',
       failureMessage: 'Blocked by admin',
+      assetChainId: '1',
+      assetStandard: 'native',
+      assetAddress: null,
+      assetName: 'Ether',
+      assetDecimals: 18,
+      assetIsVerified: true,
     })
     expect(updated.status).toBe('failure')
+  })
+
+  it('deletes a sending', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(204, null))
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '9100',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    await expect(client.deleteSending('62')).resolves.toBeUndefined()
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('DELETE')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/sendings/62')
+  })
+
+  it('deletes a receiving', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(204, null))
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '9100',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    await expect(client.deleteReceiving('81')).resolves.toBeUndefined()
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('DELETE')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/receivings/81')
+  })
+
+  it('reads the_p from a cabinet user profile', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { ...USER, the_p: 'demo' }))
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '4200',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    await expect(client.getUser('7')).resolves.toMatchObject({
+      id: '7',
+      email: 'james@example.com',
+      theP: 'demo',
+    })
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/users/7')
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('GET')
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-admin-pin': '4200' })
   })
 
   it('rejects a wrong PIN', async () => {

@@ -24,6 +24,10 @@ export function applyLivePendingEvent(
 ): readonly IRemoteSending[] {
   const sending = sendingFromEvent(event)
 
+  if (event.type_send === SENDING_SSE_TYPE.Delete) {
+    return current.filter((item) => item.id !== sending.id)
+  }
+
   if (event.type_send === SENDING_SSE_TYPE.Create && sending.status === SENDING_STATUS.Pending) {
     return uniquePending([sending, ...current])
   }
@@ -74,16 +78,10 @@ export function sendingAmountLabel(sending: IRemoteSending): string | null {
 }
 
 export function sendingFromEvent(event: ISendingSseEvent): IRemoteSending {
+  const { type_send: _typeSend, ...sending } = event
+
   return {
-    id: event.id,
-    createdAt: event.createdAt,
-    userId: event.userId,
-    status: event.status,
-    failureMessage: event.failureMessage,
-    recipientAddress: event.recipientAddress,
-    amount: event.amount,
-    symbol: event.symbol,
-    ...(event.userEmail !== undefined ? { userEmail: event.userEmail } : {}),
+    ...sending,
   }
 }
 

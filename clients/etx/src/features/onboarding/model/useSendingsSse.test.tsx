@@ -83,7 +83,7 @@ describe('useSendingsSse', () => {
     TestEventSource.instances[0]?.emit('sendings', JSON.stringify(frame))
 
     expect(onEvent).toHaveBeenCalledOnce()
-    expect(onEvent).toHaveBeenCalledWith(frame)
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining(frame))
   })
 
   it('передаёт кадр sendings с type_send update', () => {
@@ -105,6 +105,28 @@ describe('useSendingsSse', () => {
     TestEventSource.instances[0]?.emit('sendings', JSON.stringify(frame))
 
     expect(onEvent).toHaveBeenCalledOnce()
-    expect(onEvent).toHaveBeenCalledWith(frame)
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining(frame))
+  })
+
+  it('передаёт кадр sendings с type_send delete', () => {
+    const onEvent = vi.fn()
+    render(<Probe userId="74" onEvent={onEvent} />)
+
+    const frame = {
+      id: '61',
+      createdAt: '2026-08-22T14:44:10.949Z',
+      userId: '74',
+      status: 'pending',
+      failureMessage: null,
+      recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+      amount: '2',
+      symbol: 'ETH',
+      type_send: SENDING_SSE_TYPE.Delete,
+    }
+
+    TestEventSource.instances[0]?.emit('sendings', JSON.stringify(frame))
+
+    expect(onEvent).toHaveBeenCalledOnce()
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining(frame))
   })
 })

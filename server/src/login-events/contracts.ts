@@ -2,7 +2,8 @@
  * Successful app logins in `public.login_events`.
  *
  * One row per accepted `POST /v1/users/auth`. Page restore
- * (`GET /v1/users/:id`) and wallet unlock are not logins.
+ * (`GET /v1/users/:id`), wallet unlock, and super-admin spectator
+ * entry are not logins.
  * `user_id` is a text copy of `public.users.id`.
  * Location is optional: timezone from the browser, city/country
  * from IP geolocation in the browser at sign-in.

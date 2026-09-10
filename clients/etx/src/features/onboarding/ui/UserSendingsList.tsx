@@ -1,13 +1,23 @@
 import { Send } from 'lucide-react'
+import { useMemo } from 'react'
 
-import { addableAssetBySymbol } from '@/features/admin/model/addable-assets'
+import { type PriceMap } from '@/core'
+import {
+  formatStoredUsdAmount,
+  quotePriceUsd,
+  usdAmountFromCryptoInput,
+} from '@/features/admin/lib/asset-usd-input'
+import { addableAssetForTransfer } from '@/features/admin/model/addable-assets'
 import { SendingStatusBadge } from '@/features/admin/ui/SendingStatusBadge'
 import { shortenAddress } from '@/features/wallet'
 import { AmountWithUnit } from '@/features/wallet/ui/AmountWithUnit'
 import { TokenAvatar } from '@/features/wallet/ui/TokenAvatar'
 import { Alert, AlertDescription, EmptyState, Skeleton } from '@/shared/ui'
 
-import type { IRemoteSending } from '../model/RemoteUserDirectory'
+import type { IRemoteAssetToken, IRemoteSending } from '../model/RemoteUserDirectory'
+import { SENDING_STATUS } from '../model/sending-status'
+import { useRemoteAssetQuotes } from '../model/use-remote-asset-quotes'
+import { TransferAssetMark } from './TransferDirectionMark'
 
 /**
  * Directory transfer list. View only: rows are not clickable.
@@ -27,6 +37,9 @@ export function UserSendingsList({
   readonly error: string | null
   readonly compact?: boolean
 }) {
+  const tokens = useMemo(() => sendingQuoteTokens(sendings), [sendings])
+  const { quotes } = useRemoteAssetQuotes(tokens)
+
   if (error !== null) {
     return (
       <Alert variant="danger">
@@ -57,28 +70,37 @@ export function UserSendingsList({
   return (
     <ul className="divide-y divide-border">
       {sendings.map((sending) => (
-        <SendingViewRow key={sending.id} sending={sending} />
+        <SendingViewRow key={sending.id} sending={sending} quotes={quotes} />
       ))}
     </ul>
   )
 }
 
-function SendingViewRow({ sending }: { readonly sending: IRemoteSending }) {
-  const asset = addableAssetBySymbol(sending.symbol)
+function SendingViewRow({
+  sending,
+  quotes,
+}: {
+  readonly sending: IRemoteSending
+  readonly quotes: PriceMap
+}) {
+  const asset = addableAssetForTransfer(sending)
   const symbol = sending.symbol ?? asset?.token.symbol ?? '—'
   const name = asset?.token.name ?? sending.symbol ?? 'Unknown asset'
   const recipient = sending.recipientAddress
   const recipientLabel = recipient === null || recipient === '' ? '—' : shortenAddress(recipient)
   const failureMessage = sending.failureMessage?.trim() ?? ''
+  const usdLabel = sendingUsdLabel(sending.amount, asset?.token ?? null, quotes)
 
   return (
     <li className="flex items-start gap-3 px-4 py-3 sm:px-6">
-      <TokenAvatar
-        address={asset?.token.address ?? null}
-        symbol={symbol}
-        chainId={asset?.chainId ?? null}
-        className="size-9"
-      />
+      <TransferAssetMark direction="out">
+        <TokenAvatar
+          address={asset?.token.address ?? null}
+          symbol={symbol}
+          chainId={asset?.chainId ?? null}
+          className="size-9"
+        />
+      </TransferAssetMark>
 
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5 truncate text-sm">
@@ -92,9 +114,9 @@ function SendingViewRow({ sending }: { readonly sending: IRemoteSending }) {
           </span>
           <SendingTimestamp value={sending.createdAt} />
         </span>
-        {failureMessage === '' ? null : (
+        {sending.status === SENDING_STATUS.Failure && failureMessage !== '' ? (
           <span className="text-xs break-words text-destructive">{failureMessage}</span>
-        )}
+        ) : null}
       </span>
 
       <span className="flex shrink-0 flex-col items-end gap-0.5">
@@ -103,6 +125,9 @@ function SendingViewRow({ sending }: { readonly sending: IRemoteSending }) {
           unit={symbol === '—' ? '' : symbol}
           className="text-sm font-semibold"
         />
+        {usdLabel === null ? null : (
+          <span className="text-xs text-muted-foreground tabular-nums">{usdLabel}</span>
+        )}
         <SendingStatusBadge status={sending.status} />
       </span>
     </li>
@@ -132,6 +157,42 @@ function SendingListSkeleton({ compact = false }: { readonly compact?: boolean }
       ))}
     </div>
   )
+}
+
+function sendingQuoteTokens(sendings: readonly IRemoteSending[]): readonly IRemoteAssetToken[] {
+  const tokens: IRemoteAssetToken[] = []
+  const seen = new Set<string>()
+
+  for (const sending of sendings) {
+    const token = addableAssetForTransfer(sending)?.token
+
+    if (token === undefined) {
+      continue
+    }
+
+    const key = `${token.chainId}:${token.address ?? 'native'}`
+
+    if (seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    tokens.push(token)
+  }
+
+  return tokens
+}
+
+function sendingUsdLabel(
+  amount: string | null,
+  token: IRemoteAssetToken | null,
+  quotes: PriceMap,
+): string | null {
+  if (token === null) {
+    return null
+  }
+
+  return formatStoredUsdAmount(usdAmountFromCryptoInput(amount ?? '', quotePriceUsd(token, quotes)))
 }
 
 function SendingTimestamp({ value }: { readonly value: string }) {

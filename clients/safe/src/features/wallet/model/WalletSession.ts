@@ -34,6 +34,7 @@ import {
   beautifyEnsName,
   buildPortfolio,
   isContractAddress,
+  identifyCryptoWallet,
   isValidAddress,
   looksLikeEnsName,
   normalizeEnsName,
@@ -681,6 +682,10 @@ export class WalletSession implements IWalletSession {
         name: named?.displayName ?? null,
         isAscii: named?.isAscii ?? true,
       }
+    }
+
+    if (identifyCryptoWallet(value) !== null) {
+      return { status: RECIPIENT_STATUS.CryptoWallet, address: null, name: null, isAscii: true }
     }
 
     if (!looksLikeEnsName(value)) {

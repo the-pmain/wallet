@@ -12,32 +12,15 @@ import type { Unsubscribe } from '@/core/types'
  */
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000
 
-/**
- * How far before lock a warning is shown.
- *
- * Locking mid-send-form loses what was typed. A warning lets the
- * session be extended in one motion — and explains why the wallet
- * suddenly closed if the person looked away.
- */
-const DEFAULT_WARNING_MS = 60 * 1000
-
 const TICK_INTERVAL_MS = 5 * 1000
 
 export interface AutoLockEventMap {
-  /** Less than the warning threshold remains until lock. */
-  'autolock:warning': { readonly remainingMs: number }
-
-  /** Warning cleared: the user was active. */
-  'autolock:resumed': Record<string, never>
-
   /** The timeout expired; the wallet should lock. */
   'autolock:expired': Record<string, never>
 }
 
 export interface IAutoLockOptions {
   readonly timeoutMs?: number
-
-  readonly warningMs?: number
 }
 
 export interface IAutoLockDependencies {
@@ -65,24 +48,20 @@ export interface IAutoLockDependencies {
  *
  * THERE ARE NO EXCEPTIONS FOR "IMPORTANT SCREENS". A carve-out
  * "do not lock while the send form is open" would make the
- * protection optional: leave that form open. Instead of an
- * exception — a warning in advance.
+ * protection optional: leave that form open.
  */
 export class AutoLockService {
   readonly #clock: IClock
   readonly #events = new EventBus<AutoLockEventMap>()
 
   #timeoutMs: number
-  #warningMs: number
 
   #lastActivityAt = 0
   #stopTicking: Unsubscribe | null = null
-  #isWarned = false
 
   constructor(dependencies: IAutoLockDependencies, options: IAutoLockOptions = {}) {
     this.#clock = dependencies.clock
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-    this.#warningMs = options.warningMs ?? DEFAULT_WARNING_MS
   }
 
   get isRunning(): boolean {
@@ -112,7 +91,6 @@ export class AutoLockService {
     this.stop()
 
     this.#lastActivityAt = this.#clock.now()
-    this.#isWarned = false
 
     this.#stopTicking = this.#clock.setInterval(() => {
       this.#tick()
@@ -123,15 +101,12 @@ export class AutoLockService {
   stop(): void {
     this.#stopTicking?.()
     this.#stopTicking = null
-    this.#isWarned = false
   }
 
   /**
    * Records user activity.
    *
-   * Called by the app layer on input events. If a warning is already
-   * showing, it is cleared — otherwise it would hang until a lock
-   * that will no longer happen.
+   * Called by the app layer on input events.
    */
   notifyActivity(): void {
     if (this.#stopTicking === null) {
@@ -139,11 +114,6 @@ export class AutoLockService {
     }
 
     this.#lastActivityAt = this.#clock.now()
-
-    if (this.#isWarned) {
-      this.#isWarned = false
-      this.#events.emit('autolock:resumed', {})
-    }
   }
 
   /**
@@ -155,11 +125,6 @@ export class AutoLockService {
    */
   setTimeout(timeoutMs: number): void {
     this.#timeoutMs = timeoutMs
-
-    /* The warning cannot be longer than the timeout itself: otherwise
-       it would show from the first second and stop meaning
-       "about to lock". */
-    this.#warningMs = Math.min(DEFAULT_WARNING_MS, Math.floor(timeoutMs / 2))
 
     if (this.#stopTicking !== null) {
       this.start()
@@ -187,13 +152,6 @@ export class AutoLockService {
          services. */
       this.stop()
       this.#events.emit('autolock:expired', {})
-
-      return
-    }
-
-    if (remaining <= this.#warningMs && !this.#isWarned) {
-      this.#isWarned = true
-      this.#events.emit('autolock:warning', { remainingMs: remaining })
     }
   }
 }

@@ -131,10 +131,10 @@ describe('loadConfig', () => {
     expect(config.emailWebhookSecret).toBeNull()
   })
 
-  it('reads Supabase keys for users and does not substitute service-role with the publishable key', () => {
+  it('reads local Supabase keys and does not substitute service-role with the publishable key', () => {
     isolateEnv({
       NODE_ENV: 'development',
-      SUPABASE_URL: 'https://example.supabase.co',
+      SUPABASE_URL: 'http://127.0.0.1:54321',
       SUPABASE_ANON_KEY: 'anon-key',
       SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
       SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
@@ -142,10 +142,46 @@ describe('loadConfig', () => {
 
     const config = loadConfig()
 
-    expect(config.supabaseUrl).toBe('https://example.supabase.co')
+    expect(config.supabaseUrl).toBe('http://127.0.0.1:54321')
     expect(config.supabaseAnonKey).toBe('anon-key')
     expect(config.supabasePublishableKey).toBe('publishable-key')
     expect(config.supabaseServiceRoleKey).toBe('service-role-key')
+  })
+
+  it('in development refuses a hosted Supabase URL without echoing it', () => {
+    isolateEnv({
+      NODE_ENV: 'development',
+      SUPABASE_URL: 'https://example.supabase.co',
+    })
+
+    expect(() => loadConfig()).toThrow(/local Supabase instance/u)
+    expect(() => loadConfig()).toThrow(/127\.0\.0\.1 or localhost/u)
+
+    try {
+      loadConfig()
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).message).not.toMatch(/example\.supabase\.co/u)
+    }
+  })
+
+  it('in production still reads a hosted Supabase URL', () => {
+    isolateEnv({
+      NODE_ENV: 'production',
+      ALLOWED_ORIGINS: 'https://wallet.example',
+      SUPABASE_URL: 'https://example.supabase.co',
+    })
+
+    expect(loadConfig().supabaseUrl).toBe('https://example.supabase.co')
+  })
+
+  it('in test still reads a hosted Supabase URL for mocked clients', () => {
+    isolateEnv({
+      NODE_ENV: 'test',
+      SUPABASE_URL: 'https://example.supabase.co',
+    })
+
+    expect(loadConfig().supabaseUrl).toBe('https://example.supabase.co')
   })
 
   it('reads the inbound webhook secret', () => {

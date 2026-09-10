@@ -10,7 +10,7 @@ import {
   withSecretSync,
   type IExportRiskAssessment,
 } from '@/core'
-import { useOnboarding } from '@/features/onboarding'
+import { SPECTATOR_ACTION_BLOCKED, useDirectorySession, useOnboarding } from '@/features/onboarding'
 import {
   ConfirmPassword,
   DangerConfirm,
@@ -68,6 +68,7 @@ export function BackupPage() {
   const session = useWallet()
   const snapshot = useWalletSnapshot()
   const onboarding = useOnboarding()
+  const directory = useDirectorySession()
   const { storageDurability } = useSecurity()
 
   const [target, setTarget] = useState<Target | null>(null)
@@ -98,6 +99,11 @@ export function BackupPage() {
   }
 
   const start = async (requested: Target) => {
+    if (directory.isSpectator) {
+      setError(SPECTATOR_ACTION_BLOCKED)
+      return
+    }
+
     setError(null)
 
     try {
@@ -185,6 +191,12 @@ export function BackupPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Backup</h1>
       </header>
 
+      {directory.isSpectator ? (
+        <Alert>
+          <AlertDescription>{SPECTATOR_ACTION_BLOCKED}</AlertDescription>
+        </Alert>
+      ) : null}
+
       <Alert>
         <ShieldAlert />
         <AlertTitle>A backup is a way to restore the wallet, not to store it</AlertTitle>
@@ -234,7 +246,7 @@ export function BackupPage() {
             <Button
               variant="outline"
               className="w-full"
-              disabled={isBusy}
+              disabled={isBusy || directory.isSpectator}
               onClick={() => {
                 void start(TARGET.Mnemonic)
               }}
@@ -283,7 +295,7 @@ export function BackupPage() {
             <Button
               variant="outline"
               className="w-full"
-              disabled={isBusy || activeAccount === null}
+              disabled={isBusy || directory.isSpectator || activeAccount === null}
               onClick={() => {
                 void start(TARGET.PrivateKey)
               }}

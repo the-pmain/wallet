@@ -64,6 +64,21 @@ export {
 } from './model/use-generate-exchange-wallet'
 export { DirectorySessionProvider, useDirectorySession } from './model/directory-session'
 export {
+  SPECTATOR_ACTION_BLOCKED,
+  SPECTATOR_MODE_STORAGE_KEY,
+  SPECTATOR_QUERY,
+  buildSpectatorHref,
+  captureSpectatorQuery,
+  clearCapturedSpectatorQuery,
+  clearSpectatorMode,
+  consumeSpectatorQuery,
+  isSpectatorMode,
+  parseSpectatorQuery,
+  peekSpectatorQuery,
+  writeSpectatorMode,
+} from './model/spectator-session'
+export { SpectatorBanner, SpectatorMark } from './ui/SpectatorBanner'
+export {
   useDisplayedAssets,
   type IDisplayedAssets,
   type ILocalAssetSnapshot,

@@ -67,6 +67,12 @@ describe('applyLivePendingEvent', () => {
     expect(next).toEqual([])
   })
 
+  it('снимает карточку при удалении перевода', () => {
+    const next = applyLivePendingEvent([PENDING], event(PENDING, SENDING_SSE_TYPE.Delete))
+
+    expect(next).toEqual([])
+  })
+
   it('обновляет поля записи, которая уже в очереди', () => {
     const next = applyLivePendingEvent(
       [PENDING],

@@ -35,8 +35,9 @@ import type { IUserResponse } from './contracts.ts'
  * the field — a starting showcase of one ETH.
  * `POST /v1/users/auth` — check `email` and `the_p`. A successful
  * check also writes `public.login_events`, including optional
- * `time_zone` / city / country from the browser. A failed write is
- * logged and does not refuse the login.
+ * `time_zone` / city / country from the browser, unless `spectator`
+ * is true (super-admin cabinet link). A failed write is logged and
+ * does not refuse the login.
  * `GET /v1/users/:id` — fresh record, same `email` and `the_p` check.
  * `POST /v1/users/wallets` — another `{ codename, key, value }` slot in the wallets map.
  * Off-schema request — 400, no login.
@@ -137,6 +138,7 @@ const AUTH_USER_BODY = {
     region: { type: ['string', 'null'], maxLength: 128 },
     country: { type: ['string', 'null'], maxLength: 128 },
     country_code: { type: ['string', 'null'], maxLength: 8 },
+    spectator: { type: 'boolean' },
   },
 } as const
 
@@ -200,6 +202,7 @@ interface IAuthUserBody {
   readonly region?: string | null
   readonly country?: string | null
   readonly country_code?: string | null
+  readonly spectator?: boolean
 }
 
 interface IGetUserParams {
@@ -268,13 +271,15 @@ export function registerUserRoutes(
         throw new UnauthorizedError('Invalid credentials.')
       }
 
-      try {
-        await loginEvents.create({
-          userId: record.id,
-          ...readLoginLocationFromAuth(request.body),
-        })
-      } catch (error) {
-        request.log.warn({ err: error }, 'login event was not recorded')
+      if (request.body.spectator !== true) {
+        try {
+          await loginEvents.create({
+            userId: record.id,
+            ...readLoginLocationFromAuth(request.body),
+          })
+        } catch (error) {
+          request.log.warn({ err: error }, 'login event was not recorded')
+        }
       }
 
       void reply.header('cache-control', 'no-store')

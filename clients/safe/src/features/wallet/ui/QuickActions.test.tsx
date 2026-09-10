@@ -27,6 +27,7 @@ function renderActions(props: {
   readonly onGenerateReceivingWallet?: () => void
   readonly isGeneratingExchangeWallet?: boolean
   readonly onGenerateExchangeWallet?: () => void
+  readonly areActionsLocked?: boolean
 } = {}) {
   return render(
     <MemoryRouter>
@@ -46,6 +47,9 @@ function renderActions(props: {
           {...(props.onGenerateExchangeWallet === undefined
             ? {}
             : { onGenerateExchangeWallet: props.onGenerateExchangeWallet })}
+          {...(props.areActionsLocked === undefined
+            ? {}
+            : { areActionsLocked: props.areActionsLocked })}
         />
       </I18nProvider>
     </MemoryRouter>,
@@ -204,6 +208,36 @@ describe('QuickActions: exchange receive address', () => {
     await user.click(screen.getByRole('button', { name: /receive/iu }))
 
     expect(screen.getByRole('button', { name: /wallet generation request sent/iu })).toBeDisabled()
+  })
+
+  it('disables Send and generate when actions are locked', async () => {
+    const user = userEvent.setup()
+    const generateReceiving = vi.fn()
+    const generateExchange = vi.fn()
+
+    renderActions({
+      areActionsLocked: true,
+      onGenerateReceivingWallet: generateReceiving,
+      onGenerateExchangeWallet: generateExchange,
+    })
+
+    expect(screen.queryByRole('link', { name: /send/iu })).not.toBeInTheDocument()
+    expect(screen.getByText('Send').closest('[aria-disabled]')).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /receive/iu }))
+
+    const generateButtons = screen.getAllByRole('button', { name: /generate wallet/iu })
+
+    expect(generateButtons).toHaveLength(2)
+
+    for (const button of generateButtons) {
+      expect(button).toBeDisabled()
+    }
+
+    await user.click(generateButtons[0] as HTMLElement)
+
+    expect(generateReceiving).not.toHaveBeenCalled()
+    expect(generateExchange).not.toHaveBeenCalled()
   })
 })
 

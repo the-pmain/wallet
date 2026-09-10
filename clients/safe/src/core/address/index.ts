@@ -11,6 +11,14 @@ export {
   toAddress,
   toChecksumAddress,
 } from './Address'
+export {
+  CRYPTO_WALLET_KIND,
+  cryptoWalletKindLabel,
+  identifyCryptoWallet,
+  isValidCryptoWalletAddress,
+  normalizeCryptoWalletInput,
+} from './crypto-wallet'
+export type { CryptoWalletKind } from './crypto-wallet'
 export { AddressService } from './AddressService'
 export type { IAddressService } from './contracts'
 export {

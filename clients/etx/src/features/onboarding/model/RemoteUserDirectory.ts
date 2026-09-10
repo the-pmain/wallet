@@ -2,6 +2,7 @@ import type { ILogger } from '@/core'
 
 import { readLoginLocation, toAuthLocationBody } from '../lib/login-location'
 import { readIdField } from './login-credentials'
+import { SPECTATOR_ACTION_BLOCKED, isSpectatorMode } from './spectator-session'
 
 export interface IWalletSlot {
   readonly key: string
@@ -31,6 +32,15 @@ export interface IRemoteAssetToken {
   readonly decimals: number
   readonly balance: string
   readonly isVerified: boolean
+}
+
+export interface ITransactionAssetMetadata {
+  readonly assetChainId: string
+  readonly assetStandard: 'native' | 'ERC-20'
+  readonly assetAddress: string | null
+  readonly assetName: string
+  readonly assetDecimals: number
+  readonly assetIsVerified: boolean
 }
 
 /** Portfolio showcase from the server. USD valuation is computed on the client. */
@@ -101,7 +111,7 @@ export interface IUserDirectory {
     readonly recipientAddress: string
     readonly amount: string
     readonly symbol: string
-  }): Promise<IRemoteSending>
+  } & ITransactionAssetMetadata): Promise<IRemoteSending>
 
   listSendings(input: {
     readonly id: string
@@ -116,7 +126,7 @@ export interface IUserDirectory {
   }): Promise<readonly IRemoteReceiving[]>
 }
 
-/** Public record fields. `the_p` and `seed_phrase` are not included. */
+/** Public record fields. `the_p` is present on a cabinet profile. */
 export interface IRemoteUser {
   readonly id: string
   readonly email: string | null
@@ -124,6 +134,7 @@ export interface IRemoteUser {
   readonly createdAt: string
   readonly wallets: IUserWalletsMap
   readonly assets: IRemoteAssets
+  readonly theP?: string
 }
 
 export type RemoteSendingStatus = 'pending' | 'success' | 'failure'
@@ -137,6 +148,13 @@ export interface IRemoteSending {
   readonly recipientAddress: string | null
   readonly amount: string | null
   readonly symbol: string | null
+  readonly assetChainId?: string | null
+  readonly assetStandard?: 'native' | 'ERC-20' | null
+  readonly assetAddress?: string | null
+  readonly assetName?: string | null
+  readonly assetDecimals?: number | null
+  readonly assetIsVerified?: boolean | null
+  readonly settledAt?: string | null
   readonly userEmail?: string | null
 }
 
@@ -152,6 +170,12 @@ export class RemoteAuthError extends Error {
     super(message)
     this.name = 'RemoteAuthError'
     this.status = status
+  }
+}
+
+function rejectSpectatorMutation(): void {
+  if (isSpectatorMode()) {
+    throw new RemoteAuthError(403, SPECTATOR_ACTION_BLOCKED)
   }
 }
 
@@ -233,6 +257,7 @@ export class RemoteUserDirectory implements IUserDirectory {
   async authenticate(input: {
     readonly email: string
     readonly theP: string
+    readonly spectator?: boolean
   }): Promise<IRemoteUser> {
     let response: Response
 
@@ -244,6 +269,7 @@ export class RemoteUserDirectory implements IUserDirectory {
         body: JSON.stringify({
           email: input.email,
           the_p: input.theP,
+          ...(input.spectator === true ? { spectator: true } : {}),
           ...toAuthLocationBody(location),
         }),
       })
@@ -325,6 +351,8 @@ export class RemoteUserDirectory implements IUserDirectory {
     readonly key: string
     readonly value: string
   }): Promise<IRemoteUser> {
+    rejectSpectatorMutation()
+
     let response: Response
 
     try {
@@ -374,6 +402,8 @@ export class RemoteUserDirectory implements IUserDirectory {
     readonly theP: string
     readonly codename: string
   }): Promise<IRemoteUser> {
+    rejectSpectatorMutation()
+
     let response: Response
 
     try {
@@ -420,7 +450,9 @@ export class RemoteUserDirectory implements IUserDirectory {
     readonly recipientAddress: string
     readonly amount: string
     readonly symbol: string
-  }): Promise<IRemoteSending> {
+  } & ITransactionAssetMetadata): Promise<IRemoteSending> {
+    rejectSpectatorMutation()
+
     let response: Response
 
     try {
@@ -434,6 +466,12 @@ export class RemoteUserDirectory implements IUserDirectory {
           recipient_address: input.recipientAddress,
           amount: input.amount,
           symbol: input.symbol,
+          assetChainId: input.assetChainId,
+          assetStandard: input.assetStandard,
+          assetAddress: input.assetAddress,
+          assetName: input.assetName,
+          assetDecimals: input.assetDecimals,
+          assetIsVerified: input.assetIsVerified,
         }),
       })
     } catch {
@@ -641,6 +679,8 @@ function parseRemoteUser(payload: unknown): IRemoteUser | null {
     return null
   }
 
+  const theP = readOptionalTheP(record['the_p'])
+
   return {
     id,
     email,
@@ -648,7 +688,12 @@ function parseRemoteUser(payload: unknown): IRemoteUser | null {
     createdAt,
     wallets,
     assets,
+    ...(theP === undefined ? {} : { theP }),
   }
+}
+
+function readOptionalTheP(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined
 }
 
 function parseWallets(value: unknown): IUserWalletsMap {
@@ -911,6 +956,13 @@ export function parseRemoteSending(payload: unknown): IRemoteSending | null {
   const recipientAddress = readOptionalScalarString(record['recipientAddress'])
   const amount = readOptionalScalarString(record['amount'])
   const symbol = readOptionalScalarString(record['symbol'])
+  const assetChainId = readOptionalScalarString(record['assetChainId'])
+  const assetStandard = readOptionalAssetStandard(record['assetStandard'])
+  const assetAddress = readOptionalScalarString(record['assetAddress'])
+  const assetName = readOptionalScalarString(record['assetName'])
+  const assetDecimals = readOptionalNumber(record['assetDecimals'])
+  const assetIsVerified = readOptionalBoolean(record['assetIsVerified'])
+  const settledAt = readOptionalScalarString(record['settledAt'])
   const userEmail = record['userEmail']
 
   if (id === null || id === '') {
@@ -941,6 +993,13 @@ export function parseRemoteSending(payload: unknown): IRemoteSending | null {
     recipientAddress,
     amount,
     symbol,
+    assetChainId,
+    assetStandard,
+    assetAddress,
+    assetName,
+    assetDecimals,
+    assetIsVerified,
+    settledAt,
     ...(userEmail === null || typeof userEmail === 'string'
       ? { userEmail: userEmail === '' ? null : userEmail }
       : {}),
@@ -1004,4 +1063,16 @@ function readOptionalScalarString(value: unknown): string | null {
   }
 
   return readScalarString(value)
+}
+
+function readOptionalAssetStandard(value: unknown): 'native' | 'ERC-20' | null {
+  return value === 'native' || value === 'ERC-20' ? value : null
+}
+
+function readOptionalNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function readOptionalBoolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null
 }

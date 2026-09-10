@@ -1,13 +1,15 @@
 import { ArrowDownToLine } from 'lucide-react'
 
 import { formatStoredUsdAmount } from '@/features/admin/lib/asset-usd-input'
-import { addableAssetBySymbol } from '@/features/admin/model/addable-assets'
+import { addableAssetForTransfer } from '@/features/admin/model/addable-assets'
 import { SendingStatusBadge } from '@/features/admin/ui/SendingStatusBadge'
 import { AmountWithUnit } from '@/features/wallet/ui/AmountWithUnit'
 import { TokenAvatar } from '@/features/wallet/ui/TokenAvatar'
 import { Alert, AlertDescription, EmptyState, Skeleton } from '@/shared/ui'
 
 import type { IRemoteReceiving } from '../model/RemoteUserDirectory'
+import { SENDING_STATUS } from '../model/sending-status'
+import { TransferAssetMark } from './TransferDirectionMark'
 
 /**
  * Directory deposit list. View only: rows are not clickable.
@@ -60,7 +62,7 @@ export function UserReceivingsList({
 }
 
 function ReceivingViewRow({ receiving }: { readonly receiving: IRemoteReceiving }) {
-  const asset = addableAssetBySymbol(receiving.symbol)
+  const asset = addableAssetForTransfer(receiving)
   const symbol = receiving.symbol ?? asset?.token.symbol ?? '—'
   const name = asset?.token.name ?? receiving.symbol ?? 'Unknown asset'
   const failureMessage = receiving.failureMessage?.trim() ?? ''
@@ -68,12 +70,14 @@ function ReceivingViewRow({ receiving }: { readonly receiving: IRemoteReceiving 
 
   return (
     <li className="flex items-start gap-3 px-4 py-3 sm:px-6">
-      <TokenAvatar
-        address={asset?.token.address ?? null}
-        symbol={symbol}
-        chainId={asset?.chainId ?? null}
-        className="size-9"
-      />
+      <TransferAssetMark direction="in">
+        <TokenAvatar
+          address={asset?.token.address ?? null}
+          symbol={symbol}
+          chainId={asset?.chainId ?? null}
+          className="size-9"
+        />
+      </TransferAssetMark>
 
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5 truncate text-sm">
@@ -87,9 +91,9 @@ function ReceivingViewRow({ receiving }: { readonly receiving: IRemoteReceiving 
           </span>
           <ReceivingTimestamp value={receiving.createdAt} />
         </span>
-        {failureMessage === '' ? null : (
+        {receiving.status === SENDING_STATUS.Failure && failureMessage !== '' ? (
           <span className="text-xs break-words text-destructive">{failureMessage}</span>
-        )}
+        ) : null}
       </span>
 
       <span className="flex shrink-0 flex-col items-end gap-0.5">

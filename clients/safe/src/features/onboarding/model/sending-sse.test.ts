@@ -11,6 +11,13 @@ const CREATE = {
   recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
   amount: '2',
   symbol: 'ETH',
+  assetChainId: '1',
+  assetStandard: 'native',
+  assetAddress: null,
+  assetName: 'Ether',
+  assetDecimals: 18,
+  assetIsVerified: true,
+  settledAt: null,
   type_send: SENDING_SSE_TYPE.Create,
 }
 
@@ -23,6 +30,12 @@ describe('parseSendingSseEvent', () => {
     const update = { ...CREATE, status: 'failure', type_send: SENDING_SSE_TYPE.Update }
 
     expect(parseSendingSseEvent(JSON.stringify(update))).toEqual(update)
+  })
+
+  it('parses a type_send delete frame', () => {
+    const removed = { ...CREATE, type_send: SENDING_SSE_TYPE.Delete }
+
+    expect(parseSendingSseEvent(JSON.stringify(removed))).toEqual(removed)
   })
 
   it('drops a frame with an unknown type_send', () => {

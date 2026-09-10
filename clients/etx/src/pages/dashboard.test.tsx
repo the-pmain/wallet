@@ -280,7 +280,7 @@ describe('Dashboard: directory cabinet', () => {
     localStorage.clear()
   })
 
-  it('sums only successful receivings for the fiat balance', async () => {
+  it('uses the asset total for the fiat balance, not receivings', async () => {
     /* Thin fetch: no market catalog. The shared stub hydrates coins,
        and ETH appears on the dashboard — exactly what must not happen
        here. */
@@ -368,7 +368,7 @@ describe('Dashboard: directory cabinet', () => {
 
     renderApp()
 
-    expect((await screen.findAllByText('$12.50')).length).toBeGreaterThan(0)
+    expect(await screen.findByText('$0.00')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /send/i })).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'View' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Mirror' })).not.toBeInTheDocument()
@@ -389,6 +389,22 @@ describe('Dashboard: directory cabinet', () => {
         email: 'james@example.com',
         balance: '999999',
         createdAt: '2026-08-19T12:00:00.000Z',
+        assets: {
+          quoteCurrency: 'USD',
+          updatedAt: '2026-08-20T12:00:00.000Z',
+          tokens: [
+            {
+              chainId: '1',
+              standard: 'ERC-20',
+              address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+              symbol: 'USDC',
+              name: 'USD Coin',
+              decimals: 6,
+              balance: '12500000',
+              isVerified: true,
+            },
+          ],
+        },
       },
       {
         receivings: [
@@ -401,7 +417,7 @@ describe('Dashboard: directory cabinet', () => {
             recipientAddress: null,
             amount: '12.5',
             symbol: 'USDT',
-            usdAmount: '12.5',
+            usdAmount: '9999',
           },
         ],
       },
@@ -471,7 +487,8 @@ describe('Dashboard: directory cabinet', () => {
 
     renderApp()
 
-    expect(await screen.findByText('$0.00')).toBeInTheDocument()
+    /* Same ETH and USDC rows the assets screen already prices. */
+    expect(await screen.findByText('$6,719.11')).toBeInTheDocument()
     expect(screen.getByText('Ether')).toBeInTheDocument()
     expect(screen.getAllByText('USD Coin').length).toBeGreaterThan(0)
     expect(screen.getByText('1.2847 ETH')).toBeInTheDocument()
@@ -624,7 +641,7 @@ describe('Dashboard: directory cabinet', () => {
             createdAt: '2026-08-22T14:44:10.949Z',
             userId: '7',
             status: 'success',
-            failureMessage: null,
+            failureMessage: 'Daily sending limit exceeded',
             recipientAddress: recipient,
             amount: '2',
             symbol: 'USDT',
@@ -668,12 +685,17 @@ describe('Dashboard: directory cabinet', () => {
     expect(screen.getByRole('heading', { name: 'Recent activity' })).toBeInTheDocument()
     expect(await screen.findByText('2 USDT')).toBeInTheDocument()
     expect(screen.getByText('1 USDT')).toBeInTheDocument()
+    expect(await screen.findByText('$2.00')).toBeInTheDocument()
+    expect(screen.getAllByText('$1.00').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Daily sending limit exceeded')).not.toBeInTheDocument()
     expect(screen.getByText('Blocked by admin')).toBeInTheDocument()
     expect(screen.getAllByText(shortenAddress(recipient)).length).toBeGreaterThan(0)
     expect(screen.getByText('success')).toBeInTheDocument()
     expect(screen.getByText('failure')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Sendings' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Receivings' })).toBeInTheDocument()
+    expect(screen.getAllByRole('img', { name: 'Sent' })).toHaveLength(2)
+    expect(screen.getAllByRole('img', { name: 'Received' })).toHaveLength(1)
     expect(screen.getByText('0.2 ETH')).toBeInTheDocument()
     expect(screen.getByText('$502.27')).toBeInTheDocument()
     expect(screen.getByText('pending')).toBeInTheDocument()

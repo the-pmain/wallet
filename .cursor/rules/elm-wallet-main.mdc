@@ -1,15 +1,22 @@
 ---
-description: One-branch workflow for isolated Safe and ETX clients
+description: Required all-theme workflow for isolated wallet clients
 alwaysApply: true
 ---
 
-# Multi-client workflow
+# All-theme workflow
 
-- Daily work stays on `elm-wallet-main`. Push to remote `et-wallet`, not `origin`, unless James asks.
-- Both clients live on this branch: `clients/safe` and `clients/etx`.
+- Daily work stays on `main` and pushes to `wallet/main` unless James explicitly asks otherwise.
+- Discover every registered client from `build/themes.json`; currently they are `clients/safe` and `clients/etx`.
+- Apply every applicable user-facing feature, fix, and behavior change independently to every registered client unless James explicitly limits the request to one theme.
+- Before finishing, compare all client implementations and tests. Do not assume matching files stayed equivalent.
 - Keep the client trees isolated. Never import one client from another or replace one UI with the other.
 - `THEME=safe` or `THEME=etx` selects exactly one client at Vite startup/build time.
 - Preserve storage identities: Safe uses `elmsafe`; ETX uses `etwallet`.
 - Shared behavior must be extracted through a neutral package with contract tests, not by cross-client imports.
-- Run the relevant client test and `npm run test:themes` for changes that affect both clients or shared infrastructure.
-- Full reminder: `docs/dual-client.md`
+- Run focused tests for every changed client and `npm run test:themes` for all-theme or shared-infrastructure changes.
+
+# Commit and push confirmation
+
+- A commit/push request includes all applicable registered-client changes and their tests.
+- After a successful requested commit or push, end the user-facing confirmation with `🗂️` only after verifying all registered clients were covered.
+- If any client was intentionally excluded, do not use `🗂️`; name the excluded client and reason instead.

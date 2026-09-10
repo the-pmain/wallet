@@ -1,7 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-function applyEnvFile(path) {
+import { assertLocalSupabaseUrl } from './local-supabase-url.mjs'
+
+const preset = new Set(Object.keys(process.env))
+
+function applyEnvFile(path, overrideFileValues, ignorePreset = false) {
   if (!existsSync(path)) {
     return false
   }
@@ -29,7 +33,11 @@ function applyEnvFile(path) {
       value = value.slice(1, -1)
     }
 
-    if (process.env[key] === undefined) {
+    if (!ignorePreset && preset.has(key)) {
+      continue
+    }
+
+    if (process.env[key] === undefined || overrideFileValues) {
       process.env[key] = value
     }
   }
@@ -37,8 +45,10 @@ function applyEnvFile(path) {
   return true
 }
 
-applyEnvFile(resolve('.env'))
-applyEnvFile(resolve('server/.env'))
+applyEnvFile(resolve('.env'), false)
+applyEnvFile(resolve('server/.env'), false)
+applyEnvFile(resolve('.env.local'), true, true)
+applyEnvFile(resolve('server/.env.local'), true, true)
 
 const url = (process.env.SUPABASE_URL ?? '')
   .replace(/\/rest\/v1\/?$/u, '')
@@ -55,6 +65,8 @@ if (!url || !key) {
   )
   process.exit(1)
 }
+
+assertLocalSupabaseUrl(url, 'scripts/probe-sendings.mjs')
 
 const headers = {
   apikey: key,

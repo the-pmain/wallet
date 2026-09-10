@@ -22,6 +22,7 @@ interface QuickActionsProps {
   readonly isGeneratingExchangeWallet?: boolean
   readonly generationError?: string | null
   readonly onGenerateExchangeWallet?: () => void
+  readonly areActionsLocked?: boolean
 }
 
 /**
@@ -62,6 +63,7 @@ export function QuickActions({
   isGeneratingExchangeWallet = false,
   generationError = null,
   onGenerateExchangeWallet,
+  areActionsLocked = false,
 }: QuickActionsProps) {
   const { t } = useTranslation()
   const [isAddressVisible, setAddressVisible] = useState(false)
@@ -84,6 +86,7 @@ export function QuickActions({
           to="/wallet/send"
           icon={Send}
           label={t('dashboard.send')}
+          isDisabled={areActionsLocked}
         />
 
         <ActionTile
@@ -174,7 +177,11 @@ export function QuickActions({
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={isGeneratingReceivingWallet || onGenerateReceivingWallet === undefined}
+                disabled={
+                  areActionsLocked ||
+                  isGeneratingReceivingWallet ||
+                  onGenerateReceivingWallet === undefined
+                }
                 onClick={() => {
                   onGenerateReceivingWallet?.()
                 }}
@@ -210,7 +217,11 @@ export function QuickActions({
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={isGeneratingExchangeWallet || onGenerateExchangeWallet === undefined}
+                disabled={
+                  areActionsLocked ||
+                  isGeneratingExchangeWallet ||
+                  onGenerateExchangeWallet === undefined
+                }
                 onClick={() => {
                   onGenerateExchangeWallet?.()
                 }}

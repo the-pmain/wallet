@@ -726,6 +726,7 @@ describe('Activity: owner sendings', () => {
     expect(screen.getByText('pending')).toBeInTheDocument()
     expect(screen.getByText('failure')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sendings' })).toBeInTheDocument()
+    expect(screen.getAllByRole('img', { name: 'Sent' })).toHaveLength(2)
     expect(screen.queryByRole('button', { name: 'Tokens' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'History' })).toBeDisabled()

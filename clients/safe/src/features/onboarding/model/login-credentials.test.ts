@@ -9,6 +9,7 @@ import {
 
 afterEach(() => {
   localStorage.clear()
+  sessionStorage.clear()
 })
 
 describe('login-credentials', () => {

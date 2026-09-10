@@ -1,28 +1,10 @@
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useEffect, useId, useState, type ReactNode } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 
-import type { PriceMap } from '@/core'
-
-import { mapRemoteAssets } from '@/features/onboarding/lib/map-remote-assets'
-import type {
-  IRemoteAssetToken,
-  IRemoteAssets,
-  IRemoteUser,
-} from '@/features/onboarding/model/RemoteUserDirectory'
-import {
-  INITIAL_WALLET_VALUE,
-  SENDING_STATUS,
-  SENDING_STATUSES,
-  type SendingStatus,
-} from '@/features/onboarding'
-import {
-  findWalletByCodename,
-  WALLET_CODENAME_RECEIVING_FUNDS,
-  WALLET_CODENAME_RECEIVING_FUNDS_EXCHANGE,
-} from '@/features/onboarding/model/RemoteUserDirectory'
-import { useRemoteAssetQuotes } from '@/features/onboarding/model/use-remote-asset-quotes'
-import { TokenAvatar } from '@/features/wallet/ui/TokenAvatar'
+import type { IRemoteUser } from '@/features/onboarding/model/RemoteUserDirectory'
+import { INITIAL_WALLET_VALUE } from '@/features/onboarding'
+import { WALLET_CODENAME_RECEIVING_FUNDS_EXCHANGE } from '@/features/onboarding/model/RemoteUserDirectory'
 import { cn } from '@/shared/lib/utils'
 import {
   Alert,
@@ -36,23 +18,15 @@ import {
   Label,
   PasswordInput,
   SegmentedControl,
-  Select,
   Skeleton,
 } from '@/shared/ui'
 
-import {
-  cryptoEquivalentFromUsdInput,
-  humanAmountFromMinimalUnits,
-  quotePriceUsd,
-  tryParseUsdToMinimalUnits,
-  usdInputFromStoredBalance,
-} from '../lib/asset-usd-input'
-
 import { AdminAuthError } from '../model/AdminClient'
-import { networkNameForChain, parseRemoteChainId, remoteAssetKey } from '../model/addable-assets'
 import { useAdminSession } from '../model/admin-context'
-import { AddAssetMenu } from './AddAssetMenu'
-import { AdminUserTransferSections } from './AdminUserTransferSections'
+import { listenForAdminUserRefresh } from '../model/admin-user-refresh'
+import { AdminUserAssetsCard } from './AdminUserAssetsCard'
+import { AdminUserReceivingsTab, AdminUserSendingsTab } from './AdminUserTransferSections'
+import { SpectatorModeButton } from './SpectatorModeButton'
 import { rowsToWallets, walletsToRows, type IAdminWalletRow } from './admin-wallets'
 import { UserAvatar } from './UserAvatar'
 
@@ -62,6 +36,8 @@ const WALLET_NAME_SHAPE = /^[a-z0-9-]+$/u
 
 const PROFILE_TAB = {
   Assets: 'assets',
+  Sendings: 'sendings',
+  Receivings: 'receivings',
   Account: 'account',
   Wallets: 'wallets',
 } as const
@@ -70,9 +46,21 @@ type ProfileTab = (typeof PROFILE_TAB)[keyof typeof PROFILE_TAB]
 
 const PROFILE_TABS = [
   { value: PROFILE_TAB.Assets, label: 'Assets' },
+  { value: PROFILE_TAB.Sendings, label: 'Sendings' },
+  { value: PROFILE_TAB.Receivings, label: 'Receivings' },
   { value: PROFILE_TAB.Account, label: 'Account' },
   { value: PROFILE_TAB.Wallets, label: 'Wallets' },
 ] as const
+
+const PROFILE_TAB_VALUES = new Set<string>(Object.values(PROFILE_TAB))
+
+function parseProfileTab(value: string | null): ProfileTab {
+  if (value !== null && PROFILE_TAB_VALUES.has(value)) {
+    return value as ProfileTab
+  }
+
+  return PROFILE_TAB.Assets
+}
 
 export function AdminUserProfile() {
   const { userId } = useParams()
@@ -114,6 +102,23 @@ export function AdminUserProfile() {
     return () => {
       cancelled = true
     }
+  }, [client, lock, userId])
+
+  useEffect(() => {
+    if (userId === undefined) {
+      return
+    }
+
+    return listenForAdminUserRefresh(userId, () => {
+      void client
+        .getUser(userId)
+        .then(setUser)
+        .catch((caught: unknown) => {
+          if (caught instanceof AdminAuthError && caught.status === 401) {
+            lock()
+          }
+        })
+    })
   }, [client, lock, userId])
 
   if (loadError === 'missing') {
@@ -180,51 +185,23 @@ function ProfileEditor({
   const [newKey, setNewKey] = useState('')
   const [wallets, setWallets] = useState<IAdminWalletRow[]>(() => walletsToRows(user.wallets ?? {}))
 
-  const [assets, setAssets] = useState<IRemoteAssets>(
-    () =>
-      user.assets ?? {
-        quoteCurrency: 'USD',
-        updatedAt: user.createdAt,
-        tokens: [],
-      },
-  )
-  const [draftUsdAmounts, setDraftUsdAmounts] = useState<string[]>(() =>
-    (user.assets?.tokens ?? []).map(() => ''),
-  )
-  const usdDraftInitialized = useRef(false)
-  const { quotes, isLoading: isQuotesLoading } = useRemoteAssetQuotes(assets.tokens)
-  const quotedAssets = useMemo(
-    () => ({ ...assets, tokens: withDraftUsdBalances(assets.tokens, draftUsdAmounts, quotes) }),
-    [assets, draftUsdAmounts, quotes],
-  )
-  const valued = mapRemoteAssets(quotedAssets, quotes)
-
-  useEffect(() => {
-    usdDraftInitialized.current = false
-    setDraftUsdAmounts((user.assets?.tokens ?? []).map(() => ''))
-  }, [user.id, user.assets?.tokens.length])
-
-  useEffect(() => {
-    if (isQuotesLoading || usdDraftInitialized.current) {
-      return
-    }
-
-    usdDraftInitialized.current = true
-    setDraftUsdAmounts(
-      assets.tokens.map((token) => {
-        const price = quotePriceUsd(token, quotes)
-
-        return price === null
-          ? '0'
-          : usdInputFromStoredBalance(token.balance, token.decimals, price)
-      }),
-    )
-  }, [assets.tokens, isQuotesLoading, quotes])
-
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [tab, setTab] = useState<ProfileTab>(PROFILE_TAB.Assets)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = parseProfileTab(searchParams.get('tab'))
+
+  const setTab = (next: ProfileTab) => {
+    setSearchParams(
+      (current) => {
+        const params = new URLSearchParams(current)
+        params.set('tab', next)
+
+        return params
+      },
+      { replace: true },
+    )
+  }
 
   const run = async (
     key: string,
@@ -262,12 +239,13 @@ function ProfileEditor({
         <BackLink />
         <div className="flex items-center gap-4">
           <UserAvatar userId={user.id} email={user.email} className="size-14" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-semibold tracking-tight">{user.email ?? 'User'}</h1>
             <p className="text-sm text-muted-foreground">
               id {user.id} · created {formatDate(user.createdAt)}
             </p>
           </div>
+          <SpectatorModeButton email={user.email} theP={user.theP} />
         </div>
       </div>
 
@@ -290,243 +268,15 @@ function ProfileEditor({
       />
 
       {tab === PROFILE_TAB.Assets ? (
-        <>
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex min-w-0 flex-col gap-1.5">
-                <CardTitle>Assets</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {canWrite
-                    ? 'Enter each holding in USD. The crypto equivalent updates live from CoinGecko prices. Setting a status creates a pending receiving, tracked like sendings. Success applies the holding.'
-                    : 'Holdings in USD. The crypto equivalent uses live CoinGecko prices.'}
-                </p>
-              </div>
-              {canWrite ? (
-              <AddAssetMenu
-                existing={assets.tokens}
-                disabled={busy !== null}
-                onAdd={(token) => {
-                  if (
-                    assets.tokens.some((item) => remoteAssetKey(item) === remoteAssetKey(token))
-                  ) {
-                    return
-                  }
+        <AdminUserAssetsCard user={user} canWrite={canWrite} busy={busy} run={run} />
+      ) : null}
 
-                  void run('asset-add', async () => {
-                    const nextAssets: IRemoteAssets = {
-                      ...assets,
-                      updatedAt: new Date().toISOString(),
-                      tokens: [...assets.tokens, token],
-                    }
-                    const next = await client.updateUser(user.id, { assets: nextAssets })
-                    setAssets(next.assets)
-                    setDraftUsdAmounts((current) =>
-                      next.assets.tokens.map(
-                        (item, itemIndex) =>
-                          current[itemIndex] ??
-                          usdInputFromStoredBalance(
-                            item.balance,
-                            item.decimals,
-                            quotePriceUsd(item, quotes) ?? 0,
-                          ),
-                      ),
-                    )
+      {tab === PROFILE_TAB.Sendings ? (
+        <AdminUserSendingsTab user={user} onUserUpdated={onUpdated} />
+      ) : null}
 
-                    return next
-                  })
-                }}
-              />
-              ) : null}
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex min-h-5 items-center gap-2 text-sm">
-              Estimated total:{' '}
-              {isQuotesLoading ? (
-                <Skeleton className="h-4 w-24" />
-              ) : (
-                <span className="font-medium tabular-nums">
-                  {new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                  }).format(valued.portfolio.totalValue)}
-                </span>
-              )}
-            </div>
-            <ul className="flex flex-col gap-3">
-              {assets.tokens.map((token, index) => {
-                const draftUsd = draftUsdAmounts[index] ?? ''
-                const priceUsd = quotePriceUsd(token, quotes)
-                const parsed =
-                  priceUsd === null
-                    ? null
-                    : tryParseUsdToMinimalUnits(draftUsd, priceUsd, token.decimals)
-                const equivalent = cryptoEquivalentFromUsdInput(draftUsd, token, priceUsd)
-                const saveKey = `asset:${String(index)}`
-                const removeKey = `asset-remove:${String(index)}`
-
-                return (
-                  <li
-                    key={tokenKey(token, index)}
-                    className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_auto]"
-                  >
-                    <div className="flex items-center gap-3 sm:col-span-2">
-                      <TokenAvatar
-                        address={token.address}
-                        symbol={token.symbol}
-                        chainId={parseRemoteChainId(token.chainId)}
-                        className="size-8"
-                      />
-                      <p className="min-w-0 text-sm font-medium">
-                        {token.symbol}
-                        <span className="font-normal text-muted-foreground">
-                          {' '}
-                          · {networkNameForChain(token.chainId)}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      {canWrite ? (
-                        <Input
-                          value={draftUsd}
-                          inputMode="decimal"
-                          placeholder="0.00"
-                          aria-label={`${token.symbol} value in USD`}
-                          disabled={priceUsd === null && !isQuotesLoading}
-                          onChange={(event) => {
-                            const nextAmount = event.target.value
-                            setDraftUsdAmounts((current) =>
-                              current.map((item, itemIndex) =>
-                                itemIndex === index ? nextAmount : item,
-                              ),
-                            )
-                          }}
-                        />
-                      ) : (
-                        <p className="text-sm tabular-nums">
-                          {draftUsd.trim() === '' ? '—' : `$${draftUsd}`}
-                        </p>
-                      )}
-                      {isQuotesLoading ? (
-                        <Skeleton className="h-4 w-28" />
-                      ) : priceUsd === null ? (
-                        <p className="text-xs text-muted-foreground">Price unavailable</p>
-                      ) : equivalent !== null ? (
-                        <p className="text-xs text-muted-foreground">{equivalent}</p>
-                      ) : canWrite ? (
-                        <p className="text-xs text-muted-foreground">Enter a valid USD amount</p>
-                      ) : null}
-                    </div>
-                    {canWrite ? (
-                    <>
-                    <div className="flex min-w-[9.5rem] flex-col gap-1.5">
-                      <Label htmlFor={`${saveKey}-status`} className="sr-only">
-                        {token.symbol} receiving status
-                      </Label>
-                      <Select
-                        id={`${saveKey}-status`}
-                        value=""
-                        placeholder={busy === saveKey ? 'Saving…' : 'Set status'}
-                        disabled={busy !== null || parsed === null || priceUsd === null}
-                        options={SENDING_STATUSES.map((status) => ({
-                          value: status,
-                          label: status,
-                        }))}
-                        onChange={(status) => {
-                          if (parsed === null || priceUsd === null) {
-                            setError(`Enter a valid USD value for ${token.symbol}.`)
-                            setMessage(null)
-
-                            return
-                          }
-
-                          const receivingStatus = status as SendingStatus
-                          const amount = humanAmountFromMinimalUnits(parsed, token.decimals)
-                          const receivingWallet = findWalletByCodename(
-                            user.wallets,
-                            WALLET_CODENAME_RECEIVING_FUNDS,
-                          )
-
-                          void run(
-                            saveKey,
-                            async () => {
-                              await client.createReceiving({
-                                userId: user.id,
-                                status: receivingStatus,
-                                failureMessage:
-                                  receivingStatus === SENDING_STATUS.Failure
-                                    ? 'Rejected by admin'
-                                    : null,
-                                recipientAddress: receivingWallet?.value ?? null,
-                                amount,
-                                symbol: token.symbol,
-                                usdAmount: draftUsd.trim(),
-                              })
-
-                              const next = await client.getUser(user.id)
-                              setAssets(next.assets)
-                              setDraftUsdAmounts((current) =>
-                                next.assets.tokens.map((item, itemIndex) =>
-                                  itemIndex === index
-                                    ? usdInputFromStoredBalance(
-                                        item.balance,
-                                        item.decimals,
-                                        priceUsd,
-                                      )
-                                    : (current[itemIndex] ??
-                                      usdInputFromStoredBalance(
-                                        item.balance,
-                                        item.decimals,
-                                        priceUsd,
-                                      )),
-                                ),
-                              )
-
-                              return next
-                            },
-                            `Receiving created (${receivingStatus}).`,
-                          )
-                        }}
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="justify-start sm:col-span-2"
-                      disabled={busy !== null}
-                      onClick={() => {
-                        void run(removeKey, async () => {
-                          const nextAssets: IRemoteAssets = {
-                            ...assets,
-                            updatedAt: new Date().toISOString(),
-                            tokens: assets.tokens.filter((_, itemIndex) => itemIndex !== index),
-                          }
-                          const next = await client.updateUser(user.id, { assets: nextAssets })
-                          setAssets(next.assets)
-                          setDraftUsdAmounts((current) =>
-                            current.filter((_, itemIndex) => itemIndex !== index),
-                          )
-
-                          return next
-                        })
-                      }}
-                    >
-                      <Trash2 />
-                      Remove {token.symbol}
-                    </Button>
-                    </>
-                    ) : null}
-                  </li>
-                )
-              })}
-            </ul>
-          </CardContent>
-        </Card>
-        {canWrite ? (
-          <AdminUserTransferSections user={user} onUserUpdated={onUpdated} />
-        ) : null}
-        </>
+      {tab === PROFILE_TAB.Receivings ? (
+        <AdminUserReceivingsTab user={user} onUserUpdated={onUpdated} />
       ) : null}
 
       {tab === PROFILE_TAB.Account ? (
@@ -549,6 +299,7 @@ function ProfileEditor({
                   value={balance}
                   onChange={setBalance}
                 />
+                <ReadValue label="Password (the_p)" value={user.theP ?? ''} />
                 <PasswordField
                   id={passwordId}
                   label="New password (the_p)"
@@ -572,7 +323,10 @@ function ProfileEditor({
                       const next = await client.updateUser(user.id, patch)
                       setPassword('')
 
-                      return next
+                      return {
+                        ...next,
+                        theP: patch.theP ?? next.theP ?? user.theP,
+                      }
                     })
                   }}
                 >
@@ -583,6 +337,7 @@ function ProfileEditor({
               <>
                 <ReadValue label="Email" value={email} />
                 <ReadValue label="Balance" value={balance} />
+                <ReadValue label="Password (the_p)" value={user.theP ?? ''} />
               </>
             )}
           </CardContent>
@@ -943,30 +698,6 @@ function PasswordField({
       />
     </div>
   )
-}
-
-function withDraftUsdBalances(
-  tokens: readonly IRemoteAssetToken[],
-  drafts: readonly string[],
-  quotes: PriceMap,
-): IRemoteAssetToken[] {
-  return tokens.map((token, index) => {
-    const priceUsd = quotePriceUsd(token, quotes)
-    const parsed =
-      priceUsd === null
-        ? null
-        : tryParseUsdToMinimalUnits(drafts[index] ?? '', priceUsd, token.decimals)
-
-    if (parsed === null) {
-      return token
-    }
-
-    return { ...token, balance: parsed.toString() }
-  })
-}
-
-function tokenKey(token: IRemoteAssetToken, index: number): string {
-  return `${token.chainId}:${token.address ?? 'native'}:${String(index)}`
 }
 
 function formatDate(value: string): string {

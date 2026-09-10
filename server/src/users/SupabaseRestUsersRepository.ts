@@ -95,9 +95,17 @@ export class SupabaseRestUsersRepository implements IUsersRepository {
     return toRecord(row, input.theP)
   }
 
-  async findById(id: string): Promise<IUserRecord | null> {
+  async findById(
+    id: string,
+    options?: { readonly includeTheP?: boolean },
+  ): Promise<IUserRecord | null> {
     const endpoint = new URL(`${this.#url}/rest/v1/users`)
-    endpoint.searchParams.set('select', 'id,created_at,email,balance,wallets,assets')
+    endpoint.searchParams.set(
+      'select',
+      options?.includeTheP === true
+        ? 'id,created_at,email,balance,the_p,wallets,assets'
+        : 'id,created_at,email,balance,wallets,assets',
+    )
     endpoint.searchParams.set('id', `eq.${id}`)
     endpoint.searchParams.set('limit', '1')
 

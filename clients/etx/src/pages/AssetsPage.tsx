@@ -60,7 +60,7 @@ export function AssetsPage() {
             Refresh
           </Button>
 
-          {showRemote ? null : (
+          {showRemote || directory.isSpectator ? null : (
             <Button
               variant="ghost"
               size="sm"
@@ -84,7 +84,7 @@ export function AssetsPage() {
         </div>
       </header>
 
-      {isImporting && !showRemote ? (
+      {isImporting && !showRemote && !directory.isSpectator ? (
         <Card>
           <CardContent>
             <ImportTokenForm
@@ -108,7 +108,7 @@ export function AssetsPage() {
                данном согласии. Экран активов сам наружу не ходит.
                У записи справочника курсы уже лежат в витрине. */
             portfolio={displayed.portfolio}
-            {...(showRemote
+            {...(showRemote || directory.isSpectator
               ? {}
               : {
                   onRemove: (address: Address) => {

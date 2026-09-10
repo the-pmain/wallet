@@ -10,6 +10,7 @@ import { AdminAuthError, type IAdminSendingPatch } from '../model/AdminClient'
 import { directoryUserLabel } from '../model/admin-user-emails'
 import { useAdminSession } from '../model/admin-context'
 import { useAdminPendingQueue } from '../model/admin-pending-queue'
+import { requestAdminUserRefresh, settlementChanged } from '../model/admin-user-refresh'
 import { MAX_VISIBLE_PENDING_TOASTS, sendingAmountLabel } from '../model/admin-pending-toasts'
 import { formatAdminTimestampParts } from '../lib/format-admin-timestamp'
 import { SendingEditDialog } from './SendingEditDialog'
@@ -52,6 +53,9 @@ export function AdminPendingSendingToasts() {
 
     try {
       const updated = await client.updateSending(id, patch)
+      if (editing !== null && settlementChanged(editing, updated)) {
+        requestAdminUserRefresh(updated.userId)
+      }
       setQueue((current) =>
         updated.status === SENDING_STATUS.Pending
           ? current.map((item) => (item.id === id ? updated : item))
@@ -66,6 +70,31 @@ export function AdminPendingSendingToasts() {
       }
 
       setEditError('The sending could not be saved.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteSending(id: string): Promise<void> {
+    setSaving(true)
+    setEditError(null)
+
+    try {
+      const previous = editing
+      await client.deleteSending(id)
+      if (previous?.status === SENDING_STATUS.Success) {
+        requestAdminUserRefresh(previous.userId)
+      }
+      setQueue((current) => current.filter((item) => item.id !== id))
+      setEditing(null)
+    } catch (caught: unknown) {
+      if (caught instanceof AdminAuthError && caught.status === 401) {
+        lock()
+
+        return
+      }
+
+      setEditError('The sending could not be deleted.')
     } finally {
       setSaving(false)
     }
@@ -128,6 +157,9 @@ export function AdminPendingSendingToasts() {
         }}
         onSave={(id, patch) => {
           void saveSending(id, patch)
+        }}
+        onDelete={(id) => {
+          void deleteSending(id)
         }}
       />
     </>

@@ -115,6 +115,8 @@ export const RECIPIENT_STATUS = {
   EnsUnavailable: 'ens-unavailable',
   /** The node did not answer: the name could not be checked. */
   Failed: 'failed',
+  /** A non-EVM wallet address that passed format and checksum checks. */
+  CryptoWallet: 'crypto-wallet',
   /** The input is neither an address nor a name. */
   Invalid: 'invalid',
 } as const

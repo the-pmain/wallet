@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  convertAssetDraft,
   cryptoEquivalentFromUsdInput,
+  cryptoInputFromStoredBalance,
   humanAmountFromMinimalUnits,
+  parseAssetDraftToMinimalUnits,
+  sumAssetDraftUsd,
+  tryParseCryptoToMinimalUnits,
   tryParseUsdToMinimalUnits,
   formatStoredUsdAmount,
   usdAmountFromCryptoInput,
   usdEquivalentFromCryptoAmount,
   usdInputFromStoredBalance,
+  usdValueFromAssetDraft,
 } from './asset-usd-input'
 
 const ETH = {
@@ -33,6 +39,9 @@ describe('asset-usd-input', () => {
   it('formats a human transfer amount from wei', () => {
     expect(humanAmountFromMinimalUnits(3000000000000000000n, 18)).toBe('3')
     expect(humanAmountFromMinimalUnits(1500000n, 6)).toBe('1.5')
+    expect(cryptoInputFromStoredBalance('2000000000000000000', 18)).toBe('2')
+    expect(tryParseCryptoToMinimalUnits('3', 18)).toBe(3000000000000000000n)
+    expect(tryParseCryptoToMinimalUnits('1.5', 6)).toBe(1500000n)
   })
 
   it('formats a stored USD string for display', () => {
@@ -51,5 +60,37 @@ describe('asset-usd-input', () => {
   it('shows crypto equivalent text', () => {
     expect(cryptoEquivalentFromUsdInput('6568.24', ETH, 3284.12)).toBe('≈ 2 ETH')
     expect(cryptoEquivalentFromUsdInput('9852.36', ETH, 3284.12)).toBe('≈ 3 ETH')
+  })
+
+  it('converts a draft when switching USD and crypto', () => {
+    expect(convertAssetDraft('6568.24', ETH, 'usd', 'crypto', 3284.12)).toBe('2')
+    expect(convertAssetDraft('9852.36', ETH, 'usd', 'crypto', 3284.12)).toBe('2')
+    expect(convertAssetDraft('3', ETH, 'crypto', 'usd', 3284.12)).toBe('9852.36')
+    expect(parseAssetDraftToMinimalUnits('3', ETH, 'crypto', 3284.12)).toBe(3000000000000000000n)
+    expect(parseAssetDraftToMinimalUnits('9852.36', ETH, 'usd', 3284.12)).toBe(
+      3000000000000000000n,
+    )
+  })
+
+  it('sums the panel drafts as the estimated total', () => {
+    const usdc = {
+      chainId: '1',
+      standard: 'ERC-20' as const,
+      address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+      symbol: 'USDC',
+      name: 'USD Coin',
+      decimals: 6,
+      balance: '0',
+      isVerified: true,
+    }
+
+    expect(usdValueFromAssetDraft('6568.24', 'usd', 3284.12)).toBe(6568.24)
+    expect(usdValueFromAssetDraft('3', 'crypto', 3284.12)).toBe(9852.36)
+    expect(usdValueFromAssetDraft('', 'usd', 3284.12)).toBe(0)
+    expect(usdValueFromAssetDraft('p.00', 'usd', 3284.12)).toBe(0)
+    expect(sumAssetDraftUsd([ETH, usdc], ['6568.24', '1.5'], ['usd', 'usd'], new Map())).toBe(
+      6569.74,
+    )
+    expect(sumAssetDraftUsd([ETH, usdc], ['', '0'], ['usd', 'usd'], new Map())).toBe(0)
   })
 })

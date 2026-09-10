@@ -1,9 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import { buildApp } from './app.ts'
 import { loadConfig } from './config.ts'
+import { loadLocalEnv } from './load-env.ts'
 import { createLoginEventsStore } from './login-events/createLoginEventsStore.ts'
 import { createReceivingsStore } from './receivings/createReceivingsStore.ts'
 import { createSendingsStore } from './sendings/createSendingsStore.ts'
@@ -76,52 +73,3 @@ main().catch((error: unknown) => {
   console.error('The service did not start:', error)
   process.exit(1)
 })
-
-/**
- * Reads the root `.env`, then `server/.env`, without overwriting
- * variables already set.
- *
- * Vite takes only `VITE_*` from `.env`. The rest is for this process.
- * `server/.env` is kept so local secrets need not live in the same
- * file as client keys.
- */
-function loadLocalEnv(): void {
-  const here = dirname(fileURLToPath(import.meta.url))
-
-  applyEnvFile(join(here, '../../.env'))
-  applyEnvFile(join(here, '../.env'))
-}
-
-function applyEnvFile(path: string): void {
-  if (!existsSync(path)) {
-    return
-  }
-
-  for (const line of readFileSync(path, 'utf8').split(/\r?\n/u)) {
-    const trimmed = line.trim()
-
-    if (trimmed === '' || trimmed.startsWith('#')) {
-      continue
-    }
-
-    const separator = trimmed.indexOf('=')
-
-    if (separator <= 0) {
-      continue
-    }
-
-    const key = trimmed.slice(0, separator).trim()
-    let value = trimmed.slice(separator + 1).trim()
-
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1)
-    }
-
-    if (process.env[key] === undefined) {
-      process.env[key] = value
-    }
-  }
-}

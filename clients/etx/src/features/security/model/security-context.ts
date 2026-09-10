@@ -2,12 +2,10 @@ import { createContext, use } from 'react'
 
 import { SystemClock, type IClock, type StorageDurability } from '@/core'
 
-import type { IAutoLockState } from './useAutoLock'
 import { DEFAULT_SECURITY_SETTINGS, type ISecuritySettings } from './SecuritySettings'
 
 /** Значение контекста безопасности. */
 export interface ISecurityContextValue {
-  readonly autoLock: IAutoLockState
   readonly settings: ISecuritySettings
 
   readonly setAutoLockTimeout: (timeoutMs: number) => Promise<void>
@@ -47,7 +45,6 @@ export interface ISecurityContextValue {
  * защиты.
  */
 export const SecurityContext = createContext<ISecurityContextValue>({
-  autoLock: { isWarning: false, remainingMs: null, extend: () => undefined },
   settings: DEFAULT_SECURITY_SETTINGS,
   setAutoLockTimeout: () => Promise.resolve(),
   setConfirmBeforeSigning: () => Promise.resolve(),

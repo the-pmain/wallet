@@ -16,6 +16,7 @@ import 'fake-indexeddb/auto'
 import { cleanup, configure } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
 
+import { clearCapturedSpectatorQuery } from '@/features/onboarding/model/spectator-session'
 import { appMarketCatalog } from '@/core'
 import { appFiatRates } from '@/features/wallet/model/fiat-rates-cache'
 import { TestEventSource } from '@/test/doubles'
@@ -136,6 +137,7 @@ Object.defineProperty(navigator, 'languages', {
 */
 afterEach(() => {
   cleanup()
+  clearCapturedSpectatorQuery()
   sessionStorage.clear()
   localStorage.clear()
   TestEventSource.reset()

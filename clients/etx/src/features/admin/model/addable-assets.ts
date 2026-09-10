@@ -1,5 +1,9 @@
 import { BUILT_IN_CHAIN_ID, BUILT_IN_NETWORKS, listVerifiedTokens, toChainId, type ChainId } from '@/core'
-import type { IRemoteAssetToken } from '@/features/onboarding/model/RemoteUserDirectory'
+import type {
+  IRemoteAssetToken,
+  IRemoteSending,
+  ITransactionAssetMetadata,
+} from '@/features/onboarding/model/RemoteUserDirectory'
 
 /**
  * Криптовалюта, которую кабинет может дописать в витрину `assets`.
@@ -118,4 +122,34 @@ export function addableAssetBySymbol(symbol: string | null): IAddableAsset | nul
   const matches = ADDABLE_ASSETS.filter((item) => item.token.symbol.toUpperCase() === needle)
 
   return matches.find((item) => item.chainId === BUILT_IN_CHAIN_ID.Ethereum) ?? matches[0] ?? null
+}
+
+/** Exact asset for a transfer, with Ethereum-first ticker fallback for legacy rows. */
+export function addableAssetForTransfer(
+  transfer: Pick<IRemoteSending, 'assetChainId' | 'assetAddress' | 'symbol'>,
+): IAddableAsset | null {
+  if (typeof transfer.assetChainId === 'string') {
+    const exactKey = remoteAssetKey({
+      chainId: transfer.assetChainId,
+      address: transfer.assetAddress ?? null,
+    })
+    const exact = ADDABLE_ASSETS.find((item) => item.id === exactKey)
+
+    if (exact !== undefined) {
+      return exact
+    }
+  }
+
+  return addableAssetBySymbol(transfer.symbol)
+}
+
+export function transactionAssetMetadata(token: IRemoteAssetToken): ITransactionAssetMetadata {
+  return {
+    assetChainId: token.chainId,
+    assetStandard: token.standard,
+    assetAddress: token.address,
+    assetName: token.name,
+    assetDecimals: token.decimals,
+    assetIsVerified: token.isVerified,
+  }
 }

@@ -1,7 +1,12 @@
 import { Pencil, Send } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { type IRemoteSending, type ISendingSseEvent } from '@/features/onboarding'
+import {
+  SENDING_SSE_TYPE,
+  SENDING_STATUS,
+  type IRemoteSending,
+  type ISendingSseEvent,
+} from '@/features/onboarding'
 import { AmountWithUnit } from '@/features/wallet/ui/AmountWithUnit'
 import { TokenAvatar } from '@/features/wallet/ui/TokenAvatar'
 import { Alert, AlertDescription, Button, EmptyState, Input, Skeleton } from '@/shared/ui'
@@ -17,6 +22,7 @@ import {
   useAdminDirectoryQuery,
 } from '../model/use-admin-directory-query'
 import { useAdminSendingsLive } from '../model/admin-sendings-live'
+import { requestAdminUserRefresh, settlementChanged } from '../model/admin-user-refresh'
 import { sendingMatchesAdminQuery } from '../model/sending-query'
 import { AdminDirectoryListPending } from './AdminDirectoryListPending'
 import { AdminListPager } from './AdminListPager'
@@ -83,6 +89,14 @@ export function AdminSendingsList() {
   }, [client, hydratePending, lock, page, pageSize, query])
 
   useAdminSendingsLive((event) => {
+    if (event.type_send === SENDING_SSE_TYPE.Delete) {
+      setListed((current) =>
+        current === null ? current : removeDirectoryItem(current, event.id),
+      )
+
+      return
+    }
+
     setListed((current) =>
       current === null ? current : upsertDirectorySending(current, event, query, page),
     )
@@ -94,6 +108,9 @@ export function AdminSendingsList() {
 
     try {
       const updated = await client.updateSending(id, patch)
+      if (editing !== null && settlementChanged(editing, updated)) {
+        requestAdminUserRefresh(updated.userId)
+      }
       setListed((current) =>
         current === null ? current : upsertDirectorySending(current, updated, query, page),
       )
@@ -106,6 +123,31 @@ export function AdminSendingsList() {
       }
 
       setEditError('The sending could not be saved.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteSending(id: string): Promise<void> {
+    setSaving(true)
+    setEditError(null)
+
+    try {
+      const previous = editing
+      await client.deleteSending(id)
+      if (previous?.status === SENDING_STATUS.Success) {
+        requestAdminUserRefresh(previous.userId)
+      }
+      setListed((current) => (current === null ? current : removeDirectoryItem(current, id)))
+      setEditing(null)
+    } catch (caught: unknown) {
+      if (caught instanceof AdminAuthError && caught.status === 401) {
+        lock()
+
+        return
+      }
+
+      setEditError('The sending could not be deleted.')
     } finally {
       setSaving(false)
     }
@@ -200,6 +242,9 @@ export function AdminSendingsList() {
           onSave={(id, patch) => {
             void saveSending(id, patch)
           }}
+          onDelete={(id) => {
+            void deleteSending(id)
+          }}
         />
       ) : null}
     </div>
@@ -290,6 +335,19 @@ function SendingTimestamp({ value }: { readonly value: string }) {
   )
 }
 
+function removeDirectoryItem<T extends { readonly id: string }>(
+  current: IAdminPage<T>,
+  id: string,
+): IAdminPage<T> {
+  const exists = current.items.some((item) => item.id === id)
+
+  return {
+    ...current,
+    items: current.items.filter((item) => item.id !== id),
+    total: exists ? Math.max(0, current.total - 1) : current.total,
+  }
+}
+
 function upsertDirectorySending(
   current: IAdminPage<IAdminDirectorySending>,
   incoming: IRemoteSending | ISendingSseEvent,
@@ -306,6 +364,13 @@ function upsertDirectorySending(
     recipientAddress: incoming.recipientAddress,
     amount: incoming.amount,
     symbol: incoming.symbol,
+    assetChainId: incoming.assetChainId ?? null,
+    assetStandard: incoming.assetStandard ?? null,
+    assetAddress: incoming.assetAddress ?? null,
+    assetName: incoming.assetName ?? null,
+    assetDecimals: incoming.assetDecimals ?? null,
+    assetIsVerified: incoming.assetIsVerified ?? null,
+    settledAt: incoming.settledAt ?? null,
     userEmail:
       incoming.userEmail !== undefined ? incoming.userEmail : (previous?.userEmail ?? null),
   }

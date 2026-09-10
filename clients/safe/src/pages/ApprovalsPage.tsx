@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
 import { TOKEN_STANDARD, type IApprovalRecord, type TxHash } from '@/core'
+import { SPECTATOR_ACTION_BLOCKED, useDirectorySession } from '@/features/onboarding'
 import { ConfirmPassword, useSecurity } from '@/features/security'
 import {
   formatTokenAmount,
@@ -51,6 +52,7 @@ interface IRevokeState {
 export function ApprovalsPage() {
   const session = useWallet()
   const snapshot = useWalletSnapshot()
+  const directory = useDirectorySession()
   const { settings, verifyPassword } = useSecurity()
 
   const items = snapshot.approvals
@@ -74,7 +76,7 @@ export function ApprovalsPage() {
   }, [items, scope, session])
 
   function startRevoke(record: IApprovalRecord): void {
-    if (account === null) {
+    if (account === null || directory.isSpectator) {
       return
     }
 
@@ -188,6 +190,12 @@ export function ApprovalsPage() {
         </Button>
       </header>
 
+      {directory.isSpectator ? (
+        <Alert>
+          <AlertDescription>{SPECTATOR_ACTION_BLOCKED}</AlertDescription>
+        </Alert>
+      ) : null}
+
       {sentHash === null ? null : (
         <Alert>
           <AlertDescription>
@@ -259,6 +267,7 @@ export function ApprovalsPage() {
                 <li key={`${record.contract}:${record.spender}:${record.standard}`}>
                   <ApprovalRow
                     record={record}
+                    canRevoke={!directory.isSpectator}
                     onRevoke={() => {
                       startRevoke(record)
                     }}
@@ -325,9 +334,11 @@ const APPROVAL_RISK_TEXT =
 function ApprovalRow({
   record,
   onRevoke,
+  canRevoke,
 }: {
   readonly record: IApprovalRecord
   readonly onRevoke: () => void
+  readonly canRevoke: boolean
 }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
@@ -373,7 +384,13 @@ function ApprovalRow({
         </span>
       </span>
 
-      <Button variant="outline" size="sm" className="shrink-0" onClick={onRevoke}>
+      <Button
+        variant="outline"
+        size="sm"
+        className="shrink-0"
+        disabled={!canRevoke}
+        onClick={onRevoke}
+      >
         Revoke
       </Button>
     </div>

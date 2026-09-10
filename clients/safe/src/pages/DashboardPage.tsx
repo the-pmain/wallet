@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 
 import {
   useDirectorySession,
+  useDisplayedAssets,
   useGenerateExchangeWallet,
   useGenerateReceivingFundsWallet,
   useOnboarding,
@@ -12,7 +13,6 @@ import {
   INITIAL_WALLET_VALUE,
   RecentActivityCard,
   WALLET_CODENAME_RECEIVING_FUNDS,
-  type IRemoteReceiving,
   type IRemoteUser,
   type IUserWalletsMap,
 } from '@/features/onboarding'
@@ -33,7 +33,6 @@ import {
   BalanceCard,
   FiatBalanceCard,
   MarketPricesCard,
-  parseDisplayAmount,
   QuickActions,
   SESSION_STATE,
   TransferList,
@@ -63,6 +62,7 @@ export function DashboardPage() {
   const receivingWallet = useGenerateReceivingFundsWallet()
   const exchangeWallet = useGenerateExchangeWallet()
   const generateWalletProps = {
+    areActionsLocked: directory.isSpectator,
     isGeneratingReceivingWallet: receivingWallet.isGenerating,
     receivingGenerationError: receivingWallet.error,
     onGenerateReceivingWallet: () => {
@@ -177,17 +177,6 @@ function localReceivingWallets(account: { readonly address: string } | null): IU
   }
 }
 
-/** Successful deposits are the sole source of the remote account balance. */
-function successfulReceivingsUsd(receivings: readonly IRemoteReceiving[]): number {
-  return receivings.reduce((total, receiving) => {
-    if (receiving.status !== 'success') {
-      return total
-    }
-
-    return total + (parseDisplayAmount(receiving.usdAmount) ?? 0)
-  }, 0)
-}
-
 function RemoteAccountHome({
   user,
   isRefreshing,
@@ -197,6 +186,7 @@ function RemoteAccountHome({
   onGenerateExchangeWallet,
   isGeneratingExchangeWallet,
   generationError,
+  areActionsLocked,
 }: {
   readonly user: IRemoteUser | null
   readonly isRefreshing: boolean
@@ -206,20 +196,27 @@ function RemoteAccountHome({
   readonly onGenerateExchangeWallet: () => void
   readonly isGeneratingExchangeWallet: boolean
   readonly generationError: string | null
+  readonly areActionsLocked: boolean
 }) {
   const snapshot = useWalletSnapshot()
+  const displayed = useDisplayedAssets({
+    tokens: snapshot.tokenBalances,
+    portfolio: snapshot.portfolio,
+    isLoading: snapshot.isTokensLoading,
+  })
   const userSendings = useUserSendings(true)
   const userReceivings = useUserReceivings(true)
+  /* Same figure as the asset list: every showcase row × its live quote. */
   const amountUsd =
-    user === null || userReceivings.isLoading || userReceivings.error !== null
+    user === null || displayed.isLoading
       ? null
-      : successfulReceivingsUsd(userReceivings.receivings)
+      : (displayed.portfolio?.totalValue ?? 0)
 
   return (
     <div className="flex min-w-0 flex-col gap-4 max-lg:gap-6">
       <FiatBalanceCard
         amountUsd={amountUsd}
-        isRefreshing={isRefreshing || userReceivings.isLoading}
+        isRefreshing={isRefreshing || displayed.isLoading}
         action={
           <QuickActions
             account={snapshot.activeAccount}
@@ -230,6 +227,7 @@ function RemoteAccountHome({
             isGeneratingExchangeWallet={isGeneratingExchangeWallet}
             generationError={generationError}
             onGenerateExchangeWallet={onGenerateExchangeWallet}
+            areActionsLocked={areActionsLocked}
           />
         }
       />

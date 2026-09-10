@@ -42,6 +42,7 @@ const USDC_TOKEN = {
 const USER = {
   id: '7',
   email: 'james@example.com',
+  the_p: 'demo',
   balance: '12.5',
   createdAt: '2026-08-20T12:00:00.000Z',
   wallets: [{ key: KEY, value: '0' }],
@@ -114,7 +115,11 @@ const PENDING_SENDING = {
 } as const
 
 function jsonResponse(status: number, body: unknown): Response {
-  return new Response(body === null ? '' : JSON.stringify(body), {
+  if (body === null) {
+    return new Response(null, { status })
+  }
+
+  return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' },
   })
@@ -252,6 +257,33 @@ function serveDirectoryGet(url: string): Response | null {
   return null
 }
 
+function serveUserTransfersGet(url: string): Response | null {
+  const path = requestPath(url)
+  const sendingsMatch = /^\/v1\/admin\/users\/([^/]+)\/sendings$/u.exec(path)
+
+  if (sendingsMatch !== null) {
+    const userId = sendingsMatch[1]
+    const sendings = listedSendings.filter(
+      (item) => (item as { userId?: string }).userId === userId,
+    )
+
+    return jsonResponse(200, { sendings })
+  }
+
+  const receivingsMatch = /^\/v1\/admin\/users\/([^/]+)\/receivings$/u.exec(path)
+
+  if (receivingsMatch !== null) {
+    const userId = receivingsMatch[1]
+    const receivings = listedReceivings.filter(
+      (item) => (item as { userId?: string }).userId === userId,
+    )
+
+    return jsonResponse(200, { receivings })
+  }
+
+  return null
+}
+
 function renderAdmin() {
   return render(
     <AppProviders services={services}>
@@ -317,6 +349,12 @@ beforeEach(() => {
       if (directory !== null) {
         return Promise.resolve(directory)
       }
+
+      const userTransfers = serveUserTransfersGet(url)
+
+      if (userTransfers !== null) {
+        return Promise.resolve(userTransfers)
+      }
     }
 
     if (pin === '4200') {
@@ -326,14 +364,6 @@ beforeEach(() => {
 
       if (url.endsWith('/v1/admin/users/7') && method === 'GET') {
         return Promise.resolve(jsonResponse(200, USER))
-      }
-
-      if (url.endsWith('/v1/admin/users/7/sendings') && method === 'GET') {
-        return Promise.resolve(jsonResponse(200, { sendings: [] }))
-      }
-
-      if (url.endsWith('/v1/admin/users/7/receivings') && method === 'GET') {
-        return Promise.resolve(jsonResponse(200, { receivings: [] }))
       }
 
       if (url.endsWith('/v1/admin/login-events') && method === 'GET') {
@@ -402,14 +432,6 @@ beforeEach(() => {
       return Promise.resolve(jsonResponse(200, { sendings: listedSendings }))
     }
 
-    if (url.endsWith('/v1/admin/users/7/sendings') && method === 'GET') {
-      return Promise.resolve(jsonResponse(200, { sendings: [] }))
-    }
-
-    if (url.endsWith('/v1/admin/users/7/receivings') && method === 'GET') {
-      return Promise.resolve(jsonResponse(200, { receivings: [] }))
-    }
-
     if (url.endsWith('/v1/admin/sendings') && method === 'POST') {
       const body = requestJson(init) as Record<string, unknown>
 
@@ -447,6 +469,20 @@ beforeEach(() => {
           usdAmount: body['usdAmount'] ?? null,
         }),
       )
+    }
+
+    if (url.includes('/v1/admin/sendings/') && method === 'DELETE') {
+      const id = url.split('/').pop()
+      listedSendings = listedSendings.filter((item) => (item as { id?: string }).id !== id)
+
+      return Promise.resolve(jsonResponse(204, null))
+    }
+
+    if (url.includes('/v1/admin/receivings/') && method === 'DELETE') {
+      const id = url.split('/').pop()
+      listedReceivings = listedReceivings.filter((item) => (item as { id?: string }).id !== id)
+
+      return Promise.resolve(jsonResponse(204, null))
     }
 
     if (url.includes('/v1/admin/sendings/') && method === 'PATCH') {
@@ -501,6 +537,7 @@ beforeEach(() => {
 afterEach(() => {
   fetchSpy.mockRestore()
   localStorage.clear()
+  sessionStorage.clear()
   window.location.hash = ''
 })
 
@@ -562,6 +599,9 @@ describe('Admin cabinet', () => {
     expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
     expect(screen.queryByLabelText('ETH receiving status')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('ETH value in USD')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('ETH amount')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save ETH' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'ETH in ETH' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add crypto' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete user' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create sending' })).not.toBeInTheDocument()
@@ -572,13 +612,28 @@ describe('Admin cabinet', () => {
 
     await user.click(screen.getByRole('button', { name: 'Account' }))
     expect(screen.getByText('Email')).toBeInTheDocument()
+    expect(screen.getByText('Password (the_p)')).toBeInTheDocument()
+    expect(screen.getByText('demo')).toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save account' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Spectator mode' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Wallets' }))
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save wallets' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Sendings' }))
+    expect(await screen.findByRole('heading', { name: 'Sendings' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add sending' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create sending' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Sending amount')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Receivings' }))
+    expect(await screen.findByRole('heading', { name: 'Receivings' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add receiving' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create receiving' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Receiving amount')).not.toBeInTheDocument()
   })
 
   it('a read PIN opens the Activity tab and lists authentications', async () => {
@@ -719,6 +774,7 @@ describe('Admin cabinet', () => {
 
     expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Avatar for james@example.com' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Spectator mode' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Assets' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText(/Estimated total/i)).toBeInTheDocument()
 
@@ -729,6 +785,44 @@ describe('Admin cabinet', () => {
     await user.click(screen.getByRole('button', { name: 'Save wallets' }))
 
     expect(await screen.findByText('Saved.')).toBeInTheDocument()
+    expect(window.location.pathname).toContain('/admin/users/7')
+  })
+
+  it('opens spectator mode in a new tab without leaving the cabinet', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
+    const spectator = await screen.findByRole('link', { name: 'Spectator mode' })
+
+    expect(spectator).toHaveAttribute('target', '_blank')
+    expect(spectator).toHaveAttribute('rel', 'noopener noreferrer')
+    const href = spectator.getAttribute('href') ?? ''
+    expect(href).toContain('spectator=1')
+    expect(href).toContain('email=james%40example.com')
+    expect(href).toContain('the_p=demo')
+    expect(window.location.pathname).toContain('/admin/users/7')
+
+    await user.click(screen.getByRole('button', { name: 'Account' }))
+    expect(screen.getByText('Password (the_p)')).toBeInTheDocument()
+    expect(screen.getByText('demo')).toBeInTheDocument()
+  })
+
+  it('a read PIN opens spectator mode in a new tab without leaving the cabinet', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    renderAdmin()
+
+    await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
+    const spectator = await screen.findByRole('link', { name: 'Spectator mode' })
+
+    expect(spectator).toHaveAttribute('target', '_blank')
+    expect(spectator).toHaveAttribute('rel', 'noopener noreferrer')
+    const href = spectator.getAttribute('href') ?? ''
+    expect(href).toContain('spectator=1')
+    expect(href).toContain('email=james%40example.com')
+    expect(href).toContain('the_p=demo')
     expect(window.location.pathname).toContain('/admin/users/7')
   })
 
@@ -783,16 +877,27 @@ describe('Admin cabinet', () => {
     })
   })
 
-  it('creates a receiving from the asset status select', async () => {
+  it('saves an asset amount in USD or in crypto', async () => {
     const user = userEvent.setup()
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
 
+    const ethAmountStart = await screen.findByLabelText('ETH amount')
+    expect(ethAmountStart).toHaveValue('2')
+    expect(await screen.findByText('$6,568.24')).toBeInTheDocument()
+    expect(screen.getByText('≈ $6,568.24')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ETH in ETH' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.queryByLabelText('ETH receiving status')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save ETH' })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'ETH in USD' }))
     const ethUsd = await screen.findByLabelText('ETH value in USD')
     expect(ethUsd).toHaveValue('6568.24')
-    expect(await screen.findByText('$6,568.24')).toBeInTheDocument()
     expect(screen.getByText('≈ 2 ETH')).toBeInTheDocument()
 
     await user.clear(ethUsd)
@@ -800,60 +905,86 @@ describe('Admin cabinet', () => {
     expect(await screen.findByText('$9,852.36')).toBeInTheDocument()
     expect(screen.getByText('≈ 3 ETH')).toBeInTheDocument()
 
-    await user.click(screen.getByLabelText('ETH receiving status'))
-    await user.click(screen.getByRole('option', { name: 'success' }))
-    expect(await screen.findByText('Receiving created (success).')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save ETH' }))
+    expect(await screen.findByText('Saved.')).toBeInTheDocument()
 
-    const usdcUsd = screen.getByLabelText('USDC value in USD')
+    await user.click(screen.getByRole('button', { name: 'USDC in USD' }))
+    const usdcUsd = await screen.findByLabelText('USDC value in USD')
     await user.clear(usdcUsd)
     await user.type(usdcUsd, '1.5')
     expect(screen.getByText('≈ 1.5 USDC')).toBeInTheDocument()
-    await user.click(screen.getByLabelText('USDC receiving status'))
-    await user.click(screen.getByRole('option', { name: 'pending' }))
-    expect(await screen.findByText('Receiving created (pending).')).toBeInTheDocument()
+    expect(screen.getByText('$9,853.86')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save USDC' }))
+    expect(await screen.findByText('Saved.')).toBeInTheDocument()
 
-    const created = fetchSpy.mock.calls
+    await user.click(screen.getByRole('button', { name: 'ETH in ETH' }))
+    const ethAmount = await screen.findByLabelText('ETH amount')
+    expect(ethAmount).toHaveValue('3')
+    expect(screen.getByText('≈ $9,852.36')).toBeInTheDocument()
+
+    await user.clear(ethAmount)
+    await user.type(ethAmount, '1')
+    expect(await screen.findByText('≈ $3,284.12')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Save ETH' }))
+    expect(await screen.findByText('Saved.')).toBeInTheDocument()
+
+    const patches = fetchSpy.mock.calls
       .map((call) => {
         const url = requestUrl(call[0] as RequestInfo | URL)
         const init = call[1]
         const method = init?.method ?? 'GET'
 
-        if (!url.endsWith('/v1/admin/receivings') || method !== 'POST') {
+        if (!url.endsWith('/v1/admin/users/7') || method !== 'PATCH') {
           return null
         }
 
         return requestJson(init) as {
-          symbol?: string
-          amount?: string
-          status?: string
-          usdAmount?: string
+          assets?: { tokens?: { symbol: string; balance: string }[] }
         }
       })
-      .filter((body) => body !== null)
+      .filter((body) => body?.assets !== undefined)
 
-    expect(created[0]).toMatchObject({
-      symbol: 'ETH',
-      amount: '3',
-      status: 'success',
-      usdAmount: '9852.36',
-    })
-    expect(created[1]).toMatchObject({
-      symbol: 'USDC',
-      amount: '1.5',
-      status: 'pending',
-      usdAmount: '1.5',
-    })
+    expect(patches[0]?.assets?.tokens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ symbol: 'ETH', balance: '3000000000000000000' }),
+      ]),
+    )
+    expect(patches[1]?.assets?.tokens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ symbol: 'USDC', balance: '1500000' }),
+      ]),
+    )
+    expect(patches[2]?.assets?.tokens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ symbol: 'ETH', balance: '1000000000000000000' }),
+      ]),
+    )
   })
 
-  it('creates a sending and a receiving from the user Assets sections', async () => {
+  it('creates a sending and a receiving from the user profile tabs', async () => {
     const user = userEvent.setup()
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
-    await screen.findByLabelText('Sending amount')
+    expect(await screen.findByRole('button', { name: 'Assets' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.queryByLabelText('Sending amount')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Receiving amount')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Sendings' }))
+    expect(screen.getByRole('button', { name: 'Sendings' })).toHaveAttribute('aria-pressed', 'true')
+    expect(window.location.search).toContain('tab=sendings')
+    expect(await screen.findByText('No sendings yet')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Add sending' }))
+    expect(screen.getByLabelText('Sending amount')).not.toHaveAttribute('placeholder')
+    expect(screen.getByLabelText('Recipient')).not.toHaveAttribute('placeholder')
 
     await user.type(screen.getByLabelText('Sending amount'), '0.01')
+    expect(await screen.findByText('≈ $32.84')).toBeInTheDocument()
     await user.type(
       screen.getByLabelText('Recipient'),
       '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
@@ -862,6 +993,17 @@ describe('Admin cabinet', () => {
 
     expect(await screen.findByText('Sending created (pending).')).toBeInTheDocument()
     expect(screen.queryByText('No sendings yet')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Receivings' }))
+    expect(screen.getByRole('button', { name: 'Receivings' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(window.location.search).toContain('tab=receivings')
+    expect(await screen.findByText('No receivings yet')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Add receiving' }))
+    expect(screen.getByLabelText('Receiving amount')).not.toHaveAttribute('placeholder')
 
     await user.type(screen.getByLabelText('Receiving amount'), '0.15')
     expect(await screen.findByText('≈ $492.62')).toBeInTheDocument()
@@ -906,6 +1048,12 @@ describe('Admin cabinet', () => {
             userId: '7',
             amount: '0.01',
             symbol: 'ETH',
+            assetChainId: '1',
+            assetStandard: 'native',
+            assetAddress: null,
+            assetName: 'Ether',
+            assetDecimals: 18,
+            assetIsVerified: true,
             recipientAddress: '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
             status: 'pending',
           }),
@@ -916,11 +1064,30 @@ describe('Admin cabinet', () => {
             userId: '7',
             amount: '0.2',
             symbol: 'USDT',
+            assetChainId: '1',
+            assetStandard: 'ERC-20',
+            assetAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+            assetName: 'Tether USD',
+            assetDecimals: 6,
+            assetIsVerified: true,
             status: 'pending',
           }),
         },
       ]),
     )
+  })
+
+  it('restores the profile tab from the query string and lists that user', async () => {
+    listedSendings = [{ ...PENDING_SENDING, userId: '7' }]
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    openPath('/admin/users/7?tab=sendings')
+    renderAdmin()
+
+    expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sendings' })).toHaveAttribute('aria-pressed', 'true')
+    expect((await screen.findAllByText('2 ETH')).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Add sending' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Sending amount')).not.toBeInTheDocument()
   })
 
   it('adds a cryptocurrency from the Assets header menu', async () => {
@@ -929,7 +1096,7 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
-    await screen.findByLabelText('ETH value in USD')
+    await screen.findByLabelText('ETH amount')
 
     await user.click(screen.getByRole('button', { name: 'Add crypto' }))
     const usdt = await screen.findByRole('menuitem', { name: 'Add USDT on Ethereum' })
@@ -937,7 +1104,7 @@ describe('Admin cabinet', () => {
 
     await user.click(usdt)
     expect(await screen.findByText('Saved.')).toBeInTheDocument()
-    expect(screen.getByLabelText('USDT value in USD')).toHaveValue('0')
+    expect(screen.getByLabelText('USDT amount')).toHaveValue('0')
 
     const patch = fetchSpy.mock.calls
       .map((call) => {
@@ -1170,12 +1337,11 @@ describe('Admin cabinet', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
     expect(screen.getByLabelText('Asset')).toHaveTextContent('ETH')
     await user.click(screen.getByLabelText('Asset'))
-    expect(screen.getByRole('option', { name: 'ETH' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('option', { name: 'USDC' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'USDT' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'DAI' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'WBTC' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'WETH' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Select ETH on Ethereum' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await user.click(screen.getByRole('option', { name: 'Select USDC on Ethereum' }))
     await user.click(screen.getByLabelText('Status'))
     await user.click(screen.getByRole('option', { name: 'failure' }))
     expect(screen.getByLabelText('Status').className).toMatch(/text-destructive/u)
@@ -1205,9 +1371,140 @@ describe('Admin cabinet', () => {
         failureMessage: 'Blocked by admin',
         recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
         amount: '4',
-        symbol: 'ETH',
+        symbol: 'USDC',
+        assetChainId: '1',
+        assetStandard: 'ERC-20',
+        assetAddress: USDC_TOKEN.address,
+        assetName: 'USD Coin',
+        assetDecimals: 6,
+        assetIsVerified: true,
       })
     })
+  })
+
+  it('deletes a sending after confirmation', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    listedSendings = [
+      {
+        id: '62',
+        createdAt: '2026-08-22T14:59:14.037Z',
+        userId: '74',
+        status: 'pending',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '4',
+        symbol: 'ETH',
+      },
+    ]
+
+    try {
+      const user = userEvent.setup()
+      localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+      renderAdmin()
+
+      await user.click(await screen.findByRole('link', { name: 'Sendings' }))
+      await user.click(await screen.findByRole('button', { name: /^Edit$/ }))
+      await screen.findByRole('heading', { name: 'Edit sending' })
+      await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+      expect(confirm).toHaveBeenCalledWith('Delete this sending? This cannot be undone.')
+      await waitFor(() => {
+        const removed = fetchSpy.mock.calls.find((call) => {
+          const url = requestUrl(call[0] as RequestInfo | URL)
+          const method = call[1]?.method ?? 'GET'
+
+          return url.endsWith('/v1/admin/sendings/62') && method === 'DELETE'
+        })
+
+        expect(removed).toBeDefined()
+      })
+      await waitFor(() => {
+        expect(screen.queryByRole('heading', { name: 'Edit sending' })).not.toBeInTheDocument()
+      })
+      expect(screen.queryByText(/id 62/)).not.toBeInTheDocument()
+    } finally {
+      confirm.mockRestore()
+    }
+  })
+
+  it('keeps the sending when delete confirmation is cancelled', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    listedSendings = [
+      {
+        id: '62',
+        createdAt: '2026-08-22T14:59:14.037Z',
+        userId: '74',
+        status: 'pending',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '4',
+        symbol: 'ETH',
+      },
+    ]
+
+    try {
+      const user = userEvent.setup()
+      localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+      renderAdmin()
+
+      await user.click(await screen.findByRole('link', { name: 'Sendings' }))
+      await user.click(await screen.findByRole('button', { name: /^Edit$/ }))
+      await screen.findByRole('heading', { name: 'Edit sending' })
+      await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+      expect(confirm).toHaveBeenCalledOnce()
+      expect(
+        fetchSpy.mock.calls.some((call) => (call[1]?.method ?? 'GET') === 'DELETE'),
+      ).toBe(false)
+      expect(screen.getByRole('heading', { name: 'Edit sending' })).toBeInTheDocument()
+    } finally {
+      confirm.mockRestore()
+    }
+  })
+
+  it('deletes a receiving after confirmation', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    listedReceivings = [
+      {
+        id: '81',
+        createdAt: '2026-08-22T15:10:00.000Z',
+        userId: '7',
+        status: 'pending',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '12',
+        symbol: 'USDC',
+        usdAmount: '12.00',
+      },
+    ]
+
+    try {
+      const user = userEvent.setup()
+      localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+      renderAdmin()
+
+      await user.click(await screen.findByRole('link', { name: 'Receivings' }))
+      await user.click(await screen.findByRole('button', { name: /^Edit$/ }))
+      await screen.findByRole('heading', { name: 'Edit receiving' })
+      await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+      expect(confirm).toHaveBeenCalledWith('Delete this receiving? This cannot be undone.')
+      await waitFor(() => {
+        const removed = fetchSpy.mock.calls.find((call) => {
+          const url = requestUrl(call[0] as RequestInfo | URL)
+          const method = call[1]?.method ?? 'GET'
+
+          return url.endsWith('/v1/admin/receivings/81') && method === 'DELETE'
+        })
+
+        expect(removed).toBeDefined()
+      })
+      await waitFor(() => {
+        expect(screen.queryByRole('heading', { name: 'Edit receiving' })).not.toBeInTheDocument()
+      })
+    } finally {
+      confirm.mockRestore()
+    }
   })
 
   it('lets the admin write a custom rejection reason via Custom', async () => {
@@ -1273,6 +1570,103 @@ describe('Admin cabinet', () => {
         failureMessage: 'Node timed out',
       })
     })
+  })
+
+  it('writes complete metadata when a receiving asset changes', async () => {
+    listedReceivings = [
+      {
+        id: '81',
+        createdAt: '2026-08-22T15:10:00.000Z',
+        userId: '7',
+        status: 'pending',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '12',
+        symbol: 'USDC',
+        usdAmount: '12.00',
+      },
+    ]
+
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    await user.click(await screen.findByRole('link', { name: 'Receivings' }))
+    await user.click(await screen.findByRole('button', { name: /^Edit$/ }))
+    expect(await screen.findByRole('heading', { name: 'Edit receiving' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Asset')).toHaveTextContent('USDC')
+    await user.click(screen.getByLabelText('Asset'))
+    await user.click(screen.getByRole('option', { name: 'Select USDT on Ethereum' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      const patch = fetchSpy.mock.calls.find((call) => {
+        const url = requestUrl(call[0] as RequestInfo | URL)
+        return url.endsWith('/v1/admin/receivings/81') && call[1]?.method === 'PATCH'
+      })
+
+      expect(requestJson(patch?.[1])).toMatchObject({
+        symbol: 'USDT',
+        assetChainId: '1',
+        assetStandard: 'ERC-20',
+        assetAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+        assetName: 'Tether USD',
+        assetDecimals: 6,
+        assetIsVerified: true,
+      })
+    })
+  })
+
+  it('refreshes visible profile assets after a pending sending settles', async () => {
+    let settled = false
+    listedSendings = [{ ...PENDING_SENDING, userId: '7' }]
+    const previous = fetchSpy.getMockImplementation()
+
+    fetchSpy.mockImplementation((input, init) => {
+      const url = requestUrl(input)
+      const method = init?.method ?? 'GET'
+
+      if (url.endsWith('/v1/admin/users/7') && method === 'GET') {
+        const assets = settled
+          ? {
+              ...USER.assets,
+              tokens: [{ ...ETH_TOKEN, balance: '1000000000000000000' }, USDC_TOKEN],
+            }
+          : USER.assets
+
+        return Promise.resolve(jsonResponse(200, { ...USER, assets }))
+      }
+
+      if (url.endsWith('/v1/admin/sendings/61') && method === 'PATCH') {
+        settled = true
+        const body = requestJson(init) as Record<string, unknown>
+
+        return Promise.resolve(
+          jsonResponse(200, {
+            ...PENDING_SENDING,
+            userId: '7',
+            ...body,
+            settledAt: '2026-09-10T12:00:00.000Z',
+          }),
+        )
+      }
+
+      return previous?.(input, init) ?? Promise.resolve(jsonResponse(404, {}))
+    })
+
+    const user = userEvent.setup()
+    openPath('/admin/users/7')
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
+    expect(await screen.findByText('≈ $6,568.24')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: /Handle pending sending/ }))
+    await user.click(screen.getByLabelText('Status'))
+    await user.click(screen.getByRole('option', { name: 'success' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('≈ $3,284.12')).toBeInTheDocument()
   })
 
   it('shows a toast for a new pending send on any cabinet tab', async () => {

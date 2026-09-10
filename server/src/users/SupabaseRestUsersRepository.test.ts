@@ -228,6 +228,36 @@ describe('SupabaseRestUsersRepository', () => {
     expect(record?.theP).toBeNull()
   })
 
+  it('includes column the_p when the cabinet profile asks for it', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify([
+            {
+              id: 7,
+              created_at: '2026-08-19T12:00:00.000Z',
+              email: 'james@example.com',
+              balance: '12.5',
+              the_p: 'demo',
+            },
+          ]),
+        ),
+    })
+
+    const users = new SupabaseRestUsersRepository({
+      supabaseUrl: 'https://example.supabase.co',
+      serviceRoleKey: 'service-role',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const record = await users.findById('7', { includeTheP: true })
+    const requested = String(fetchMock.mock.calls[0]?.[0])
+
+    expect(requested).toContain('the_p')
+    expect(record?.theP).toBe('demo')
+  })
+
   it('returns null when there is no match', async () => {
     const users = new SupabaseRestUsersRepository({
       supabaseUrl: 'https://example.supabase.co',

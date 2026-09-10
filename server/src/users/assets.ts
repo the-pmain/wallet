@@ -38,6 +38,16 @@ export interface IAssetToken {
   readonly isVerified: boolean
 }
 
+/** Stable identity and display metadata stored with a settled transfer. */
+export interface IAssetMetadata {
+  readonly chainId: string
+  readonly standard: AssetStandard
+  readonly address: string | null
+  readonly name: string
+  readonly decimals: number
+  readonly isVerified: boolean
+}
+
 /** User portfolio showcase. */
 export interface IUserAssets {
   readonly quoteCurrency: 'USD'

@@ -1,3 +1,4 @@
+import { isLocalSupabaseUrl } from './lib/supabase-url.ts'
 import { resolveStaticRoot } from './lib/staticRoot.ts'
 
 /**
@@ -41,10 +42,11 @@ export interface IServerConfig {
   readonly catalogCacheSeconds: number
 
   /**
-   * Supabase project URL (`https://….supabase.co`).
+   * Supabase API URL.
    *
-   * `null` until the `.env` field is filled: user records then stay
-   * in process memory.
+   * Local development: `http://127.0.0.1:54321`. Hosted: `https://….supabase.co`.
+   * `null` until the env field is filled: user records then stay in process memory.
+   * In development a non-loopback URL is a startup error.
    */
   readonly supabaseUrl: string | null
 
@@ -165,9 +167,7 @@ function readNumber(name: string, fallback: number): number {
   const parsed = Number(raw)
 
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(
-      `Environment variable ${name} must be a positive number, received: ${raw}`,
-    )
+    throw new Error(`Environment variable ${name} must be a positive number, received: ${raw}`)
   }
 
   return parsed
@@ -203,7 +203,7 @@ export function loadConfig(): IServerConfig {
     },
     maxBodyBytes: readNumber('MAX_BODY_BYTES', DEFAULT_MAX_BODY_BYTES),
     catalogCacheSeconds: readNumber('CATALOG_CACHE_SECONDS', DEFAULT_CATALOG_CACHE_SECONDS),
-    supabaseUrl: readOptionalUrl('SUPABASE_URL'),
+    supabaseUrl: readDevelopmentSafeSupabaseUrl(mode),
     supabaseAnonKey: readOptional('SUPABASE_ANON_KEY'),
     supabasePublishableKey: readOptional('SUPABASE_PUBLISHABLE_KEY'),
     supabaseServiceRoleKey: readOptional('SUPABASE_SERVICE_ROLE_KEY'),
@@ -277,7 +277,7 @@ function readAllowedOrigins(mode: RuntimeMode): readonly string[] {
   throw new Error(
     'ALLOWED_ORIGINS is required in production. ' +
       'Silently allowing requests from any origin would let any page ' +
-      'call the service in the user\'s browser.',
+      "call the service in the user's browser.",
   )
 }
 
@@ -311,6 +311,31 @@ function readOptional(name: string): string | null {
   }
 
   return raw.trim()
+}
+
+/**
+ * Reads `SUPABASE_URL` and, in development, refuses a hosted project.
+ *
+ * The error does not include the rejected URL: it may be a production
+ * project reference from `.env`.
+ */
+function readDevelopmentSafeSupabaseUrl(mode: RuntimeMode): string | null {
+  const supabaseUrl = readOptionalUrl('SUPABASE_URL')
+
+  if (mode !== RUNTIME_MODE.Development || supabaseUrl === null) {
+    return supabaseUrl
+  }
+
+  if (isLocalSupabaseUrl(supabaseUrl)) {
+    return supabaseUrl
+  }
+
+  throw new Error(
+    'SUPABASE_URL in development must be the local Supabase instance ' +
+      '(127.0.0.1 or localhost). Refusing to start so this process cannot ' +
+      'reach a remote project. Run `npm run supabase:start` and ' +
+      '`npm run supabase:env` to write `.env.local`.',
+  )
 }
 
 /** Reads a project URL, stripping a trailing `/rest/v1` if it was pasted in. */

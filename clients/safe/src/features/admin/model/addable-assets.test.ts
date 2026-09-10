@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { BUILT_IN_CHAIN_ID, BUILT_IN_NETWORKS, listVerifiedTokens, toAddress } from '@/core'
 import { findTokenLogo } from '@/features/wallet/lib/token-logo'
 
-import { ADDABLE_ASSETS, addableAssetBySymbol, networkNameForChain, remoteAssetKey } from './addable-assets'
+import {
+  ADDABLE_ASSETS,
+  addableAssetBySymbol,
+  addableAssetForTransfer,
+  networkNameForChain,
+  remoteAssetKey,
+} from './addable-assets'
 
 describe('addable-assets', () => {
   it('holds native currency and verified contracts of each built-in network', () => {
@@ -73,5 +79,19 @@ describe('addable-assets', () => {
     expect(eth?.chainName).toBe('Ethereum')
     expect(addableAssetBySymbol('USDC')?.token.symbol).toBe('USDC')
     expect(addableAssetBySymbol(null)).toBeNull()
+  })
+
+  it('resolves exact metadata and falls back for legacy rows', () => {
+    const nonEthereum = ADDABLE_ASSETS.find((item) => item.token.chainId !== '1')
+    expect(nonEthereum).toBeDefined()
+    expect(
+      addableAssetForTransfer({
+        symbol: nonEthereum?.token.symbol ?? null,
+        assetChainId: nonEthereum?.token.chainId ?? null,
+        assetAddress: nonEthereum?.token.address ?? null,
+      })?.id,
+    ).toBe(nonEthereum?.id)
+
+    expect(addableAssetForTransfer({ symbol: 'ETH' })?.chainName).toBe('Ethereum')
   })
 })

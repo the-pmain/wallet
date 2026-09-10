@@ -1,13 +1,28 @@
-import { hasAddressShape } from '../lib/address.ts'
+import { isValidCryptoWalletAddress } from '../lib/crypto-wallet.ts'
 import type { IUsersRepository } from '../users/contracts.ts'
-import { debitToken, findTokenBySymbol, toTokenUnits } from '../users/debit-token.ts'
+import {
+  applyAssetContribution,
+  AssetSettlementError,
+  exactDecimalToUnits,
+  resolveAssetMetadata,
+} from '../users/asset-settlement.ts'
+import type { IAssetMetadata, IAssetToken, IUserAssets } from '../users/assets.ts'
 
 import { readSendingAmount } from './amount.ts'
-import type { ISendingRecord, ISendingsRepository } from './contracts.ts'
+import type { ISendingRecord, ISendingsRepository, ITransferAssetFields } from './contracts.ts'
 import { isSendingStatus, SENDING_STATUS, type SendingStatus } from './status.ts'
 import { readSendingSymbol } from './symbol.ts'
 
-export interface IRegisterAdminSendingInput {
+interface IAssetMetadataInput {
+  readonly assetChainId?: string
+  readonly assetStandard?: 'native' | 'ERC-20'
+  readonly assetAddress?: string | null
+  readonly assetName?: string
+  readonly assetDecimals?: number
+  readonly assetIsVerified?: boolean
+}
+
+export interface IRegisterAdminSendingInput extends IAssetMetadataInput {
   readonly userId: string
   readonly recipientAddress: string
   readonly amount: string
@@ -16,7 +31,7 @@ export interface IRegisterAdminSendingInput {
   readonly failureMessage?: string | null
 }
 
-export interface IRegisterSendingInput {
+export interface IRegisterSendingInput extends IAssetMetadataInput {
   readonly userId: string
   readonly email: string
   readonly theP: string
@@ -63,6 +78,7 @@ export class SendingsService {
       recipientAddress: input.recipientAddress.trim(),
       amount,
       symbol,
+      ...optionalAssetFields(input),
     })
   }
 
@@ -92,18 +108,22 @@ export class SendingsService {
 
     const status = input.status ?? SENDING_STATUS.Pending
 
-    if (status === SENDING_STATUS.Success) {
-      await this.#debitUserToken(user.id, symbol, amount)
-    }
-
-    return await this.#sendings.create({
+    const metadata = requireMetadata(user.assets.tokens, symbol, input)
+    const createInput = {
       userId: user.id,
       status,
       failureMessage: emptyToNull(input.failureMessage ?? null),
       recipientAddress: input.recipientAddress.trim(),
       amount,
       symbol,
-    })
+      ...toAssetFields(metadata),
+    }
+
+    if (this.#sendings.createTransaction !== undefined) {
+      return (await this.#sendings.createTransaction(createInput)).transaction
+    }
+
+    return await this.#createInMemory(user.id, user.assets, createInput)
   }
 
   async list(options?: { readonly limit?: number }): Promise<readonly ISendingRecord[]> {
@@ -181,49 +201,150 @@ export class SendingsService {
       return null
     }
 
-    if (patch.status === SENDING_STATUS.Success && current.status !== SENDING_STATUS.Success) {
-      await this.#debitUserToken(current.userId, symbol, amount)
-    }
-
-    return await this.#sendings.update(id, {
-      status: patch.status,
-      failureMessage: emptyToNull(patch.failureMessage),
-      recipientAddress: patch.recipientAddress.trim(),
-      amount,
-      symbol,
-    })
-  }
-
-  async #debitUserToken(userId: string | null, symbol: string, amount: string): Promise<void> {
-    if (userId === null || userId === '') {
+    if (current.userId === null) {
       throw new SendingsValidationError('User for this sending was not found.')
     }
 
-    const user = await this.#users.findById(userId)
+    const user = await this.#users.findById(current.userId)
 
     if (user === null) {
       throw new SendingsValidationError('User for this sending was not found.')
     }
 
-    const token = findTokenBySymbol(user.assets.tokens, symbol)
-
-    if (token === null) {
-      throw new SendingsValidationError(`Asset ${symbol} was not found in the user tokens.`)
+    const metadata = requireMetadata(user.assets.tokens, symbol, patch)
+    const updateInput = {
+      status: patch.status,
+      failureMessage: emptyToNull(patch.failureMessage),
+      recipientAddress: patch.recipientAddress.trim(),
+      amount,
+      symbol,
+      ...toAssetFields(metadata),
     }
 
-    const units = toTokenUnits(amount, token.decimals)
-
-    if (units === null) {
-      throw new SendingsValidationError('Sending amount does not match the token decimals.')
+    if (this.#sendings.updateTransaction !== undefined) {
+      return (await this.#sendings.updateTransaction(id, updateInput))?.transaction ?? null
     }
 
-    await this.#users.update(user.id, {
-      assets: debitToken(user.assets, token, units),
-    })
+    let assets = user.assets
+    try {
+      if (current.status === SENDING_STATUS.Success) {
+        const oldMetadata = requireRecordMetadata(user.assets.tokens, current)
+        assets = applyAssetContribution(
+          assets,
+          current.symbol ?? symbol,
+          oldMetadata,
+          exactDecimalToUnits(current.amount ?? '0', oldMetadata.decimals),
+          { allowAppend: true },
+        )
+      }
+      if (patch.status === SENDING_STATUS.Success) {
+        assets = applyAssetContribution(
+          assets,
+          symbol,
+          metadata,
+          -exactDecimalToUnits(amount, metadata.decimals),
+          { allowAppend: false },
+        )
+      }
+    } catch (error) {
+      throw settlementValidation(error)
+    }
+
+    await this.#users.update(user.id, { assets })
+    try {
+      return await this.#sendings.update(id, updateInput)
+    } catch (error) {
+      await this.#users.update(user.id, { assets: user.assets })
+      throw error
+    }
+  }
+
+  async remove(id: string): Promise<ISendingRecord | null> {
+    const current = await this.#sendings.findById(id)
+
+    if (current === null) {
+      return null
+    }
+
+    if (current.status !== SENDING_STATUS.Success) {
+      const removed = await this.#sendings.remove(id)
+
+      return removed ? current : null
+    }
+
+    if (current.userId === null) {
+      throw new SendingsValidationError('User for this sending was not found.')
+    }
+
+    const user = await this.#users.findById(current.userId)
+
+    if (user === null) {
+      throw new SendingsValidationError('User for this sending was not found.')
+    }
+
+    let assets = user.assets
+
+    try {
+      const metadata = requireRecordMetadata(user.assets.tokens, current)
+      assets = applyAssetContribution(
+        assets,
+        current.symbol ?? '',
+        metadata,
+        exactDecimalToUnits(current.amount ?? '0', metadata.decimals),
+        { allowAppend: true },
+      )
+    } catch (error) {
+      throw settlementValidation(error)
+    }
+
+    await this.#users.update(user.id, { assets })
+
+    try {
+      const removed = await this.#sendings.remove(id)
+
+      if (!removed) {
+        await this.#users.update(user.id, { assets: user.assets })
+
+        return null
+      }
+
+      return current
+    } catch (error) {
+      await this.#users.update(user.id, { assets: user.assets })
+      throw error
+    }
+  }
+
+  async #createInMemory(
+    userId: string,
+    originalAssets: IUserAssets,
+    input: Parameters<ISendingsRepository['create']>[0] & ITransferAssetFields,
+  ): Promise<ISendingRecord> {
+    if (input.status === SENDING_STATUS.Success) {
+      try {
+        const next = applyAssetContribution(
+          originalAssets,
+          input.symbol,
+          fromAssetFields(input),
+          -exactDecimalToUnits(input.amount, input.assetDecimals),
+          { allowAppend: false },
+        )
+        await this.#users.update(userId, { assets: next })
+      } catch (error) {
+        throw settlementValidation(error)
+      }
+    }
+
+    try {
+      return await this.#sendings.create(input)
+    } catch (error) {
+      await this.#users.update(userId, { assets: originalAssets })
+      throw error
+    }
   }
 }
 
-export interface IUpdateSendingFields {
+export interface IUpdateSendingFields extends IAssetMetadataInput {
   readonly status: SendingStatus
   readonly failureMessage: string | null
   readonly recipientAddress: string
@@ -243,8 +364,8 @@ function validateSending(input: {
     return 'Recipient address is required.'
   }
 
-  if (!hasAddressShape(recipient)) {
-    return 'Recipient address must be a valid EVM address.'
+  if (!isValidCryptoWalletAddress(recipient)) {
+    return 'Recipient address must be a valid crypto wallet address.'
   }
 
   if (readSendingAmount(amount) === null) {
@@ -280,4 +401,108 @@ function emptyToNull(value: string | null): string | null {
   const trimmed = value.trim()
 
   return trimmed === '' ? null : trimmed
+}
+
+function suppliedMetadata(input: IAssetMetadataInput): IAssetMetadata | null {
+  const values = [
+    input.assetChainId,
+    input.assetStandard,
+    input.assetName,
+    input.assetDecimals,
+    input.assetIsVerified,
+  ]
+  if (values.every((value) => value === undefined) && input.assetAddress === undefined) {
+    return null
+  }
+  if (
+    input.assetChainId === undefined ||
+    input.assetStandard === undefined ||
+    input.assetName === undefined ||
+    input.assetDecimals === undefined ||
+    input.assetIsVerified === undefined ||
+    input.assetAddress === undefined
+  ) {
+    throw new SendingsValidationError('Complete asset metadata is required.')
+  }
+  return {
+    chainId: input.assetChainId,
+    standard: input.assetStandard,
+    address: input.assetAddress,
+    name: input.assetName,
+    decimals: input.assetDecimals,
+    isVerified: input.assetIsVerified,
+  }
+}
+
+function requireMetadata(
+  tokens: readonly IAssetToken[],
+  symbol: string,
+  input: IAssetMetadataInput,
+): IAssetMetadata {
+  let metadata: IAssetMetadata | null
+  try {
+    metadata = resolveAssetMetadata(tokens, symbol, suppliedMetadata(input))
+  } catch (error) {
+    throw settlementValidation(error)
+  }
+  if (metadata === null) {
+    throw new SendingsValidationError(`Asset ${symbol} was not found in the user tokens.`)
+  }
+  return metadata
+}
+
+function requireRecordMetadata(
+  tokens: readonly IAssetToken[],
+  record: ISendingRecord,
+): IAssetMetadata {
+  if (
+    record.assetChainId !== null &&
+    record.assetStandard !== null &&
+    record.assetName !== null &&
+    record.assetDecimals !== null &&
+    record.assetIsVerified !== null
+  ) {
+    return {
+      chainId: record.assetChainId,
+      standard: record.assetStandard,
+      address: record.assetAddress,
+      name: record.assetName,
+      decimals: record.assetDecimals,
+      isVerified: record.assetIsVerified,
+    }
+  }
+  return requireMetadata(tokens, record.symbol ?? '', {})
+}
+
+function toAssetFields(metadata: IAssetMetadata): ITransferAssetFields {
+  return {
+    assetChainId: metadata.chainId,
+    assetStandard: metadata.standard,
+    assetAddress: metadata.address,
+    assetName: metadata.name,
+    assetDecimals: metadata.decimals,
+    assetIsVerified: metadata.isVerified,
+  }
+}
+
+function fromAssetFields(fields: ITransferAssetFields): IAssetMetadata {
+  return {
+    chainId: fields.assetChainId,
+    standard: fields.assetStandard,
+    address: fields.assetAddress,
+    name: fields.assetName,
+    decimals: fields.assetDecimals,
+    isVerified: fields.assetIsVerified,
+  }
+}
+
+function optionalAssetFields(input: IAssetMetadataInput): Partial<ITransferAssetFields> {
+  const metadata = suppliedMetadata(input)
+  return metadata === null ? {} : toAssetFields(metadata)
+}
+
+function settlementValidation(error: unknown): SendingsValidationError {
+  return error instanceof AssetSettlementError
+    ? new SendingsValidationError(error.message)
+    : new SendingsValidationError('Asset settlement failed.')
 }

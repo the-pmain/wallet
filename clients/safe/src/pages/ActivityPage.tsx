@@ -99,6 +99,10 @@ export function ActivityPage() {
 
   const startReplacement = useCallback(
     (hash: TxHash, kind: ReplacementKind) => {
+      if (directory.isSpectator) {
+        return
+      }
+
       const id = ++requestId.current
 
       setReplacement({ hash, kind, prepared: null, error: null, isBusy: false })
@@ -127,7 +131,7 @@ export function ActivityPage() {
         },
       )
     },
-    [session],
+    [directory.isSpectator, session],
   )
 
   const closeReplacement = useCallback(() => {
@@ -254,7 +258,7 @@ export function ActivityPage() {
           filter={filter}
           onFilterChange={setFilter}
           snapshot={snapshot}
-          startReplacement={startReplacement}
+          startReplacement={directory.isSpectator ? undefined : startReplacement}
         />
       )}
     </div>
@@ -270,7 +274,7 @@ function ActivityHistory({
   readonly filter: ITransferFilter
   readonly onFilterChange: (filter: ITransferFilter) => void
   readonly snapshot: ReturnType<typeof useWalletSnapshot>
-  readonly startReplacement: (hash: TxHash, kind: ReplacementKind) => void
+  readonly startReplacement?: (hash: TxHash, kind: ReplacementKind) => void
 }) {
   const network = snapshot.activeNetwork
   const limits = snapshot.historyLimits

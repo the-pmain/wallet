@@ -5,6 +5,7 @@ import {
   type IRemoteAssets,
   type IRemoteReceiving,
   type IRemoteSending,
+  type ITransactionAssetMetadata,
   type IRemoteUser,
   type IUserWalletsMap,
   type IWalletSlot,
@@ -47,7 +48,7 @@ export class AdminAuthError extends Error {
   }
 }
 
-export interface IAdminSendingCreate {
+export interface IAdminSendingCreate extends ITransactionAssetMetadata {
   readonly userId: string
   readonly recipientAddress: string
   readonly amount: string
@@ -56,7 +57,7 @@ export interface IAdminSendingCreate {
   readonly failureMessage?: string | null
 }
 
-export interface IAdminSendingPatch {
+export interface IAdminSendingPatch extends ITransactionAssetMetadata {
   readonly status: SendingStatus
   readonly failureMessage: string | null
   readonly recipientAddress: string
@@ -64,7 +65,7 @@ export interface IAdminSendingPatch {
   readonly symbol: string
 }
 
-export interface IAdminReceivingCreate {
+export interface IAdminReceivingCreate extends ITransactionAssetMetadata {
   readonly userId: string
   readonly status: SendingStatus
   readonly failureMessage?: string | null
@@ -74,7 +75,7 @@ export interface IAdminReceivingCreate {
   readonly usdAmount?: string | null
 }
 
-export interface IAdminReceivingPatch {
+export interface IAdminReceivingPatch extends ITransactionAssetMetadata {
   readonly status: SendingStatus
   readonly failureMessage: string | null
   readonly recipientAddress?: string | null
@@ -258,6 +259,7 @@ export class AdminClient {
         recipientAddress: input.recipientAddress,
         amount: input.amount,
         symbol: input.symbol,
+        ...assetMetadataBody(input),
         ...(input.status === undefined ? {} : { status: input.status }),
         failureMessage: input.failureMessage ?? null,
       },
@@ -303,6 +305,7 @@ export class AdminClient {
         recipientAddress: patch.recipientAddress,
         amount: patch.amount,
         symbol: patch.symbol,
+        ...assetMetadataBody(patch),
       },
     })
     const payload = parseJson(await response.text())
@@ -322,6 +325,20 @@ export class AdminClient {
     }
 
     return sending
+  }
+
+  async deleteSending(id: string): Promise<void> {
+    const response = await this.#request(`/v1/admin/sendings/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+
+    if (response.status === 404) {
+      throw new AdminAuthError(404, 'sending not found')
+    }
+
+    if (!response.ok) {
+      throw this.#failure(response.status, 'delete sending failed')
+    }
   }
 
   async listUserReceivings(userId: string): Promise<readonly IRemoteReceiving[]> {
@@ -377,6 +394,7 @@ export class AdminClient {
         amount: input.amount,
         symbol: input.symbol,
         usdAmount: input.usdAmount ?? null,
+        ...assetMetadataBody(input),
       },
     })
     const payload = parseJson(await response.text())
@@ -404,6 +422,7 @@ export class AdminClient {
         amount: patch.amount,
         symbol: patch.symbol,
         usdAmount: patch.usdAmount ?? null,
+        ...assetMetadataBody(patch),
       },
     })
     const payload = parseJson(await response.text())
@@ -423,6 +442,20 @@ export class AdminClient {
     }
 
     return receiving
+  }
+
+  async deleteReceiving(id: string): Promise<void> {
+    const response = await this.#request(`/v1/admin/receivings/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+
+    if (response.status === 404) {
+      throw new AdminAuthError(404, 'receiving not found')
+    }
+
+    if (!response.ok) {
+      throw this.#failure(response.status, 'delete receiving failed')
+    }
   }
 
   async getUser(id: string): Promise<IRemoteUser> {
@@ -578,6 +611,7 @@ export class AdminClient {
       }
     }
 
+    this.#inflightGets.clear()
     return await this.#send(path, options.method, headers, options.body)
   }
 
@@ -606,6 +640,17 @@ export class AdminClient {
     }
 
     return new AdminAuthError(status, `${message} (${String(status)})`)
+  }
+}
+
+function assetMetadataBody(metadata: ITransactionAssetMetadata): ITransactionAssetMetadata {
+  return {
+    assetChainId: metadata.assetChainId,
+    assetStandard: metadata.assetStandard,
+    assetAddress: metadata.assetAddress,
+    assetName: metadata.assetName,
+    assetDecimals: metadata.assetDecimals,
+    assetIsVerified: metadata.assetIsVerified,
   }
 }
 
@@ -849,6 +894,8 @@ function parseRemoteUser(payload: unknown): IRemoteUser | null {
     return null
   }
 
+  const theP = typeof record['the_p'] === 'string' && record['the_p'] !== '' ? record['the_p'] : undefined
+
   return {
     id,
     email,
@@ -856,6 +903,7 @@ function parseRemoteUser(payload: unknown): IRemoteUser | null {
     createdAt,
     wallets: parseWallets(record['wallets']),
     assets: parseAssets(record['assets']),
+    ...(theP === undefined ? {} : { theP }),
   }
 }
 

@@ -59,7 +59,7 @@ export function AssetsPage() {
             Refresh
           </Button>
 
-          {showRemote ? null : (
+          {showRemote || directory.isSpectator ? null : (
             <Button
               variant="ghost"
               size="sm"
@@ -83,7 +83,7 @@ export function AssetsPage() {
         </div>
       </header>
 
-      {isImporting && !showRemote ? (
+      {isImporting && !showRemote && !directory.isSpectator ? (
         <Card>
           <CardContent>
             <ImportTokenForm
@@ -107,7 +107,7 @@ export function AssetsPage() {
                consent. The assets screen itself does not go outside.
                A directory record already carries rates in the showcase. */
             portfolio={displayed.portfolio}
-            {...(showRemote
+            {...(showRemote || directory.isSpectator
               ? {}
               : {
                   onRemove: (address: Address) => {

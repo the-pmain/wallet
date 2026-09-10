@@ -87,7 +87,7 @@ export function SecurityProvider({
     onboarding.lock()
   }, [onboarding])
 
-  const autoLock = useAutoLock({
+  useAutoLock({
     isUnlocked: state === ONBOARDING_STATE.Unlocked,
     timeoutMs: settings.autoLockTimeoutMs,
     clock,
@@ -117,7 +117,6 @@ export function SecurityProvider({
 
   const value = useMemo<ISecurityContextValue>(
     () => ({
-      autoLock,
       settings,
       setAutoLockTimeout,
       setConfirmBeforeSigning,
@@ -125,15 +124,7 @@ export function SecurityProvider({
       clock,
       storageDurability,
     }),
-    [
-      autoLock,
-      settings,
-      setAutoLockTimeout,
-      setConfirmBeforeSigning,
-      verifyPassword,
-      clock,
-      storageDurability,
-    ],
+    [settings, setAutoLockTimeout, setConfirmBeforeSigning, verifyPassword, clock, storageDurability],
   )
 
   return <SecurityContext value={value}>{children}</SecurityContext>

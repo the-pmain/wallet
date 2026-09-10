@@ -11,11 +11,11 @@ import {
   useOnboardingState,
   type IRemoteUser,
 } from '@/features/onboarding'
+import { SpectatorBanner, SpectatorMark } from '@/features/onboarding/ui/SpectatorBanner'
 import {
   displayNameFromEmail,
   formatMemberSince,
 } from '@/features/onboarding/lib/directory-identity'
-import { AutoLockWarning, useSecurity } from '@/features/security'
 import { AccountAvatar, SESSION_STATE, addressLabel, useWalletSnapshot } from '@/features/wallet'
 import { APP_CONFIG } from '@/shared/config'
 import { useTranslation } from '@/shared/i18n'
@@ -45,7 +45,6 @@ export function AppShell() {
   const directory = useDirectorySession()
   const location = useLocation()
   const { t } = useTranslation()
-  const { autoLock } = useSecurity()
   const directoryUser = directory.user
   const showShellContent =
     snapshot.state === SESSION_STATE.Open || directoryUser !== null || directory.isRestoring
@@ -124,6 +123,10 @@ export function AppShell() {
       <Toaster />
 
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-md">
+        {/* Inset matches the cabinet column (`lg:pl-64`) so the
+            label sits over the page, not over the sidebar or in the
+            empty gap between the account chip and the lock. */}
+        <SpectatorBanner className="lg:pl-64" />
         <div className="flex w-full min-w-0 items-center gap-3 px-4 py-3 lg:pl-64">
           {/* На узком экране панели слева нет: знак и имя живут в шапке. */}
           <BrandLockup className="shrink-0 lg:hidden" />
@@ -187,17 +190,6 @@ export function AppShell() {
         Ключ по адресу перезапускает анимацию появления при каждом переходе.
         Без него React переиспользует узел и переход выглядит рывком.
       */}
-      {/* Предупреждение стоит над содержимым и вне ключа маршрута:
-          переход между экранами не должен его сбрасывать — до блокировки
-          осталось столько же, сколько было. */}
-      <div className="relative z-10 w-full min-w-0 px-4 pt-2 lg:pl-64">
-        <AutoLockWarning
-          isVisible={autoLock.isWarning}
-          remainingMs={autoLock.remainingMs}
-          onExtend={autoLock.extend}
-        />
-      </div>
-
       {/* `relative z-10` обязателен: фон позиционирован, и без явного
           слоя непозиционированное содержимое ушло бы под него.
 
@@ -349,7 +341,10 @@ function DirectoryIdentity({ user }: { readonly user: IRemoteUser }) {
     >
       <AccountAvatar address={seed} label={name} />
       <div className="flex min-w-0 flex-col">
-        <span className="truncate text-sm font-semibold">{name}</span>
+        <span className="flex items-center gap-1.5 truncate text-sm font-semibold">
+          {name}
+          <SpectatorMark />
+        </span>
         {details.length > 0 ? (
           <span className="truncate text-xs text-muted-foreground">{details.join(' · ')}</span>
         ) : null}
@@ -391,7 +386,10 @@ function RestoringIdentity() {
     >
       <AccountAvatar address={stored.email} label={name} />
       <div className="flex min-w-0 flex-col">
-        <span className="truncate text-sm font-semibold">{name}</span>
+        <span className="flex items-center gap-1.5 truncate text-sm font-semibold">
+          {name}
+          <SpectatorMark />
+        </span>
         <span className="truncate text-xs text-muted-foreground">{stored.email}</span>
       </div>
     </Link>

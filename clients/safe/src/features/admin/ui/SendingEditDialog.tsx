@@ -1,17 +1,13 @@
 import { useId, useState, type FormEvent } from 'react'
 
+import { isValidCryptoWalletAddress, normalizeCryptoWalletInput } from '@/core'
 import type { IRemoteSending } from '@/features/onboarding'
-import {
-  SENDING_STATUS,
-  SENDING_STATUSES,
-  TOKEN_SYMBOL,
-  TOKEN_SYMBOLS,
-  type SendingStatus,
-} from '@/features/onboarding'
+import { SENDING_STATUS, SENDING_STATUSES, type SendingStatus } from '@/features/onboarding'
 import { Button, Dialog, Input, Label, Select, Textarea } from '@/shared/ui'
 
 import { formatAdminTimestamp } from '../lib/format-admin-timestamp'
 import type { IAdminSendingPatch } from '../model/AdminClient'
+import { addableAssetForTransfer, transactionAssetMetadata } from '../model/addable-assets'
 import {
   FAILURE_MESSAGE_CUSTOM,
   FAILURE_MESSAGE_NONE,
@@ -19,6 +15,7 @@ import {
   failureMessageSelectValue,
   isCustomFailureMessage,
 } from '../model/failure-messages'
+import { defaultTransferAsset, TransferAssetSelect } from './TransferAssetSelect'
 
 interface SendingEditDialogProps {
   readonly sending: IRemoteSending | null
@@ -27,6 +24,7 @@ interface SendingEditDialogProps {
   readonly error: string | null
   readonly onClose: () => void
   readonly onSave: (id: string, patch: IAdminSendingPatch) => void
+  readonly onDelete: (id: string) => void
 }
 
 export function SendingEditDialog({
@@ -36,6 +34,7 @@ export function SendingEditDialog({
   error,
   onClose,
   onSave,
+  onDelete,
 }: SendingEditDialogProps) {
   const fieldId = useId()
   const [draft, setDraft] = useState<IAdminSendingPatch>(() =>
@@ -48,10 +47,12 @@ export function SendingEditDialog({
   const isOpen = sending !== null
   const isFailure = draft.status === SENDING_STATUS.Failure
   const hasFailureReason = (draft.failureMessage ?? '').trim() !== ''
-  const canSave = !isBusy && (!isFailure || hasFailureReason)
+  const recipientValid = isValidCryptoWalletAddress(draft.recipientAddress)
+  const canSave = !isBusy && recipientValid && (!isFailure || hasFailureReason)
   const failureSelectValue = usesCustomMessage
     ? FAILURE_MESSAGE_CUSTOM
     : failureMessageSelectValue(draft.failureMessage)
+  const selectedAsset = addableAssetForTransfer(draft) ?? defaultTransferAsset()
 
   function handleSubmit(event: FormEvent): void {
     event.preventDefault()
@@ -63,10 +64,28 @@ export function SendingEditDialog({
     onSave(sending.id, {
       status: draft.status,
       failureMessage: draft.failureMessage === '' ? null : draft.failureMessage,
-      recipientAddress: draft.recipientAddress.trim(),
+      recipientAddress: normalizeCryptoWalletInput(draft.recipientAddress),
       amount: draft.amount.trim(),
       symbol: draft.symbol.trim(),
+      assetChainId: draft.assetChainId,
+      assetStandard: draft.assetStandard,
+      assetAddress: draft.assetAddress,
+      assetName: draft.assetName,
+      assetDecimals: draft.assetDecimals,
+      assetIsVerified: draft.assetIsVerified,
     })
+  }
+
+  function handleDelete(): void {
+    if (sending === null || isBusy) {
+      return
+    }
+
+    if (!window.confirm('Delete this sending? This cannot be undone.')) {
+      return
+    }
+
+    onDelete(sending.id)
   }
 
   return (
@@ -77,6 +96,15 @@ export function SendingEditDialog({
       description="Change the asset, amount, recipient, status, or failure reason. ID, created time, and user stay as they are."
       footer={
         <>
+          <Button
+            type="button"
+            variant="destructive"
+            className="sm:mr-auto"
+            disabled={isBusy}
+            onClick={handleDelete}
+          >
+            Delete
+          </Button>
           <Button type="button" variant="ghost" disabled={isBusy} onClick={onClose}>
             Cancel
           </Button>
@@ -93,16 +121,16 @@ export function SendingEditDialog({
           <ReadonlyField label="User" value={userEmail} />
           <div className="flex flex-col gap-2">
             <Label htmlFor={`${fieldId}-symbol`}>Asset</Label>
-            <Select
+            <TransferAssetSelect
               id={`${fieldId}-symbol`}
-              value={draft.symbol}
+              value={selectedAsset.id}
               disabled={isBusy}
-              options={symbolOptions(draft.symbol).map((symbol) => ({
-                value: symbol,
-                label: symbol,
-              }))}
-              onChange={(symbol) => {
-                setDraft((current) => ({ ...current, symbol }))
+              onChange={(asset) => {
+                setDraft((current) => ({
+                  ...current,
+                  symbol: asset.token.symbol,
+                  ...transactionAssetMetadata(asset.token),
+                }))
               }}
             />
           </div>
@@ -126,13 +154,20 @@ export function SendingEditDialog({
               value={draft.recipientAddress}
               disabled={isBusy}
               className="font-mono"
+              aria-invalid={draft.recipientAddress.trim() !== '' && !recipientValid}
               onChange={(event) => {
                 setDraft((current) => ({ ...current, recipientAddress: event.target.value }))
               }}
             />
+            {draft.recipientAddress.trim() === '' || recipientValid ? null : (
+              <p className="text-xs text-destructive">Enter a valid crypto wallet address.</p>
+            )}
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`${fieldId}-status`} className={isFailure ? 'text-destructive' : undefined}>
+            <Label
+              htmlFor={`${fieldId}-status`}
+              className={isFailure ? 'text-destructive' : undefined}
+            >
               Status
             </Label>
             <Select
@@ -141,7 +176,11 @@ export function SendingEditDialog({
               disabled={isBusy}
               menuPlacement="top"
               tone={
-                isFailure ? 'danger' : draft.status === SENDING_STATUS.Success ? 'success' : 'default'
+                isFailure
+                  ? 'danger'
+                  : draft.status === SENDING_STATUS.Success
+                    ? 'success'
+                    : 'default'
               }
               options={SENDING_STATUSES.map((status) => ({
                 value: status,
@@ -156,7 +195,10 @@ export function SendingEditDialog({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`${fieldId}-failure`} className={isFailure ? 'text-destructive' : undefined}>
+            <Label
+              htmlFor={`${fieldId}-failure`}
+              className={isFailure ? 'text-destructive' : undefined}
+            >
               Failure reason
             </Label>
             <Select
@@ -207,9 +249,7 @@ export function SendingEditDialog({
               />
             ) : null}
           </div>
-          {error !== null ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : null}
+          {error !== null ? <p className="text-sm text-destructive">{error}</p> : null}
         </form>
       )}
     </Dialog>
@@ -220,37 +260,49 @@ function ReadonlyField({ label, value }: { readonly label: string; readonly valu
   return (
     <div className="flex flex-col gap-1">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="break-all font-mono text-sm">{value}</p>
+      <p className="font-mono text-sm break-all">{value}</p>
     </div>
   )
 }
 
-function symbolOptions(current: string): readonly string[] {
-  const symbol = current.trim().toUpperCase()
-
-  if (symbol === '' || (TOKEN_SYMBOLS as readonly string[]).includes(symbol)) {
-    return TOKEN_SYMBOLS
-  }
-
-  return [symbol, ...TOKEN_SYMBOLS]
-}
-
 function emptyDraft(): IAdminSendingPatch {
+  const asset = defaultTransferAsset()
+
   return {
     status: SENDING_STATUS.Pending,
     failureMessage: null,
     recipientAddress: '',
     amount: '',
-    symbol: TOKEN_SYMBOL.ETH,
+    symbol: asset.token.symbol,
+    ...transactionAssetMetadata(asset.token),
   }
 }
 
 function draftFromSending(sending: IRemoteSending): IAdminSendingPatch {
+  const asset = addableAssetForTransfer(sending) ?? defaultTransferAsset()
+  const metadata =
+    typeof sending.assetChainId === 'string' &&
+    sending.assetStandard !== null &&
+    sending.assetStandard !== undefined &&
+    typeof sending.assetName === 'string' &&
+    typeof sending.assetDecimals === 'number' &&
+    typeof sending.assetIsVerified === 'boolean'
+      ? {
+          assetChainId: sending.assetChainId,
+          assetStandard: sending.assetStandard,
+          assetAddress: sending.assetAddress ?? null,
+          assetName: sending.assetName,
+          assetDecimals: sending.assetDecimals,
+          assetIsVerified: sending.assetIsVerified,
+        }
+      : transactionAssetMetadata(asset.token)
+
   return {
     status: sending.status ?? SENDING_STATUS.Pending,
     failureMessage: sending.failureMessage,
     recipientAddress: sending.recipientAddress ?? '',
     amount: sending.amount ?? '',
-    symbol: sending.symbol ?? TOKEN_SYMBOL.ETH,
+    symbol: asset.token.symbol,
+    ...metadata,
   }
 }

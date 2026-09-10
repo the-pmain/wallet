@@ -63,7 +63,10 @@ export interface IUpdateUserInput {
 export interface IUsersRepository {
   create(input: ICreateUserInput): Promise<IUserRecord>
 
-  findById(id: string): Promise<IUserRecord | null>
+  findById(
+    id: string,
+    options?: { readonly includeTheP?: boolean },
+  ): Promise<IUserRecord | null>
 
   /** Every record. For the admin cabinet. */
   list(): Promise<readonly IUserRecord[]>

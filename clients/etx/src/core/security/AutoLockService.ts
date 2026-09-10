@@ -12,27 +12,11 @@ import type { Unsubscribe } from '@/core/types'
  */
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000
 
-/**
- * За сколько до блокировки показывается предупреждение.
- *
- * Блокировка посреди заполнения формы отправки теряет введённое.
- * Предупреждение даёт возможность продлить сессию одним движением —
- * и оно же объясняет, почему кошелёк вдруг закрылся, если человек
- * отвлёкся.
- */
-const DEFAULT_WARNING_MS = 60 * 1000
-
 /** Как часто проверяется истечение срока. */
 const TICK_INTERVAL_MS = 5 * 1000
 
 /** События автоблокировки. */
 export interface AutoLockEventMap {
-  /** До блокировки осталось меньше порога предупреждения. */
-  'autolock:warning': { readonly remainingMs: number }
-
-  /** Предупреждение снято: пользователь проявил активность. */
-  'autolock:resumed': Record<string, never>
-
   /** Срок истёк, кошелёк подлежит блокировке. */
   'autolock:expired': Record<string, never>
 }
@@ -41,9 +25,6 @@ export interface AutoLockEventMap {
 export interface IAutoLockOptions {
   /** Срок бездействия до блокировки. */
   readonly timeoutMs?: number
-
-  /** За сколько до блокировки предупреждать. */
-  readonly warningMs?: number
 }
 
 /** Зависимости сервиса. */
@@ -72,24 +53,20 @@ export interface IAutoLockDependencies {
  *
  * ИСКЛЮЧЕНИЙ ДЛЯ «ВАЖНЫХ ЭКРАНОВ» НЕТ. Оговорка «не блокировать, пока
  * открыта форма отправки» превратила бы защиту в необязательную:
- * достаточно оставить эту форму открытой. Вместо исключения —
- * предупреждение заранее.
+ * достаточно оставить эту форму открытой.
  */
 export class AutoLockService {
   readonly #clock: IClock
   readonly #events = new EventBus<AutoLockEventMap>()
 
   #timeoutMs: number
-  #warningMs: number
 
   #lastActivityAt = 0
   #stopTicking: Unsubscribe | null = null
-  #isWarned = false
 
   constructor(dependencies: IAutoLockDependencies, options: IAutoLockOptions = {}) {
     this.#clock = dependencies.clock
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-    this.#warningMs = options.warningMs ?? DEFAULT_WARNING_MS
   }
 
   /** Действует ли отсчёт. */
@@ -121,7 +98,6 @@ export class AutoLockService {
     this.stop()
 
     this.#lastActivityAt = this.#clock.now()
-    this.#isWarned = false
 
     this.#stopTicking = this.#clock.setInterval(() => {
       this.#tick()
@@ -132,15 +108,12 @@ export class AutoLockService {
   stop(): void {
     this.#stopTicking?.()
     this.#stopTicking = null
-    this.#isWarned = false
   }
 
   /**
    * Отмечает активность пользователя.
    *
-   * Вызывается слоем приложения по событиям ввода. Если предупреждение
-   * уже показано, оно снимается — иначе оно висело бы до самой
-   * блокировки, которой уже не будет.
+   * Вызывается слоем приложения по событиям ввода.
    */
   notifyActivity(): void {
     if (this.#stopTicking === null) {
@@ -148,11 +121,6 @@ export class AutoLockService {
     }
 
     this.#lastActivityAt = this.#clock.now()
-
-    if (this.#isWarned) {
-      this.#isWarned = false
-      this.#events.emit('autolock:resumed', {})
-    }
   }
 
   /**
@@ -164,11 +132,6 @@ export class AutoLockService {
    */
   setTimeout(timeoutMs: number): void {
     this.#timeoutMs = timeoutMs
-
-    /* Предупреждение не может быть длиннее самого срока: иначе оно
-       показывалось бы с первой же секунды и перестало бы означать
-       «скоро заблокируется». */
-    this.#warningMs = Math.min(DEFAULT_WARNING_MS, Math.floor(timeoutMs / 2))
 
     if (this.#stopTicking !== null) {
       this.start()
@@ -196,13 +159,6 @@ export class AutoLockService {
          бы обращаться к уничтоженным сервисам. */
       this.stop()
       this.#events.emit('autolock:expired', {})
-
-      return
-    }
-
-    if (remaining <= this.#warningMs && !this.#isWarned) {
-      this.#isWarned = true
-      this.#events.emit('autolock:warning', { remainingMs: remaining })
     }
   }
 }

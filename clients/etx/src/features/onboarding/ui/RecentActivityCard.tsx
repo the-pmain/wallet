@@ -1,10 +1,12 @@
-import { ArrowRight } from 'lucide-react'
+import { ArrowDownLeft, ArrowRight, ArrowUpRight } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { useTranslation } from '@/shared/i18n'
+import { cn } from '@/shared/lib/utils'
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/shared/ui'
 
 import type { IRemoteReceiving, IRemoteSending } from '../model/RemoteUserDirectory'
+import { TRANSFER_DIRECTION_TINT } from './TransferDirectionMark'
 import { UserReceivingsList } from './UserReceivingsList'
 import { UserSendingsList } from './UserSendingsList'
 
@@ -45,8 +47,9 @@ export function RecentActivityCard({
         <section aria-labelledby="recent-sendings-heading">
           <h3
             id="recent-sendings-heading"
-            className="px-4 pt-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase sm:px-6"
+            className="flex items-center gap-1.5 px-4 pt-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase sm:px-6"
           >
+            <ArrowUpRight className={cn('size-3.5', TRANSFER_DIRECTION_TINT.out)} aria-hidden />
             Sendings
           </h3>
           <UserSendingsList
@@ -60,8 +63,9 @@ export function RecentActivityCard({
         <section aria-labelledby="recent-receivings-heading" className="border-t border-border">
           <h3
             id="recent-receivings-heading"
-            className="px-4 pt-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase sm:px-6"
+            className="flex items-center gap-1.5 px-4 pt-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase sm:px-6"
           >
+            <ArrowDownLeft className={cn('size-3.5', TRANSFER_DIRECTION_TINT.in)} aria-hidden />
             Receivings
           </h3>
           <UserReceivingsList

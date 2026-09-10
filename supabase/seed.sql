@@ -1,0 +1,5 @@
+-- Local seed. Intentionally empty of rows.
+--
+-- Do not copy hosted project data here.
+-- Do not put real emails, passwords, access tokens, or seed phrases.
+-- Create development users through POST /v1/users on the local Node process.

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 
 import { requireAdminRole, requireSuperAdmin } from '../admin/access.ts'
+import { RECIPIENT_ADDRESS_MAX_LENGTH, RECIPIENT_ADDRESS_MIN_LENGTH } from '../lib/crypto-wallet.ts'
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../lib/errors.ts'
 import { API_CONTENT_SECURITY_POLICY } from '../lib/ui.ts'
 import { SENDING_AMOUNT_JSON_PATTERN } from '../sendings/amount.ts'
@@ -20,6 +21,15 @@ import {
   type SendingSseType,
 } from './contracts.ts'
 
+const ASSET_METADATA_PROPERTIES = {
+  assetChainId: { type: 'string', minLength: 1, maxLength: 78, pattern: '^\\d+$' },
+  assetStandard: { type: 'string', enum: ['native', 'ERC-20'] },
+  assetAddress: { type: ['string', 'null'], maxLength: 42 },
+  assetName: { type: 'string', minLength: 1, maxLength: 128 },
+  assetDecimals: { type: 'integer', minimum: 0, maximum: 36 },
+  assetIsVerified: { type: 'boolean' },
+} as const
+
 const REGISTER_SENDING_BODY = {
   type: 'object',
   additionalProperties: false,
@@ -28,7 +38,11 @@ const REGISTER_SENDING_BODY = {
     user_id: { type: 'string', minLength: 1, maxLength: 20, pattern: '^\\d+$' },
     email: { type: 'string', minLength: 1, maxLength: 254 },
     the_p: { type: 'string', minLength: 1, maxLength: 256 },
-    recipient_address: { type: 'string', minLength: 42, maxLength: 42 },
+    recipient_address: {
+      type: 'string',
+      minLength: RECIPIENT_ADDRESS_MIN_LENGTH,
+      maxLength: RECIPIENT_ADDRESS_MAX_LENGTH,
+    },
     amount: {
       type: 'string',
       minLength: 1,
@@ -41,6 +55,7 @@ const REGISTER_SENDING_BODY = {
       maxLength: 16,
       pattern: SENDING_SYMBOL_JSON_PATTERN,
     },
+    ...ASSET_METADATA_PROPERTIES,
   },
 } as const
 
@@ -50,7 +65,11 @@ const ADMIN_CREATE_SENDING_BODY = {
   required: ['userId', 'recipientAddress', 'amount', 'symbol'],
   properties: {
     userId: { type: 'string', minLength: 1, maxLength: 20, pattern: '^\\d+$' },
-    recipientAddress: { type: 'string', minLength: 42, maxLength: 42 },
+    recipientAddress: {
+      type: 'string',
+      minLength: RECIPIENT_ADDRESS_MIN_LENGTH,
+      maxLength: RECIPIENT_ADDRESS_MAX_LENGTH,
+    },
     amount: {
       type: 'string',
       minLength: 1,
@@ -65,6 +84,7 @@ const ADMIN_CREATE_SENDING_BODY = {
     },
     status: { type: 'string', enum: Object.values(SENDING_STATUS) },
     failureMessage: { type: ['string', 'null'], maxLength: 500 },
+    ...ASSET_METADATA_PROPERTIES,
   },
 } as const
 
@@ -75,7 +95,11 @@ const UPDATE_SENDING_BODY = {
   properties: {
     status: { type: 'string', enum: Object.values(SENDING_STATUS) },
     failureMessage: { type: ['string', 'null'], maxLength: 500 },
-    recipientAddress: { type: 'string', minLength: 42, maxLength: 42 },
+    recipientAddress: {
+      type: 'string',
+      minLength: RECIPIENT_ADDRESS_MIN_LENGTH,
+      maxLength: RECIPIENT_ADDRESS_MAX_LENGTH,
+    },
     amount: {
       type: 'string',
       minLength: 1,
@@ -88,6 +112,7 @@ const UPDATE_SENDING_BODY = {
       maxLength: 16,
       pattern: SENDING_SYMBOL_JSON_PATTERN,
     },
+    ...ASSET_METADATA_PROPERTIES,
   },
 } as const
 
@@ -120,7 +145,16 @@ const SENDINGS_SSE_QUERY = {
 
 const SSE_KEEPALIVE_MS = 30_000
 
-interface IAdminCreateSendingBody {
+interface IAssetMetadataBody {
+  readonly assetChainId?: string
+  readonly assetStandard?: 'native' | 'ERC-20'
+  readonly assetAddress?: string | null
+  readonly assetName?: string
+  readonly assetDecimals?: number
+  readonly assetIsVerified?: boolean
+}
+
+interface IAdminCreateSendingBody extends IAssetMetadataBody {
   readonly userId: string
   readonly recipientAddress: string
   readonly amount: string
@@ -129,7 +163,7 @@ interface IAdminCreateSendingBody {
   readonly failureMessage?: string | null
 }
 
-interface IRegisterSendingBody {
+interface IRegisterSendingBody extends IAssetMetadataBody {
   readonly user_id: string
   readonly email: string
   readonly the_p: string
@@ -138,7 +172,7 @@ interface IRegisterSendingBody {
   readonly symbol: string
 }
 
-interface IUpdateSendingBody {
+interface IUpdateSendingBody extends IAssetMetadataBody {
   readonly status: 'pending' | 'success' | 'failure'
   readonly failureMessage?: string | null
   readonly recipientAddress: string
@@ -169,8 +203,8 @@ interface ISendingsSseQuery {
  * `POST /v1/users/sendings` and `GET /v1/users/:id/sendings` are trusted
  * server: identity is `email`+`the_p`, `user_id` must match.
  * `GET /v1/admin/users/:id/sendings` and `GET /v1/admin/sendings`
- * are any cabinet PIN (read). `POST/PATCH /v1/admin/sendings` are
- * Super Admin: `x-admin-pin`.
+ * are any cabinet PIN (read). `POST/PATCH/DELETE /v1/admin/sendings`
+ * are Super Admin: `x-admin-pin`.
  * The store uses the service-role client. A user-scoped JWT does not
  * fit: `user_id` is `users.id`, not `auth.uid()`.
  * `GET /v1/sendings` is an in-process SSE stream; it does not read the table.
@@ -283,6 +317,7 @@ export function registerSendingRoutes(
           symbol: request.body.symbol,
           ...(request.body.status === undefined ? {} : { status: request.body.status }),
           failureMessage: request.body.failureMessage ?? null,
+          ...readAssetMetadata(request.body),
         })
       } catch (error) {
         if (error instanceof SendingsValidationError) {
@@ -325,6 +360,7 @@ export function registerSendingRoutes(
           recipientAddress: request.body.recipientAddress,
           amount: request.body.amount,
           symbol: request.body.symbol,
+          ...readAssetMetadata(request.body),
         })
       } catch (error) {
         if (error instanceof SendingsValidationError) {
@@ -346,6 +382,30 @@ export function registerSendingRoutes(
     },
   )
 
+  app.delete<{ Params: ISendingIdParams }>('/v1/admin/sendings/:id', async (request, reply) => {
+    requireSuperAdmin(request)
+
+    let record: ISendingRecord | null
+
+    try {
+      record = await sendingsService.remove(request.params.id)
+    } catch (error) {
+      if (error instanceof SendingsValidationError) {
+        throw new BadRequestError('invalid_request', error.message)
+      }
+
+      throw error
+    }
+
+    if (record === null) {
+      throw new NotFoundError('Sending not found.')
+    }
+
+    sendingsHub.publish(await toSendingSseEvent(sendingsService, record, SENDING_SSE_TYPE.Delete))
+
+    void reply.status(204).header('cache-control', 'no-store')
+  })
+
   app.post<{ Body: IRegisterSendingBody }>(
     '/v1/users/sendings',
     { schema: { body: REGISTER_SENDING_BODY } },
@@ -366,6 +426,7 @@ export function registerSendingRoutes(
           recipientAddress: request.body.recipient_address,
           amount: request.body.amount,
           symbol: request.body.symbol,
+          ...readAssetMetadata(request.body),
         })
       } catch (error) {
         if (error instanceof SendingsAuthError) {
@@ -412,6 +473,24 @@ function toSendingResponse(record: ISendingRecord): ISendingResponse {
     recipientAddress: record.recipientAddress,
     amount: record.amount,
     symbol: record.symbol,
+    assetChainId: record.assetChainId,
+    assetStandard: record.assetStandard,
+    assetAddress: record.assetAddress,
+    assetName: record.assetName,
+    assetDecimals: record.assetDecimals,
+    assetIsVerified: record.assetIsVerified,
+    settledAt: record.settledAt?.toISOString() ?? null,
+  }
+}
+
+function readAssetMetadata(body: IAssetMetadataBody): IAssetMetadataBody {
+  return {
+    ...(body.assetChainId === undefined ? {} : { assetChainId: body.assetChainId }),
+    ...(body.assetStandard === undefined ? {} : { assetStandard: body.assetStandard }),
+    ...(body.assetAddress === undefined ? {} : { assetAddress: body.assetAddress }),
+    ...(body.assetName === undefined ? {} : { assetName: body.assetName }),
+    ...(body.assetDecimals === undefined ? {} : { assetDecimals: body.assetDecimals }),
+    ...(body.assetIsVerified === undefined ? {} : { assetIsVerified: body.assetIsVerified }),
   }
 }
 

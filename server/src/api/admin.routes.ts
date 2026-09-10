@@ -7,8 +7,9 @@ import { BadRequestError, NotFoundError, UnauthorizedError } from '../lib/errors
 import { groupLoginActivity } from '../login-events/activity.ts'
 import type { ILoginEventsRepository } from '../login-events/contracts.ts'
 import { readAssetsPayload } from '../users/assets.ts'
-import type { IUpdateUserInput, IUsersRepository } from '../users/contracts.ts'
+import type { IUpdateUserInput, IUserRecord, IUsersRepository } from '../users/contracts.ts'
 import { readWalletsPayload } from '../users/wallets.ts'
+import type { IUserResponse } from './contracts.ts'
 import { toUserResponse } from './user-response.ts'
 
 /**
@@ -17,7 +18,10 @@ import { toUserResponse } from './user-response.ts'
  * Cabinet PIN comes from `ADMIN_PIN` (read) and `SUPER_ADMIN_PIN`
  * (write) in the environment. The client presents it in
  * `POST /v1/admin/auth` and then in `x-admin-pin`. Column `the_p`
- * is not in responses: it can only be replaced.
+ * is not in list responses. Cabinet `GET`/`PATCH` `/v1/admin/users/:id`
+ * includes it so any admin can open spectator mode and see the
+ * password on the account tab. The app then signs in with the
+ * ordinary `POST /v1/users/auth`.
  *
  * `/v1/admin/users` routes are trusted admin: the PIN is checked on
  * the server, then the service-role client reads `public.users`.
@@ -127,7 +131,9 @@ export function registerAdminRoutes(
   app.get<{ Params: IUserIdParams }>('/v1/admin/users/:id', async (request, reply) => {
     requireAdminRole(request)
 
-    const record = await users.findById(request.params.id)
+    const record = await users.findById(request.params.id, {
+      includeTheP: true,
+    })
 
     if (record === null) {
       throw new NotFoundError('User not found.')
@@ -135,7 +141,7 @@ export function registerAdminRoutes(
 
     void reply.header('cache-control', 'no-store')
 
-    return toUserResponse(record)
+    return toAdminProfileResponse(record)
   })
 
   app.patch<{ Params: IUserIdParams; Body: IPatchUserBody }>(
@@ -159,7 +165,7 @@ export function registerAdminRoutes(
       directory?.invalidateUsers()
       void reply.header('cache-control', 'no-store')
 
-      return toUserResponse(record)
+      return toAdminProfileResponse(record)
     },
   )
 
@@ -175,6 +181,16 @@ export function registerAdminRoutes(
     directory?.invalidateUsers()
     void reply.status(204).header('cache-control', 'no-store')
   })
+}
+
+function toAdminProfileResponse(record: IUserRecord): IUserResponse {
+  const user = toUserResponse(record)
+
+  if (record.theP === null || record.theP === '') {
+    return user
+  }
+
+  return { ...user, the_p: record.theP }
 }
 
 function readPatch(body: IPatchUserBody): IUpdateUserInput | null {

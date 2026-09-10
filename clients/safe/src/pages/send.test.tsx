@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toAddress, type Wei } from '@/core'
 import { TEST_MNEMONIC, TEST_MNEMONIC_ADDRESSES } from '@/core/hdwallet/vectors'
-import { LOGIN_CREDENTIALS_STORAGE_KEY, writeLoginCredentials } from '@/features/onboarding'
+import {
+  LOGIN_CREDENTIALS_STORAGE_KEY,
+  SPECTATOR_ACTION_BLOCKED,
+  writeLoginCredentials,
+  writeSpectatorMode,
+} from '@/features/onboarding'
+import { openPath } from '@/test/open-path'
 import {
   createTestAppServices,
   mockDirectoryAndPriceFetch,
@@ -160,7 +166,20 @@ describe('Send: form', () => {
     /* The wait is needed here too: resolution is delayed, and a
        check right after typing would catch the button disabled for
        another reason — resolution not finished yet. */
-    expect(await screen.findByText(/Enter a 42-character address/i)).toBeInTheDocument()
+    expect(await screen.findByText(/Enter a crypto wallet address/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+  })
+
+  it('does not accept a bitcoin address for an on-chain send', async () => {
+    const user = userEvent.setup()
+
+    renderApp()
+    await openSend()
+
+    await user.type(screen.getByLabelText(/Recipient address/), '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
+    await user.type(screen.getByLabelText(/Amount/), '1')
+
+    expect(await screen.findByText(/valid Bitcoin address/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
   })
 
@@ -730,6 +749,12 @@ describe('Send: directory record', () => {
       recipient_address: RECIPIENT,
       amount: '0.5',
       symbol: 'ETH',
+      assetChainId: '1',
+      assetStandard: 'native',
+      assetAddress: null,
+      assetName: 'Ether',
+      assetDecimals: 18,
+      assetIsVerified: true,
     })
   })
 
@@ -924,6 +949,12 @@ describe('Send: directory record', () => {
 
     const source = TestEventSource.instances.find((item) => item.url.includes('/v1/sendings'))
     expect(source).toBeDefined()
+    const userRefreshCount = () =>
+      vi.mocked(globalThis.fetch).mock.calls.filter((call) => {
+        const method = call[1]?.method ?? 'GET'
+        return method === 'GET' && String(call[0]).includes('/v1/users/7')
+      }).length
+    const refreshesBeforeSuccess = userRefreshCount()
 
     source?.emit(
       'sendings',
@@ -944,6 +975,46 @@ describe('Send: directory record', () => {
     expect(screen.getByRole('heading', { name: 'Status' })).toBeInTheDocument()
     expect(screen.getByText('The transfer completed successfully.')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(userRefreshCount()).toBe(refreshesBeforeSuccess + 1)
+    })
+
+    source?.emit(
+      'sendings',
+      JSON.stringify({
+        id: '1',
+        createdAt: '2026-08-22T14:59:14.037Z',
+        userId: '7',
+        status: 'success',
+        failureMessage: null,
+        recipientAddress: RECIPIENT,
+        amount: '0.5',
+        symbol: 'ETH',
+        type_send: 'update',
+      }),
+    )
+    expect(userRefreshCount()).toBe(refreshesBeforeSuccess + 1)
+
+    source?.emit(
+      'sendings',
+      JSON.stringify({
+        id: '1',
+        createdAt: '2026-08-22T14:59:14.037Z',
+        userId: '7',
+        status: 'failure',
+        failureMessage: 'Settlement reversed',
+        recipientAddress: RECIPIENT,
+        amount: '0.5',
+        symbol: 'ETH',
+        type_send: 'update',
+      }),
+    )
+
+    expect(await screen.findByText('Settlement reversed')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(userRefreshCount()).toBe(refreshesBeforeSuccess + 2)
+    })
   })
 
   it('colors Available and blocks send when the amount exceeds the balance', async () => {
@@ -1054,5 +1125,88 @@ describe('Send: directory record', () => {
       amount: '0.5',
       symbol: 'ETH',
     })
+  })
+
+  it('accepts a bitcoin address as the recipient in the directory', async () => {
+    globalThis.fetch = mockDirectoryAndPriceFetch({
+      id: '7',
+      email: 'theguy@email.com',
+      balance: '70',
+      createdAt: '2026-08-19T12:00:00.000Z',
+      assets: {
+        quoteCurrency: 'USD',
+        updatedAt: '2026-08-20T12:00:00.000Z',
+        tokens: [
+          {
+            chainId: '1',
+            standard: 'native',
+            address: null,
+            symbol: 'ETH',
+            name: 'Ether',
+            decimals: 18,
+            balance: '1284700000000000000',
+            isVerified: true,
+          },
+        ],
+      },
+    })
+
+    writeLoginCredentials({
+      id: '7',
+      email: 'theguy@email.com',
+      theP: PASSWORD,
+    })
+
+    renderApp()
+    await openSend()
+
+    const user = userEvent.setup()
+    const bitcoin = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
+    await user.type(screen.getByLabelText(/Recipient address/), bitcoin)
+    await user.type(screen.getByLabelText(/Amount/), '0.5')
+
+    expect(await screen.findByText(/valid Bitcoin address/i)).toBeInTheDocument()
+    const next = screen.getByRole('button', { name: 'Next' })
+    await waitFor(() => {
+      expect(next).toBeEnabled()
+    })
+    await user.click(next)
+
+    expect(await screen.findByRole('heading', { name: 'Status' })).toBeInTheDocument()
+    const sendCall = vi.mocked(globalThis.fetch).mock.calls.find((call) =>
+      String(call[0]).includes('/v1/users/sendings'),
+    )
+    expect(JSON.parse(String(sendCall?.[1]?.body))).toMatchObject({
+      recipient_address: bitcoin,
+    })
+  })
+})
+
+describe('Spectator mode', () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('disables the send form', async () => {
+    globalThis.fetch = mockDirectoryAndPriceFetch({
+      id: '7',
+      email: 'james@example.com',
+      balance: '12.5',
+      createdAt: '2026-08-19T12:00:00.000Z',
+    })
+    writeLoginCredentials({
+      id: '7',
+      email: 'james@example.com',
+      theP: 'demo',
+    })
+    writeSpectatorMode()
+    openPath('/wallet/send')
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: 'Send' })).toBeInTheDocument()
+    expect(await screen.findByText(SPECTATOR_ACTION_BLOCKED)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
   })
 })

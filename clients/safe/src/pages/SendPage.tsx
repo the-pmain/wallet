@@ -7,7 +7,7 @@ import {
   ShieldAlert,
   Send,
 } from 'lucide-react'
-import { useEffect, useId, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 
 import {
@@ -15,8 +15,11 @@ import {
   RECIPIENT_RISK,
   TRANSACTION_TYPE,
   decodeTransfer,
+  cryptoWalletKindLabel,
   findRecipientRisks,
+  identifyCryptoWallet,
   isValidAddress,
+  normalizeCryptoWalletInput,
   toAddress,
   toWei,
   type Address,
@@ -25,6 +28,7 @@ import {
   type TxHash,
 } from '@/core'
 import {
+  SPECTATOR_ACTION_BLOCKED,
   readLoginCredentials,
   SENDING_SSE_TYPE,
   SENDING_STATUS,
@@ -139,6 +143,10 @@ export function SendPage() {
     readonly id: string
     readonly userId: string | null
   } | null>(null)
+  const trackedSendingStatus = useRef<{
+    readonly id: string
+    readonly status: string | null
+  } | null>(null)
   const [sendingOutcome, setSendingOutcome] = useState<SendingOutcome>(null)
   const [sendingPreview, setSendingPreview] = useState<{
     readonly amount: string
@@ -159,12 +167,24 @@ export function SendPage() {
       return
     }
 
+    const previous =
+      trackedSendingStatus.current?.id === event.id ? trackedSendingStatus.current.status : null
+    trackedSendingStatus.current = { id: event.id, status: event.status }
+
+    if (
+      previous !== event.status &&
+      (previous === SENDING_STATUS.Success || event.status === SENDING_STATUS.Success)
+    ) {
+      void directory.refresh()
+    }
+
     if (event.status === SENDING_STATUS.Success) {
       setSendingOutcome({ status: SENDING_STATUS.Success })
       return
     }
 
     if (event.status !== SENDING_STATUS.Failure) {
+      setSendingOutcome(null)
       return
     }
 
@@ -286,6 +306,27 @@ export function SendPage() {
     return null
   }, [isResolving, recipientAddress, trimmedRecipient])
 
+  /* Directory sends accept any supported wallet address: an operator
+     executes the transfer, not this network. On-chain sends still
+     require an EVM address. */
+  const directoryRecipient = useMemo((): string | null => {
+    if (effectiveRecipientAddress !== null) {
+      return effectiveRecipientAddress
+    }
+
+    if (!sendViaDirectory) {
+      return null
+    }
+
+    const normalized = normalizeCryptoWalletInput(trimmedRecipient)
+
+    return identifyCryptoWallet(normalized) === null ? null : normalized
+  }, [effectiveRecipientAddress, sendViaDirectory, trimmedRecipient])
+
+  const canSubmitRecipient = sendViaDirectory
+    ? directoryRecipient !== null
+    : effectiveRecipientAddress !== null
+
   /**
    * Resolves the typed recipient after a delay.
    *
@@ -321,7 +362,12 @@ export function SendPage() {
   async function prepare(event: FormEvent): Promise<void> {
     event.preventDefault()
 
-    if (sendChainId === null || effectiveRecipientAddress === null) {
+    if (directory.isSpectator) {
+      setError(SPECTATOR_ACTION_BLOCKED)
+      return
+    }
+
+    if (sendChainId === null || !canSubmitRecipient) {
       return
     }
 
@@ -343,18 +389,30 @@ export function SendPage() {
           return
         }
 
+        if (selected === null) {
+          setError('Select an asset to send.')
+          return
+        }
+
         const amountValue = formatTokenAmount(value, decimals)
         setSendingOutcome(null)
         setSendingPreview({
           amount,
           symbol,
-          recipient: effectiveRecipientAddress,
+          recipient: directoryRecipient ?? trimmedRecipient,
         })
         const sending = await directory.registerSending({
-          recipientAddress: effectiveRecipientAddress,
+          recipientAddress: directoryRecipient ?? trimmedRecipient,
           amount: amountValue,
           symbol,
+          assetChainId: selected.token.chainId.toString(),
+          assetStandard: selected.token.address === null ? 'native' : 'ERC-20',
+          assetAddress: selected.token.address,
+          assetName: selected.token.name,
+          assetDecimals: selected.token.decimals,
+          assetIsVerified: selected.token.isVerified,
         })
+        trackedSendingStatus.current = { id: sending.id, status: sending.status }
         setTrackedSending({ id: sending.id, userId: sending.userId })
         setRecipient('')
         setAmount('')
@@ -371,6 +429,10 @@ export function SendPage() {
           })
         }
 
+        return
+      }
+
+      if (effectiveRecipientAddress === null) {
         return
       }
 
@@ -446,6 +508,11 @@ export function SendPage() {
   }
 
   async function confirm(): Promise<void> {
+    if (directory.isSpectator) {
+      setError(SPECTATOR_ACTION_BLOCKED)
+      return
+    }
+
     if (prepared === null) {
       return
     }
@@ -480,6 +547,7 @@ export function SendPage() {
         networkName={network?.name ?? ''}
         error={error}
         isBusy={isBusy}
+        isLocked={directory.isSpectator}
         onBack={backToForm}
         onConfirm={() => void confirm()}
       />
@@ -496,6 +564,12 @@ export function SendPage() {
         </Button>
         <h1 className="text-2xl font-semibold tracking-tight">Send</h1>
       </header>
+
+      {directory.isSpectator ? (
+        <Alert>
+          <AlertDescription>{SPECTATOR_ACTION_BLOCKED}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -560,11 +634,17 @@ export function SendPage() {
               <Input
                 id={`${fieldId}-to`}
                 value={recipient}
-                placeholder="0x… or name.eth"
+                placeholder="Wallet address or name.eth"
                 autoComplete="off"
                 autoCapitalize="off"
                 autoCorrect="off"
                 spellCheck={false}
+                className="font-mono"
+                aria-invalid={
+                  !isResolving &&
+                  trimmedRecipient !== '' &&
+                  resolved.result.status === RECIPIENT_STATUS.Invalid
+                }
                 onChange={(event) => {
                   setRecipient(event.target.value)
                   setError(null)
@@ -573,6 +653,8 @@ export function SendPage() {
               />
 
               <RecipientHint
+                input={trimmedRecipient}
+                allowsNonEvm={sendViaDirectory}
                 isResolving={isResolving && trimmedRecipient !== ''}
                 resolution={resolved.result}
                 isEnsSupported={snapshot.isEnsSupported}
@@ -684,10 +766,11 @@ export function SendPage() {
               type="submit"
               size="lg"
               disabled={
+                directory.isSpectator ||
                 isBusy ||
                 isAssetsLoading ||
                 sendChainId === null ||
-                effectiveRecipientAddress === null ||
+                !canSubmitRecipient ||
                 amount.trim() === '' ||
                 exceedsAvailable ||
                 assets.length === 0 ||
@@ -711,6 +794,7 @@ export function SendPage() {
             setSendingPreview(null)
             setSendingOutcome(null)
             setTrackedSending(null)
+            trackedSendingStatus.current = null
           }}
         />
       )}
@@ -718,11 +802,7 @@ export function SendPage() {
   )
 }
 
-function isAmountOverAvailable(
-  input: string,
-  available: bigint | null,
-  decimals: number,
-): boolean {
+function isAmountOverAvailable(input: string, available: bigint | null, decimals: number): boolean {
   if (available === null || input.trim() === '') {
     return false
   }
@@ -814,6 +894,8 @@ function SendingStatusPanel({
 }
 
 interface RecipientHintProps {
+  readonly input: string
+  readonly allowsNonEvm: boolean
   readonly isResolving: boolean
   readonly resolution: IRecipientResolution
   readonly isEnsSupported: boolean
@@ -833,7 +915,13 @@ interface RecipientHintProps {
  * is convenient, but the address is signed, and the user must see
  * it before they press Next.
  */
-function RecipientHint({ isResolving, resolution, isEnsSupported }: RecipientHintProps) {
+function RecipientHint({
+  input,
+  allowsNonEvm,
+  isResolving,
+  resolution,
+  isEnsSupported,
+}: RecipientHintProps) {
   if (isResolving) {
     return <p className="text-xs text-muted-foreground">Checking…</p>
   }
@@ -901,10 +989,26 @@ function RecipientHint({ isResolving, resolution, isEnsSupported }: RecipientHin
         </p>
       )
 
+    case RECIPIENT_STATUS.CryptoWallet: {
+      const kind = identifyCryptoWallet(input)
+      const label = kind === null ? 'crypto wallet' : cryptoWalletKindLabel(kind)
+
+      if (allowsNonEvm) {
+        return <p className="text-xs text-muted-foreground">This is a valid {label} address.</p>
+      }
+
+      return (
+        <p className="text-xs text-destructive">
+          This is a valid {label} address. On-chain sends on this network need a 0x address or an
+          ENS name.
+        </p>
+      )
+    }
+
     case RECIPIENT_STATUS.Invalid:
       return (
-        <p className="text-xs text-muted-foreground">
-          Enter a 42-character address starting with 0x, or an ENS name such as name.eth.
+        <p className="text-xs text-destructive">
+          Enter a crypto wallet address or an ENS name such as name.eth.
         </p>
       )
   }
@@ -967,6 +1071,7 @@ interface ConfirmTransferProps {
   readonly networkName: string
   readonly error: string | null
   readonly isBusy: boolean
+  readonly isLocked: boolean
   readonly onBack: () => void
   readonly onConfirm: () => void
 }
@@ -990,6 +1095,7 @@ function ConfirmTransfer({
   networkName,
   error,
   isBusy,
+  isLocked,
   onBack,
   onConfirm,
 }: ConfirmTransferProps) {
@@ -1153,7 +1259,7 @@ function ConfirmTransfer({
         <Button
           size="lg"
           variant="destructive"
-          disabled={isBusy}
+          disabled={isBusy || isLocked}
           onClick={() => {
             if (settings.confirmBeforeSigning) {
               setConfirming(true)

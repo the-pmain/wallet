@@ -22,6 +22,7 @@ interface QuickActionsProps {
   readonly isGeneratingExchangeWallet?: boolean
   readonly generationError?: string | null
   readonly onGenerateExchangeWallet?: () => void
+  readonly areActionsLocked?: boolean
 }
 
 /**
@@ -53,6 +54,7 @@ export function QuickActions({
   isGeneratingExchangeWallet = false,
   generationError = null,
   onGenerateExchangeWallet,
+  areActionsLocked = false,
 }: QuickActionsProps) {
   const { t } = useTranslation()
   const [isAddressVisible, setAddressVisible] = useState(false)
@@ -76,6 +78,7 @@ export function QuickActions({
           to="/wallet/send"
           icon={Send}
           label={t('dashboard.send')}
+          isDisabled={areActionsLocked}
         />
 
         <ActionTile
@@ -102,6 +105,7 @@ export function QuickActions({
             title="Address for receiving funds"
             isGenerating={isGeneratingReceivingWallet}
             error={receivingGenerationError}
+            isLocked={areActionsLocked}
             onGenerate={() => {
               onGenerateReceivingWallet?.()
             }}
@@ -126,6 +130,7 @@ export function QuickActions({
             title="Address for receiving funds from exchange or institution"
             isGenerating={isGeneratingExchangeWallet}
             error={generationError}
+            isLocked={areActionsLocked}
             onGenerate={() => {
               onGenerateExchangeWallet?.()
             }}
@@ -152,11 +157,13 @@ function GenerateWalletPanel({
   title,
   isGenerating,
   error,
+  isLocked,
   onGenerate,
 }: {
   readonly title: string
   readonly isGenerating: boolean
   readonly error: string | null
+  readonly isLocked: boolean
   readonly onGenerate: () => void
 }) {
   return (
@@ -170,7 +177,12 @@ function GenerateWalletPanel({
             : 'No wallet has been generated yet.'}
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="secondary" size="sm" disabled={isGenerating} onClick={onGenerate}>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={isLocked || isGenerating}
+          onClick={onGenerate}
+        >
           {isGenerating ? 'wallet generation request sent' : 'Generate wallet'}
         </Button>
       </div>

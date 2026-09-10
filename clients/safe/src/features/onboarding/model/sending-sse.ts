@@ -4,6 +4,7 @@ import { parseRemoteSending, type IRemoteSending } from './RemoteUserDirectory'
 export const SENDING_SSE_TYPE = {
   Create: 'create',
   Update: 'update',
+  Delete: 'delete',
 } as const
 
 export type SendingSseType = (typeof SENDING_SSE_TYPE)[keyof typeof SENDING_SSE_TYPE]
@@ -14,7 +15,11 @@ export interface ISendingSseEvent extends IRemoteSending {
 }
 
 function isSendingSseType(value: unknown): value is SendingSseType {
-  return value === SENDING_SSE_TYPE.Create || value === SENDING_SSE_TYPE.Update
+  return (
+    value === SENDING_SSE_TYPE.Create ||
+    value === SENDING_SSE_TYPE.Update ||
+    value === SENDING_SSE_TYPE.Delete
+  )
 }
 
 /**

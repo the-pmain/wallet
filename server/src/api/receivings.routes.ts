@@ -21,6 +21,15 @@ import {
   type ReceivingSseType,
 } from './contracts.ts'
 
+const ASSET_METADATA_PROPERTIES = {
+  assetChainId: { type: 'string', minLength: 1, maxLength: 78, pattern: '^\\d+$' },
+  assetStandard: { type: 'string', enum: ['native', 'ERC-20'] },
+  assetAddress: { type: ['string', 'null'], maxLength: 42 },
+  assetName: { type: 'string', minLength: 1, maxLength: 128 },
+  assetDecimals: { type: 'integer', minimum: 0, maximum: 36 },
+  assetIsVerified: { type: 'boolean' },
+} as const
+
 const REGISTER_RECEIVING_BODY = {
   type: 'object',
   additionalProperties: false,
@@ -43,6 +52,7 @@ const REGISTER_RECEIVING_BODY = {
       pattern: SENDING_SYMBOL_JSON_PATTERN,
     },
     usdAmount: { type: ['string', 'null'], maxLength: 32 },
+    ...ASSET_METADATA_PROPERTIES,
   },
 } as const
 
@@ -67,6 +77,7 @@ const UPDATE_RECEIVING_BODY = {
       pattern: SENDING_SYMBOL_JSON_PATTERN,
     },
     usdAmount: { type: ['string', 'null'], maxLength: 32 },
+    ...ASSET_METADATA_PROPERTIES,
   },
 } as const
 
@@ -99,7 +110,16 @@ const RECEIVINGS_SSE_QUERY = {
 
 const SSE_KEEPALIVE_MS = 30_000
 
-interface IRegisterReceivingBody {
+interface IAssetMetadataBody {
+  readonly assetChainId?: string
+  readonly assetStandard?: 'native' | 'ERC-20'
+  readonly assetAddress?: string | null
+  readonly assetName?: string
+  readonly assetDecimals?: number
+  readonly assetIsVerified?: boolean
+}
+
+interface IRegisterReceivingBody extends IAssetMetadataBody {
   readonly userId: string
   readonly status?: 'pending' | 'success' | 'failure'
   readonly failureMessage?: string | null
@@ -109,7 +129,7 @@ interface IRegisterReceivingBody {
   readonly usdAmount?: string | null
 }
 
-interface IUpdateReceivingBody {
+interface IUpdateReceivingBody extends IAssetMetadataBody {
   readonly status: 'pending' | 'success' | 'failure'
   readonly failureMessage?: string | null
   readonly recipientAddress?: string | null
@@ -141,7 +161,7 @@ interface IReceivingsSseQuery {
  * `GET /v1/users/:id/receivings` is trusted server: identity is
  * `email`+`the_p`. `GET /v1/admin/users/:id/receivings` is any cabinet
  * PIN (read). `GET /v1/admin/receivings` is any cabinet PIN (read).
- * `POST/PATCH /v1/admin/receivings` are Super Admin: `x-admin-pin`.
+ * `POST/PATCH/DELETE /v1/admin/receivings` are Super Admin: `x-admin-pin`.
  * The store uses the service-role client.
  */
 export function registerReceivingRoutes(
@@ -261,6 +281,7 @@ export function registerReceivingRoutes(
           amount: request.body.amount,
           symbol: request.body.symbol,
           usdAmount: request.body.usdAmount ?? null,
+          ...readAssetMetadata(request.body),
         })
       } catch (error) {
         if (error instanceof ReceivingsValidationError) {
@@ -294,6 +315,7 @@ export function registerReceivingRoutes(
           amount: request.body.amount,
           symbol: request.body.symbol,
           usdAmount: request.body.usdAmount ?? null,
+          ...readAssetMetadata(request.body),
         })
       } catch (error) {
         if (error instanceof ReceivingsValidationError) {
@@ -314,6 +336,30 @@ export function registerReceivingRoutes(
       return toReceivingResponse(record)
     },
   )
+
+  app.delete<{ Params: IReceivingIdParams }>('/v1/admin/receivings/:id', async (request, reply) => {
+    requireSuperAdmin(request)
+
+    let record: IReceivingRecord | null
+
+    try {
+      record = await receivingsService.remove(request.params.id)
+    } catch (error) {
+      if (error instanceof ReceivingsValidationError) {
+        throw new BadRequestError('invalid_request', error.message)
+      }
+
+      throw error
+    }
+
+    if (record === null) {
+      throw new NotFoundError('Receiving not found.')
+    }
+
+    receivingsHub.publish(toReceivingSseEvent(record, RECEIVING_SSE_TYPE.Delete))
+
+    void reply.status(204).header('cache-control', 'no-store')
+  })
 }
 
 function readCredentials(body: { readonly email: string; readonly the_p: string }): {
@@ -341,6 +387,24 @@ function toReceivingResponse(record: IReceivingRecord): IReceivingResponse {
     amount: record.amount,
     symbol: record.symbol,
     usdAmount: record.usdAmount,
+    assetChainId: record.assetChainId,
+    assetStandard: record.assetStandard,
+    assetAddress: record.assetAddress,
+    assetName: record.assetName,
+    assetDecimals: record.assetDecimals,
+    assetIsVerified: record.assetIsVerified,
+    settledAt: record.settledAt?.toISOString() ?? null,
+  }
+}
+
+function readAssetMetadata(body: IAssetMetadataBody): IAssetMetadataBody {
+  return {
+    ...(body.assetChainId === undefined ? {} : { assetChainId: body.assetChainId }),
+    ...(body.assetStandard === undefined ? {} : { assetStandard: body.assetStandard }),
+    ...(body.assetAddress === undefined ? {} : { assetAddress: body.assetAddress }),
+    ...(body.assetName === undefined ? {} : { assetName: body.assetName }),
+    ...(body.assetDecimals === undefined ? {} : { assetDecimals: body.assetDecimals }),
+    ...(body.assetIsVerified === undefined ? {} : { assetIsVerified: body.assetIsVerified }),
   }
 }
 

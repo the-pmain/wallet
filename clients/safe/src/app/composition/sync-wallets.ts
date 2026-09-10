@@ -1,5 +1,6 @@
 import {
   INITIAL_WALLET_VALUE,
+  isSpectatorMode,
   readLoginCredentials,
   WALLET_CODENAME_RECEIVING_FUNDS,
 } from '@/features/onboarding'
@@ -30,7 +31,7 @@ export function syncCreatedWalletsToDirectory(
   session.subscribe(() => {
     const stored = readLoginCredentials()
 
-    if (stored === null) {
+    if (stored === null || isSpectatorMode()) {
       return
     }
 

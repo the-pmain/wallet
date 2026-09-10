@@ -10,7 +10,11 @@ import {
   type ITestAppServices,
 } from '@/test/doubles'
 import { openPath } from '@/test/open-path'
-import { readLoginCredentials, writeLoginCredentials } from '@/features/onboarding'
+import {
+  SPECTATOR_MODE_STORAGE_KEY,
+  readLoginCredentials,
+  writeLoginCredentials,
+} from '@/features/onboarding'
 
 import { AppProviders } from '@/app/providers'
 import { AppRouter } from '@/app/router'
@@ -44,6 +48,7 @@ function renderApp() {
 beforeEach(() => {
   window.location.hash = ''
   localStorage.clear()
+  sessionStorage.clear()
   services = createTestAppServices()
   services.providerFactory.configure({ balance: 0n as Wei })
   service = services.onboarding
@@ -302,6 +307,72 @@ describe('Directory account sign-in', () => {
     await user.click(await screen.findByRole('button', { name: 'Lock the wallet' }))
 
     expect(readLoginCredentials()).toBeNull()
+  })
+})
+
+describe('Spectator mode', () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('signs in from query params and stores spectator mode until lock', async () => {
+    globalThis.fetch = mockDirectoryAndPriceFetch({
+      id: '7',
+      email: 'james@example.com',
+      balance: '12.5',
+      createdAt: '2026-08-19T12:00:00.000Z',
+    })
+
+    openPath('/?spectator=1&email=james@example.com&the_p=demo')
+    renderApp()
+
+    expect(await screen.findByRole('status')).toHaveTextContent('You are in spectator mode')
+    expect(await screen.findByRole('heading', { name: 'Balance' })).toBeInTheDocument()
+    expect(screen.getByText('Spectator')).toBeInTheDocument()
+
+    await waitFor(() => {
+      const authCall = vi
+        .mocked(globalThis.fetch)
+        .mock.calls.find(
+          ([url, init]) =>
+            String(url).includes('/v1/users/auth') && (init?.method ?? 'GET') === 'POST',
+        )
+
+      expect(authCall).toBeDefined()
+      expect(JSON.parse(String(authCall?.[1]?.body))).toMatchObject({
+        email: 'james@example.com',
+        the_p: 'demo',
+        spectator: true,
+      })
+    })
+
+    expect(localStorage.getItem(SPECTATOR_MODE_STORAGE_KEY)).toBe('1')
+    expect(readLoginCredentials()).toEqual({
+      id: '7',
+      email: 'james@example.com',
+      theP: 'demo',
+    })
+
+    expect(screen.queryByRole('link', { name: /^send$/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Send').closest('[aria-disabled]')).not.toBeNull()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /receive/i }))
+
+    const generateButtons = screen.getAllByRole('button', { name: /generate wallet/i })
+
+    expect(generateButtons.length).toBeGreaterThan(0)
+
+    for (const button of generateButtons) {
+      expect(button).toBeDisabled()
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Lock the wallet' }))
+
+    expect(readLoginCredentials()).toBeNull()
+    expect(localStorage.getItem(SPECTATOR_MODE_STORAGE_KEY)).toBeNull()
   })
 })
 

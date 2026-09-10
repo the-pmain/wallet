@@ -67,6 +67,12 @@ describe('applyLivePendingEvent', () => {
     expect(next).toEqual([])
   })
 
+  it('removes a queued card when the sending is deleted', () => {
+    const next = applyLivePendingEvent([PENDING], event(PENDING, SENDING_SSE_TYPE.Delete))
+
+    expect(next).toEqual([])
+  })
+
   it('updates fields of a record already in the queue', () => {
     const next = applyLivePendingEvent(
       [PENDING],

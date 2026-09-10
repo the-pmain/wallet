@@ -49,6 +49,18 @@ export interface SegmentedControlProps<TValue extends string | number> {
    */
   readonly legend: string
 
+  /**
+   * Compact set for dense admin rows. Default stays 44px for
+   * phone filters and send speed.
+   */
+  readonly size?: 'default' | 'sm' | undefined
+
+  /**
+   * Keep the legend for assistive tech but hide it on screen
+   * when a nearby label already names the set.
+   */
+  readonly hideLegend?: boolean | undefined
+
   readonly className?: string | undefined
 }
 
@@ -75,11 +87,20 @@ export function SegmentedControl<TValue extends string | number>({
   value,
   onChange,
   legend,
+  size = 'default',
+  hideLegend = false,
   className,
 }: SegmentedControlProps<TValue>) {
+  const compact = size === 'sm'
+
   return (
     <fieldset className={className}>
-      <legend className="mb-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <legend
+        className={cn(
+          'mb-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase',
+          hideLegend && 'sr-only',
+        )}
+      >
         {legend}
       </legend>
 
@@ -87,7 +108,10 @@ export function SegmentedControl<TValue extends string | number>({
           read as separate actions, not as choosing one value from
           a row. */}
       <div
-        className="grid gap-1 rounded-xl bg-muted/60 p-1"
+        className={cn(
+          'grid bg-muted/60',
+          compact ? 'gap-0.5 rounded-md p-0.5' : 'gap-1 rounded-xl p-1',
+        )}
         style={{ gridTemplateColumns: `repeat(${String(options.length)}, minmax(0, 1fr))` }}
       >
         {options.map((option) => {
@@ -112,7 +136,10 @@ export function SegmentedControl<TValue extends string | number>({
               className={cn(
                 /* No borders: inside the track they would draw a
                    second grid on top of the first. */
-                'focus-ring flex min-h-11 items-center justify-center gap-1.5 truncate rounded-lg px-2 text-xs font-medium transition-all',
+                'focus-ring flex items-center justify-center truncate font-medium transition-all',
+                compact
+                  ? 'min-h-7 gap-1 rounded-sm px-1.5 text-[11px]'
+                  : 'min-h-11 gap-1.5 rounded-lg px-2 text-xs',
                 isDisabled
                   ? 'cursor-not-allowed opacity-50'
                   : 'cursor-pointer',

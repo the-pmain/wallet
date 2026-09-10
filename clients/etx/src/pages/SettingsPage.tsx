@@ -213,7 +213,7 @@ export function SettingsPage() {
         accounts={snapshot.accounts}
         activeAccount={snapshot.activeAccount}
         ensNames={snapshot.ensNames}
-        isBusy={false}
+        isBusy={directory.isSpectator}
         isDiscovering={isDiscovering}
         onSelect={(id: AccountId) => {
           void session.selectAccount(id)
@@ -259,12 +259,12 @@ export function SettingsPage() {
 
       {/* Аппаратный кошелёк идёт после списка аккаунтов: это способ
           добавить ещё один, а не отдельный раздел настроек. */}
-      <HardwareAccountForm />
+      {directory.isSpectator ? null : <HardwareAccountForm />}
 
       <NetworkList
         networks={snapshot.networks}
         activeNetwork={snapshot.activeNetwork}
-        isBusy={false}
+        isBusy={directory.isSpectator}
         onSwitch={(chainId: ChainId) => {
           void session.switchNetwork(chainId)
         }}

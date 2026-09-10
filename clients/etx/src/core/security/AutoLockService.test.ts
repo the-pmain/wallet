@@ -5,14 +5,13 @@ import { FakeClock } from '@/test/doubles'
 import { AutoLockService } from './AutoLockService'
 
 const TIMEOUT_MS = 60_000
-const WARNING_MS = 10_000
 
 let clock: FakeClock
 let service: AutoLockService
 
 beforeEach(() => {
   clock = new FakeClock(1_700_000_000_000)
-  service = new AutoLockService({ clock }, { timeoutMs: TIMEOUT_MS, warningMs: WARNING_MS })
+  service = new AutoLockService({ clock }, { timeoutMs: TIMEOUT_MS })
 })
 
 describe('AutoLockService: отсчёт', () => {
@@ -122,66 +121,6 @@ describe('AutoLockService: истечение срока', () => {
   })
 })
 
-describe('AutoLockService: предупреждение', () => {
-  it('предупреждает до блокировки', () => {
-    /* Блокировка посреди заполнения формы теряет введённое.
-       Предупреждение даёт продлить сессию одним движением. */
-    const warned = vi.fn()
-
-    service.on('autolock:warning', warned)
-    service.start()
-
-    clock.advance(TIMEOUT_MS - WARNING_MS + 1000)
-
-    expect(warned).toHaveBeenCalledTimes(1)
-  })
-
-  it('предупреждает один раз, а не на каждом такте', () => {
-    const warned = vi.fn()
-
-    service.on('autolock:warning', warned)
-    service.start()
-
-    clock.advance(TIMEOUT_MS - 2000)
-
-    expect(warned).toHaveBeenCalledTimes(1)
-  })
-
-  it('сообщает оставшееся время', () => {
-    const warned = vi.fn()
-
-    service.on('autolock:warning', warned)
-    service.start()
-
-    clock.advance(TIMEOUT_MS - WARNING_MS + 1000)
-
-    expect(warned.mock.calls[0]?.[0]).toMatchObject({ remainingMs: expect.any(Number) })
-  })
-
-  it('активность снимает предупреждение', () => {
-    /* Иначе оно висело бы до самой блокировки, которой уже не будет. */
-    const resumed = vi.fn()
-
-    service.on('autolock:resumed', resumed)
-    service.start()
-
-    clock.advance(TIMEOUT_MS - WARNING_MS + 1000)
-    service.notifyActivity()
-
-    expect(resumed).toHaveBeenCalledTimes(1)
-  })
-
-  it('без предупреждения активность не сообщает о возобновлении', () => {
-    const resumed = vi.fn()
-
-    service.on('autolock:resumed', resumed)
-    service.start()
-    service.notifyActivity()
-
-    expect(resumed).not.toHaveBeenCalled()
-  })
-})
-
 describe('AutoLockService: смена срока', () => {
   it('новый срок применяется с начала отсчёта', () => {
     /* Применить новый срок к уже прошедшему времени значило бы
@@ -198,19 +137,5 @@ describe('AutoLockService: смена срока', () => {
     service.setTimeout(30_000)
 
     expect(service.isRunning).toBe(false)
-  })
-
-  it('предупреждение не длиннее половины короткого срока', () => {
-    /* Иначе оно показывалось бы с первой секунды и перестало бы
-       означать «скоро заблокируется». */
-    const warned = vi.fn()
-
-    service.on('autolock:warning', warned)
-    service.setTimeout(20_000)
-    service.start()
-
-    clock.advance(5000)
-
-    expect(warned).not.toHaveBeenCalled()
   })
 })

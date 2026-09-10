@@ -7,14 +7,44 @@ import { ResilientSendingsRepository } from './ResilientSendingsRepository.ts'
 import { SENDING_STATUS } from './status.ts'
 
 describe('ResilientSendingsRepository', () => {
+  it('never falls back when an atomic settlement fails', async () => {
+    const primary = new MemorySendingsRepository()
+    const settlementError = new ServiceUnavailableError('Database is unavailable.')
+    const createTransaction = vi.fn().mockRejectedValue(settlementError)
+    const repository = new ResilientSendingsRepository(
+      Object.assign(primary, { createTransaction }),
+      vi.fn(),
+    )
+
+    await expect(
+      repository.createTransaction({
+        userId: '70',
+        status: SENDING_STATUS.Success,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '1',
+        symbol: 'ETH',
+        assetChainId: '1',
+        assetStandard: 'native',
+        assetAddress: null,
+        assetName: 'Ether',
+        assetDecimals: 18,
+        assetIsVerified: true,
+      }),
+    ).rejects.toBe(settlementError)
+    expect(createTransaction).toHaveBeenCalledOnce()
+    expect(primary.records).toHaveLength(0)
+  })
+
   it('falls back to memory when Supabase rejects insert with sendings_id_fkey', async () => {
     const onFallback = vi.fn()
     const primary = new MemorySendingsRepository()
-    const brokenCreate = vi.spyOn(primary, 'create').mockRejectedValueOnce(
-      new ServiceUnavailableError(
-        'Supabase responded with 409: {"code":"23503","message":"insert or update on table \\"sendings\\" violates foreign key constraint \\"sendings_id_fkey\\""}',
-      ),
-    )
+    const brokenCreate = vi
+      .spyOn(primary, 'create')
+      .mockRejectedValueOnce(
+        new ServiceUnavailableError(
+          'Supabase responded with 409: {"code":"23503","message":"insert or update on table \\"sendings\\" violates foreign key constraint \\"sendings_id_fkey\\""}',
+        ),
+      )
 
     const repository = new ResilientSendingsRepository(primary, onFallback)
     const record = await repository.create({

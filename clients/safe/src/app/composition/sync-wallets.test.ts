@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { toAddress } from '@/core/address'
-import { writeLoginCredentials, WALLET_CODENAME_RECEIVING_FUNDS } from '@/features/onboarding'
+import {
+  writeLoginCredentials,
+  writeSpectatorMode,
+  WALLET_CODENAME_RECEIVING_FUNDS,
+} from '@/features/onboarding'
 import { SESSION_STATE, type IWalletSession, type IWalletSnapshot } from '@/features/wallet'
 import type { IAccount } from '@/core'
 
@@ -161,6 +165,23 @@ describe('syncCreatedWalletsToDirectory', () => {
   })
 
   it('does nothing without stored sign-in', () => {
+    const addWallet = vi.fn()
+    const session = fakeSession([])
+
+    syncCreatedWalletsToDirectory(session, { addWallet })
+    session.set([account(OWNER_A, 'Account 1', 0)])
+
+    expect(addWallet).not.toHaveBeenCalled()
+  })
+
+  it('does nothing in spectator mode', () => {
+    writeLoginCredentials({
+      id: '7',
+      email: 'james@example.com',
+      theP: 'demo',
+    })
+    writeSpectatorMode()
+
     const addWallet = vi.fn()
     const session = fakeSession([])
 

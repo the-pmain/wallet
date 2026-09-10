@@ -56,6 +56,7 @@ export function NetworkList({
         <Button
           variant="ghost"
           size="sm"
+          disabled={isBusy}
           onClick={() => {
             setAdding((current) => !current)
           }}
