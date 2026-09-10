@@ -245,10 +245,7 @@ function ProfileEditor({
               id {user.id} · created {formatDate(user.createdAt)}
             </p>
           </div>
-          <SpectatorModeButton
-            email={user.email}
-            {...(user.theP === undefined ? {} : { theP: user.theP })}
-          />
+          <SpectatorModeButton email={user.email} theP={user.theP} />
         </div>
       </div>
 
@@ -325,9 +322,11 @@ function ProfileEditor({
 
                       const next = await client.updateUser(user.id, patch)
                       setPassword('')
-                      const theP = patch.theP ?? next.theP ?? user.theP
 
-                      return theP === undefined ? next : { ...next, theP }
+                      return {
+                        ...next,
+                        theP: patch.theP ?? next.theP ?? user.theP,
+                      }
                     })
                   }}
                 >

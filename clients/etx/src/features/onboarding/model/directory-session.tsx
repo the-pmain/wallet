@@ -41,7 +41,7 @@ interface IDirectorySession {
   signIn(
     email: string,
     theP: string,
-    options?: { readonly spectator?: boolean },
+    options?: { readonly spectator?: boolean | undefined },
   ): Promise<IRemoteUser>
   registerSending(input: {
     readonly recipientAddress: string
@@ -92,12 +92,12 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
     async (
       email: string,
       theP: string,
-      options?: { readonly spectator?: boolean },
+      options?: { readonly spectator?: boolean | undefined },
     ): Promise<IRemoteUser> => {
       const next = await directory.authenticate({
         email: normalizeEmail(email),
         theP,
-        ...(options?.spectator === undefined ? {} : { spectator: options.spectator }),
+        spectator: options?.spectator,
       })
 
       if (options?.spectator === true) {

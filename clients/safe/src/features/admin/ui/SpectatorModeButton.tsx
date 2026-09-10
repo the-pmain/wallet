@@ -11,7 +11,7 @@ export function SpectatorModeButton({
   theP,
 }: {
   readonly email: string | null
-  readonly theP?: string
+  readonly theP?: string | undefined
 }) {
   const canOpen =
     email !== null && email.trim() !== '' && typeof theP === 'string' && theP !== ''

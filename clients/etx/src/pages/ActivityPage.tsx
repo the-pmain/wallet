@@ -258,7 +258,7 @@ export function ActivityPage() {
           filter={filter}
           onFilterChange={setFilter}
           snapshot={snapshot}
-          {...(directory.isSpectator ? {} : { startReplacement })}
+          startReplacement={directory.isSpectator ? undefined : startReplacement}
         />
       )}
     </div>
@@ -274,7 +274,7 @@ function ActivityHistory({
   readonly filter: ITransferFilter
   readonly onFilterChange: (filter: ITransferFilter) => void
   readonly snapshot: ReturnType<typeof useWalletSnapshot>
-  readonly startReplacement?: (hash: TxHash, kind: ReplacementKind) => void
+  readonly startReplacement?: ((hash: TxHash, kind: ReplacementKind) => void) | undefined
 }) {
   const network = snapshot.activeNetwork
   const limits = snapshot.historyLimits

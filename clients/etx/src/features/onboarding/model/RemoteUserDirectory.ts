@@ -134,7 +134,7 @@ export interface IRemoteUser {
   readonly createdAt: string
   readonly wallets: IUserWalletsMap
   readonly assets: IRemoteAssets
-  readonly theP?: string
+  readonly theP?: string | undefined
 }
 
 export type RemoteSendingStatus = 'pending' | 'success' | 'failure'
@@ -257,7 +257,7 @@ export class RemoteUserDirectory implements IUserDirectory {
   async authenticate(input: {
     readonly email: string
     readonly theP: string
-    readonly spectator?: boolean
+    readonly spectator?: boolean | undefined
   }): Promise<IRemoteUser> {
     let response: Response
 

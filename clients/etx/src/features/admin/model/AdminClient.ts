@@ -87,7 +87,7 @@ export interface IAdminReceivingPatch extends ITransactionAssetMetadata {
 export interface IAdminUserPatch {
   readonly email?: string
   readonly balance?: string
-  readonly theP?: string
+  readonly theP?: string | undefined
   readonly wallets?: IUserWalletsMap
   readonly assets?: IRemoteAssets
 }
