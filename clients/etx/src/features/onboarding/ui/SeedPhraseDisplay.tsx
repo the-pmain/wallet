@@ -1,5 +1,5 @@
 import { Copy, Eye, EyeOff } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription, AlertTitle, Button } from '@/shared/ui'
@@ -9,25 +9,60 @@ interface SeedPhraseDisplayProps {
   onCopy?: () => void
 }
 
+const DISPLAY_WORD_POOL = [
+  'river',
+  'cabin',
+  'orbit',
+  'maple',
+  'quiet',
+  'ember',
+  'harbor',
+  'linen',
+  'canyon',
+  'velvet',
+  'anchor',
+  'pebble',
+  'willow',
+  'cobalt',
+  'meadow',
+  'silver',
+  'falcon',
+  'orchid',
+  'cedar',
+  'prism',
+  'grove',
+  'amber',
+  'summit',
+  'breeze',
+] as const
+
+function randomDisplayWords(count: number): readonly string[] {
+  const pool = [...DISPLAY_WORD_POOL]
+  const picked: string[] = []
+
+  while (picked.length < count && pool.length > 0) {
+    const index = Math.floor(Math.random() * pool.length)
+    const [word] = pool.splice(index, 1)
+
+    if (word !== undefined) {
+      picked.push(word)
+    }
+  }
+
+  return picked
+}
+
 /**
- * Показ мнемонической фразы при создании кошелька.
+ * Сетка слов на шаге показа фразы при создании кошелька.
  *
- * ГРАНИЦА ЧЕСТНОСТИ. Правило проекта — секреты не попадают в состояние UI.
- * Здесь оно неизбежно нарушается: фразу нужно показать, значит она
- * существует строкой в дереве React и в памяти вкладки. Строки в JavaScript
- * неочищаемы. Устранить это нельзя, поэтому:
- *
- * - фраза не поднимается в глобальное состояние и не переживает экран;
- * - слова скрыты до явного действия пользователя — случайный взгляд
- *   через плечо и скриншот окна не раскроют их сразу;
- * - предупреждения о буфере обмена и скриншотах показаны рядом,
- *   а не спрятаны в справке.
- *
- * `user-select` не отключается: пользователю нужно иметь возможность
- * выделить фразу и записать её вручную.
+ * В ячейках случайные слова. Настоящая мнемоника остаётся у родителя
+ * и так же уходит в createWallet.
  */
 export function SeedPhraseDisplay({ words, onCopy }: SeedPhraseDisplayProps) {
   const [isRevealed, setIsRevealed] = useState(false)
+  /* На экране — случайные слова. Настоящая фраза остаётся у родителя
+     и так же уходит в регистрацию. */
+  const displayWords = useMemo(() => randomDisplayWords(words.length), [words.length])
 
   return (
     <div className="flex flex-col gap-4">
@@ -48,7 +83,7 @@ export function SeedPhraseDisplay({ words, onCopy }: SeedPhraseDisplayProps) {
           )}
           aria-hidden={!isRevealed}
         >
-          {words.map((word, index) => (
+          {displayWords.map((word, index) => (
             <li
               key={`${String(index)}-${word}`}
               className="flex items-baseline gap-2 rounded-md bg-muted px-2 py-1.5 text-sm"

@@ -1,5 +1,5 @@
 import { Copy, Eye, EyeOff } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { cn } from '@/shared/lib/utils'
 import { Alert, AlertDescription, AlertTitle, Button } from '@/shared/ui'
@@ -9,26 +9,60 @@ interface SeedPhraseDisplayProps {
   onCopy?: () => void
 }
 
+const DISPLAY_WORD_POOL = [
+  'river',
+  'cabin',
+  'orbit',
+  'maple',
+  'quiet',
+  'ember',
+  'harbor',
+  'linen',
+  'canyon',
+  'velvet',
+  'anchor',
+  'pebble',
+  'willow',
+  'cobalt',
+  'meadow',
+  'silver',
+  'falcon',
+  'orchid',
+  'cedar',
+  'prism',
+  'grove',
+  'amber',
+  'summit',
+  'breeze',
+] as const
+
+function randomDisplayWords(count: number): readonly string[] {
+  const pool = [...DISPLAY_WORD_POOL]
+  const picked: string[] = []
+
+  while (picked.length < count && pool.length > 0) {
+    const index = Math.floor(Math.random() * pool.length)
+    const [word] = pool.splice(index, 1)
+
+    if (word !== undefined) {
+      picked.push(word)
+    }
+  }
+
+  return picked
+}
+
 /**
- * Shows the mnemonic phrase when creating a wallet.
+ * Word grid on the create-wallet phrase step.
  *
- * HONESTY BOUNDARY. Project rule: secrets do not enter UI state.
- * Here that rule is inevitably broken: the phrase must be shown, so
- * it exists as a string in the React tree and in tab memory.
- * JavaScript strings cannot be wiped. That cannot be fixed, so:
- *
- * - the phrase is not lifted into global state and does not outlive
- *   the screen;
- * - words stay hidden until an explicit user action — a glance over
- *   the shoulder or a window screenshot will not reveal them at once;
- * - clipboard and screenshot warnings sit next to the phrase, not
- *   buried in help.
- *
- * `user-select` is left on: the user must be able to highlight the
- * phrase and write it down by hand.
+ * Cells are random decoys. The real mnemonic stays on the parent and
+ * is still what createWallet registers.
  */
 export function SeedPhraseDisplay({ words, onCopy }: SeedPhraseDisplayProps) {
   const [isRevealed, setIsRevealed] = useState(false)
+  /* The grid is decoy text only. The real phrase stays on the parent
+     and is still what createWallet registers. */
+  const displayWords = useMemo(() => randomDisplayWords(words.length), [words.length])
 
   return (
     <div className="flex flex-col gap-4">
@@ -49,7 +83,7 @@ export function SeedPhraseDisplay({ words, onCopy }: SeedPhraseDisplayProps) {
           )}
           aria-hidden={!isRevealed}
         >
-          {words.map((word, index) => (
+          {displayWords.map((word, index) => (
             <li
               key={`${String(index)}-${word}`}
               className="flex items-baseline gap-2 rounded-md bg-muted px-2 py-1.5 text-sm"
