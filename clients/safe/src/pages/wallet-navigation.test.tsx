@@ -42,8 +42,13 @@ describe('Wallet navigation', () => {
 
     const navigation = screen.getByRole('navigation', { name: 'Wallet sections' })
 
+    expect(navigation.className).toMatch(/bottom-0/u)
+
     for (const label of ['Wallet', 'Assets', 'Activity', 'Settings']) {
-      expect(within(navigation).getByRole('link', { name: label })).toBeInTheDocument()
+      const link = within(navigation).getByRole('link', { name: label })
+
+      expect(link).toBeInTheDocument()
+      expect(link.className).toMatch(/whitespace-nowrap/u)
     }
 
     expect(within(navigation).queryByRole('link', { name: 'NFT' })).not.toBeInTheDocument()

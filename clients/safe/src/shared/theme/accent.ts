@@ -28,7 +28,6 @@ export const ACCENT_PRESETS: readonly IAccentPreset[] = [
   { id: 'burgundy', label: 'Burgundy', hex: '#5C2A32' },
   { id: 'azure', label: 'Azure', hex: '#1D4ED8' },
   { id: 'teal', label: 'Teal', hex: '#0F766E' },
-  { id: 'violet', label: 'Violet', hex: '#6D28D9' },
 ]
 
 export const DEFAULT_ACCENT_HEX = ACCENT_PRESETS[0]?.hex ?? '#3A3A40'

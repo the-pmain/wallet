@@ -216,6 +216,16 @@ describe('QuickActions: exchange receive address', () => {
   })
 })
 
+describe('QuickActions: mobile captions', () => {
+  it('keeps every action label in a two-line slot instead of balancing it', () => {
+    renderActions()
+
+    for (const label of ['Send', 'Receive', 'Portfolio', 'Smart contract']) {
+      expect(screen.getByText(label)).toHaveClass('action-tile-label')
+    }
+  })
+})
+
 describe('QuickActions: smart contract dialog', () => {
   it('до нажатия окна нет', () => {
     renderActions()

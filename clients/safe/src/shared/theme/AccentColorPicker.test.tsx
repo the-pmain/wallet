@@ -28,6 +28,12 @@ describe('AccentColorPicker', () => {
     expect(document.documentElement.dataset['accent']).toBe(DEFAULT_ACCENT_HEX)
   })
 
+  it('does not offer a purple preset', () => {
+    renderPicker()
+
+    expect(screen.queryByRole('button', { name: 'Violet' })).not.toBeInTheDocument()
+  })
+
   it('applies a preset and keeps the light or dark class independent', async () => {
     const user = userEvent.setup()
     const wasDark = document.documentElement.classList.contains('dark')

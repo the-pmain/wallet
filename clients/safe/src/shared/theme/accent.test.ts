@@ -1,12 +1,20 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
 import {
+  ACCENT_PRESETS,
   applyAccentColor,
   DEFAULT_ACCENT_HEX,
   normalizeAccentHex,
   resolveAccentTokens,
 } from './accent'
 import { ACCENT_COLOR_STORAGE_KEY, readAccentColor, writeAccentColor } from './accent-storage'
+
+describe('accent presets', () => {
+  it('does not keep a purple swatch', () => {
+    expect(ACCENT_PRESETS.some((preset) => preset.id === 'violet')).toBe(false)
+    expect(ACCENT_PRESETS.some((preset) => preset.hex === '#6D28D9')).toBe(false)
+  })
+})
 
 describe('resolveAccentTokens', () => {
   it('keeps graphite dark on both themes', () => {

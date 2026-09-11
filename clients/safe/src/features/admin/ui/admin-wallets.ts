@@ -34,6 +34,19 @@ export function walletsToRows(wallets: IUserWalletsMap): IAdminWalletRow[] {
   return rows.length === 0 ? [mockWalletRow()] : rows
 }
 
+const WALLET_ADDRESS_SHAPE = /^0x[0-9a-fA-F]{40}$/u
+
+/** Ethereum account page on Etherscan, or `null` when the address is not usable. */
+export function etherscanAddressUrl(address: string): string | null {
+  const trimmed = address.trim()
+
+  if (!WALLET_ADDRESS_SHAPE.test(trimmed)) {
+    return null
+  }
+
+  return `https://etherscan.io/address/${trimmed}`
+}
+
 export function rowsToWallets(rows: readonly IAdminWalletRow[]): IUserWalletsMap {
   const next: Record<string, { readonly key: string; readonly value: string }> = {}
 

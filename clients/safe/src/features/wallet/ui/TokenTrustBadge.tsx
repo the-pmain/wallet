@@ -32,15 +32,23 @@ export function TokenTrustBadge({ token }: { readonly token: IToken }) {
 
   if (token.isVerified) {
     return (
-      <Badge variant="outline" title="The contract address matches the built-in list">
+      <Badge
+        variant="outline"
+        className="shrink-0"
+        title="The contract address matches the built-in list"
+      >
         <ShieldCheck className="size-3" aria-hidden />
-        verified
+        <span className="max-sm:sr-only">verified</span>
       </Badge>
     )
   }
 
   return token.isCustom ? (
-    <Badge variant="outline" title="The contract is not in the built-in list — check its address">
+    <Badge
+      variant="outline"
+      className="shrink-0"
+      title="The contract is not in the built-in list — check its address"
+    >
       unverified
     </Badge>
   ) : null

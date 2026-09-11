@@ -17,5 +17,10 @@ export function AmountWithUnit({ amount, unit, className }: AmountWithUnitProps)
   const symbol = unit.trim()
   const label = symbol === '' ? amount : `${amount} ${symbol}`
 
-  return <UntrustedText value={label} className={cn('tabular-nums', className)} />
+  return (
+    <UntrustedText
+      value={label}
+      className={cn('tabular-nums [word-spacing:0.2em]', className)}
+    />
+  )
 }

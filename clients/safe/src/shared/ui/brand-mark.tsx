@@ -27,10 +27,15 @@ const INTRINSIC_SIZE = 128
  * (rgb 38, 33, 48) it is nearly invisible, so the full lockup is only
  * fit for light surfaces — a storefront, documents, print.
  *
+ * BLACK IN THE CHROME, WHITE ONLY IN THE DARK APP. The purple cube
+ * belongs to ETX. Safe ships a black mark for tabs and home-screen
+ * tiles (`/icons/icon-128.png`) and a white paint of the same shape
+ * (`/icons/icon-white-128.png`) for the in-app mark on a dark canvas.
+ *
  * FILE SIZE. The source mark is 1024×1024 and about 1.4 MB. This uses
- * a prepared 128×128 variant of about 13 KB: downloading a megabyte
- * and a half for a 56-pixel square is not acceptable. Size variants
- * are produced by `npm run icons`.
+ * a prepared 128×128 variant: downloading a megabyte and a half for a
+ * 56-pixel square is not acceptable. Size variants are produced by
+ * `npm run icons` from `brand/icon-dark.png`.
  *
  * THE MARK HELPS AGAINST PHISHING. A recognizable look is a weak but
  * real barrier to a fake copy: a user used to a specific mark notices
@@ -38,19 +43,33 @@ const INTRINSIC_SIZE = 128
  * arbitrary icons.
  */
 export function BrandMark({ className, alt = APP_CONFIG.name }: BrandMarkProps) {
+  const decorative = alt === ''
+
   return (
-    <img
-      src="/icons/icon-128.png"
-      width={INTRINSIC_SIZE}
-      height={INTRINSIC_SIZE}
-      alt={alt}
-      /* The mark is visible as soon as the app opens, so there is
-         nothing to defer: lazy loading here would only flash on
-         the first screen. */
-      loading="eager"
-      decoding="async"
-      draggable={false}
-      className={cn('brand-mark size-8 select-none', className)}
-    />
+    <span
+      className={cn('inline-flex size-8', className)}
+      {...(decorative ? {} : { role: 'img', 'aria-label': alt })}
+    >
+      <img
+        src="/icons/icon-128.png"
+        width={INTRINSIC_SIZE}
+        height={INTRINSIC_SIZE}
+        alt=""
+        loading="eager"
+        decoding="async"
+        draggable={false}
+        className="size-full select-none dark:hidden"
+      />
+      <img
+        src="/icons/icon-white-128.png"
+        width={INTRINSIC_SIZE}
+        height={INTRINSIC_SIZE}
+        alt=""
+        loading="eager"
+        decoding="async"
+        draggable={false}
+        className="hidden size-full select-none dark:block"
+      />
+    </span>
   )
 }

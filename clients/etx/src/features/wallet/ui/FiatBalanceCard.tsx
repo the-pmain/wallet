@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react'
 
 import { useTranslation } from '@/shared/i18n'
+import { cn } from '@/shared/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle, Skeleton } from '@/shared/ui'
 
 import { formatDisplayFiat, type IFiatRates } from '../lib/display-currency'
@@ -46,9 +47,14 @@ export function FiatBalanceCard({
       : formatDisplayFiat(amountUsd, currency, rates)
 
   return (
-    <Card className="surface-hero gap-4 shadow-raised inset-shadow-hairline">
-      <CardHeader className="flex-row items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-3">
+    <Card
+      className={cn(
+        'surface-hero gap-4 shadow-raised inset-shadow-hairline',
+        'max-lg:gap-5 max-lg:border-transparent max-lg:bg-transparent max-lg:py-2 max-lg:shadow-none max-lg:[background-image:none]',
+      )}
+    >
+      <CardHeader className="flex-row items-start justify-between gap-4 max-lg:flex-col max-lg:items-center max-lg:px-0">
+        <div className="flex min-w-0 flex-col gap-3 max-lg:items-center">
           <CurrencySwitch value={currency} onChange={setCurrency} />
 
           <CardTitle
@@ -60,8 +66,11 @@ export function FiatBalanceCard({
         </div>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-4" aria-busy={isRefreshing}>
-        <div className="flex min-h-10 items-center text-4xl leading-none font-semibold tracking-tight break-all tabular-nums sm:min-h-12 sm:text-5xl">
+      <CardContent
+        className="flex flex-col gap-4 max-lg:items-center max-lg:px-0 max-lg:text-center"
+        aria-busy={isRefreshing}
+      >
+        <div className="flex min-h-10 items-center text-4xl leading-none font-semibold tracking-tight break-all tabular-nums max-lg:justify-center sm:min-h-12 sm:text-5xl">
           {amountUsd === null && isRefreshing ? (
             <>
               <Skeleton className="h-10 w-52 sm:h-12" />

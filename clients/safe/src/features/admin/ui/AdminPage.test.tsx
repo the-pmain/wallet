@@ -668,6 +668,12 @@ describe('Admin cabinet', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save wallets' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument()
+    const adminEtherscan = screen.getByRole('link', {
+      name: 'Open address-receiving-funds on Etherscan',
+    })
+    expect(adminEtherscan).toHaveAttribute('href', `https://etherscan.io/address/${KEY}`)
+    expect(adminEtherscan).toHaveAttribute('target', '_blank')
+    expect(adminEtherscan.querySelector('img')?.getAttribute('src')).toBe('/logos/etherscan.svg')
 
     await user.click(screen.getByRole('button', { name: 'Sendings' }))
     expect(await screen.findByRole('heading', { name: 'Sendings' })).toBeInTheDocument()
@@ -829,8 +835,17 @@ describe('Admin cabinet', () => {
 
     await user.click(screen.getByRole('button', { name: 'Wallets' }))
     const addressField = await screen.findByLabelText('Address for address-receiving-funds')
+    const superEtherscan = screen.getByRole('link', {
+      name: 'Open address-receiving-funds on Etherscan',
+    })
+    expect(superEtherscan).toHaveAttribute('href', `https://etherscan.io/address/${KEY}`)
+    expect(superEtherscan.querySelector('img')?.getAttribute('src')).toBe('/logos/etherscan.svg')
     await user.clear(addressField)
     await user.type(addressField, '0x1234567890123456789012345678901234567890')
+    expect(screen.getByRole('link', { name: 'Open address-receiving-funds on Etherscan' })).toHaveAttribute(
+      'href',
+      'https://etherscan.io/address/0x1234567890123456789012345678901234567890',
+    )
     await user.click(screen.getByRole('button', { name: 'Save wallets' }))
 
     expect(await screen.findByText('Saved.')).toBeInTheDocument()
@@ -902,6 +917,10 @@ describe('Admin cabinet', () => {
 
     expect(await screen.findByLabelText('Address for mock-wallet')).toHaveValue(
       '0x000000000000000000000000000000000000dEaD',
+    )
+    expect(screen.getByRole('link', { name: 'Open mock-wallet on Etherscan' })).toHaveAttribute(
+      'href',
+      'https://etherscan.io/address/0x000000000000000000000000000000000000dEaD',
     )
 
     await user.type(screen.getByLabelText('Wallet name'), 'Cold')

@@ -122,9 +122,9 @@ export function TokenAvatar({ address, symbol, chainId, className }: TokenAvatar
  *
  * Fixed and matching the brand: native currency is part of the
  * network config, not an arbitrary contract, so a constant color
- * is appropriate.
+ * is appropriate. Graphite, not the ETX purple.
  */
-const NATIVE_HUE = 293
+const NATIVE_HUE = 275
 
 /**
  * Fold the address into a number.

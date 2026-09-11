@@ -80,8 +80,8 @@ export function QuickActions({
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex w-fit items-stretch justify-start gap-1.5">
+    <div className="flex w-full flex-col gap-3">
+      <div className="flex w-full items-stretch justify-start gap-1">
         <ActionTile
           to="/wallet/send"
           icon={Send}
@@ -344,15 +344,15 @@ function ActionTile({ icon: Icon, label, to, onClick, isActive, isDisabled }: Ac
     <>
       <span
         className={cn(
-          'flex size-9 items-center justify-center rounded-full transition-colors',
+          'flex size-9 items-center justify-center rounded-full transition-colors max-lg:size-12',
           isActive === true
             ? 'bg-primary text-primary-foreground ring-2 ring-primary/30 ring-offset-2 ring-offset-background'
             : 'bg-primary/12 text-primary-emphasis',
         )}
       >
-        <Icon className="size-4.5" aria-hidden />
+        <Icon className="size-4.5 max-lg:size-5" aria-hidden />
       </span>
-      <span className="w-full text-center leading-tight text-balance">{label}</span>
+      <span className="action-tile-label w-full text-center">{label}</span>
     </>
   )
 

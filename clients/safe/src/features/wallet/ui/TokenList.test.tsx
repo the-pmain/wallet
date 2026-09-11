@@ -194,7 +194,10 @@ describe('TokenList: dollar estimate', () => {
     const value = screen.getByText('≈ $6,000.00')
 
     expect(amount.className).toContain('font-semibold')
+    expect(amount.closest('.break-words')).not.toBeNull()
+    expect(amount.closest('.break-all')).toBeNull()
     expect(value.className).toContain('text-xs')
+    expect(value.className).toContain('whitespace-nowrap')
   })
 })
 

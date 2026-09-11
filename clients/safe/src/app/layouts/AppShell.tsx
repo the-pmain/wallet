@@ -144,7 +144,7 @@ export function AppShell() {
   }, [location.pathname])
 
   return (
-    <div className="relative flex min-h-svh min-w-0 justify-center overflow-x-clip bg-background">
+    <div className="relative flex min-h-dvh min-w-0 justify-center bg-background">
       {/* Background is fixed to the viewport and sits under everything:
           header and nav blur it with their own filter, and cards are
           opaque — text is read on them, not on the background. */}
@@ -158,10 +158,9 @@ export function AppShell() {
 
         At `lg` — cabinet: `PAGE_COLUMN`, tabs in the header, like an
         admin console. Below `lg` the reference is the variant-1 study:
-        26.25rem column, account pill centered, tabs inside the column
-        rather than across the full tablet width. A bottom bar with
-        `inset-x-0` on iPad stretched four items across 768px and
-        broke that reference.
+        26.25rem column, account pill centered, tab bar fixed to the
+        screen bottom and as wide as the column. A full-bleed bar on
+        iPad stretched four items across 768px and broke that reference.
       */}
       <div className="wallet-phone-column relative z-10 min-w-0 lg:max-w-none">
         <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-md">
@@ -218,8 +217,7 @@ export function AppShell() {
         {/* `relative z-10` is required: the background is positioned, and
             without an explicit layer unpositioned content would sink under it.
 
-            The phone column needs no bottom padding: the bar is in flow,
-            not fixed over the content. */}
+            Bottom padding clears the fixed phone tab bar. */}
         <main
           key={location.pathname}
           ref={contentRef}
@@ -229,7 +227,7 @@ export function AppShell() {
           tabIndex={-1}
           className={cn(
             PAGE_COLUMN,
-            'relative z-10 min-w-0 flex-1 animate-in pt-6 pb-3 duration-300 fade-in slide-in-from-bottom-2 focus:outline-none lg:py-6',
+            'relative z-10 min-w-0 flex-1 animate-in overflow-x-clip pt-6 pb-24 duration-300 fade-in slide-in-from-bottom-2 focus:outline-none lg:py-6',
           )}
         >
           {showShellContent ? <Outlet /> : <ShellPlaceholder />}
@@ -238,10 +236,12 @@ export function AppShell() {
         {isCabinet ? null : (
           <nav
             aria-label="Wallet sections"
-            className="mt-auto border-t border-border/60 bg-background/90 backdrop-blur-md"
+            className="fixed inset-x-0 bottom-0 z-20"
           >
-            <div className="flex items-stretch justify-around px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-              <WalletSectionLinks layout="bar" />
+            <div className="wallet-phone-tabbar border-t border-border/60 bg-background/95 backdrop-blur-md">
+              <div className="flex items-stretch justify-around px-2 pb-[env(safe-area-inset-bottom)]">
+                <WalletSectionLinks layout="bar" />
+              </div>
             </div>
           </nav>
         )}
@@ -266,7 +266,7 @@ function WalletSectionLinks({ layout }: { readonly layout: 'bar' | 'tabs' }) {
           className={({ isActive }) =>
             layout === 'bar'
               ? cn(
-                  'focus-ring flex flex-1 flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[11px] font-medium transition-colors',
+                  'focus-ring flex flex-1 flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-xs font-medium whitespace-nowrap transition-colors',
                   isActive
                     ? 'text-primary-emphasis'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:text-foreground',

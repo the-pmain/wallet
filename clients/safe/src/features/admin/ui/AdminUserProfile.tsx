@@ -26,6 +26,7 @@ import { useAdminSession } from '../model/admin-context'
 import { listenForAdminUserRefresh } from '../model/admin-user-refresh'
 import { AdminUserAssetsCard } from './AdminUserAssetsCard'
 import { AdminUserReceivingsTab, AdminUserSendingsTab } from './AdminUserTransferSections'
+import { EtherscanWalletButton } from './EtherscanWalletButton'
 import { SpectatorModeButton } from './SpectatorModeButton'
 import { rowsToWallets, walletsToRows, type IAdminWalletRow } from './admin-wallets'
 import { UserAvatar } from './UserAvatar'
@@ -549,32 +550,35 @@ function WalletSlotRow({
   return (
     <li
       className={cn(
-        'flex gap-3 rounded-lg border p-3 sm:items-center',
+        'flex flex-col gap-3 rounded-lg border p-3',
         highlighted && 'border-primary/50 bg-primary/5',
       )}
     >
-      <div className="min-w-0 flex-1">
-        <WalletAddressGroup
-          codename={codename}
-          address={address}
-          disabled={disabled}
-          editable={editable}
-          onAddressChange={onAddressChange}
-        />
+      <div className="flex gap-3 sm:items-center">
+        <div className="min-w-0 flex-1">
+          <WalletAddressGroup
+            codename={codename}
+            address={address}
+            disabled={disabled}
+            editable={editable}
+            onAddressChange={onAddressChange}
+          />
+        </div>
+        {canRemove ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            disabled={disabled}
+            className="shrink-0"
+            aria-label={`Remove ${codename}`}
+            onClick={onRemove}
+          >
+            <Trash2 />
+          </Button>
+        ) : null}
       </div>
-      {canRemove ? (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        disabled={disabled}
-        className="shrink-0"
-        aria-label={`Remove ${codename}`}
-        onClick={onRemove}
-      >
-        <Trash2 />
-      </Button>
-      ) : null}
+      <EtherscanWalletButton address={address} walletName={codename} />
     </li>
   )
 }

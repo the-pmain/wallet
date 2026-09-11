@@ -11,7 +11,7 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!--
       Referrer-политика: не передавать URL приложения сторонним ресурсам.
@@ -28,13 +28,17 @@
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
 
     <!--
-      Значки подготовлены командой `npm run icons` из `public/icon.png`.
+      Значки подготовлены командой `npm run icons` из `brand/icon-purple.png`.
       Исходный файл весит около 1.4 МБ и в качестве значка вкладки
       непригоден: браузер скачивал бы его целиком ради 16 пикселей.
+
+      180×180 — размер, который iOS ставит на домашний экран.
+      Манифест задаёт имя, режим standalone и значки 192/512 плюс maskable.
     -->
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png" />
-    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
 
     <!--
       Метаданные для вкладки, закладок и превью ссылок.
@@ -52,6 +56,8 @@
     />
     <meta name="application-name" content="ET WALLET" />
     <meta name="apple-mobile-web-app-title" content="ET WALLET" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#16141c" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#fcfbfe" media="(prefers-color-scheme: light)" />
     <meta name="format-detection" content="telephone=no" />

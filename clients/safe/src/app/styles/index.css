@@ -633,11 +633,26 @@
     padding: 0.625rem 0.75rem;
     font-size: 0.75rem;
     font-weight: 500;
-    line-height: 1;
+    /*
+      1.3, not 1. At line-height: 1 the second line of
+      "Smart contract" sat on the first — phones read
+      "Smartcontractual".
+    */
+    line-height: 1.3;
     transition:
       background-color 150ms ease,
       transform 150ms ease,
       box-shadow 150ms ease;
+  }
+
+  .action-tile-label {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: break-word;
+    line-height: 1.3;
+    text-wrap: pretty;
   }
 
   .action-tile:active:not(:disabled) {
@@ -683,7 +698,20 @@
     display: flex;
     width: 100%;
     min-height: 100svh;
+    min-height: 100dvh;
     flex-direction: column;
+  }
+
+  /*
+    Phone tab bar — same width as the column, pinned to the
+    viewport bottom. `fixed` + `inset-x-0` on the nav would
+    stretch four items across an iPad; this inner shell keeps
+    the bar as wide as the column.
+  */
+  .wallet-phone-tabbar {
+    width: 100%;
+    max-width: 26.25rem;
+    margin-inline: auto;
   }
 
   @media (max-width: 1023px) {
@@ -698,12 +726,13 @@
       card.
     */
     .action-tile {
-      min-height: 0;
-      min-width: 4.25rem;
+      flex: 1 1 0;
+      min-width: 0;
+      min-height: 4.75rem;
       gap: 0.45rem;
       border-color: transparent;
       background-color: transparent;
-      padding: 0.15rem 0.2rem;
+      padding: 0.35rem 0.15rem;
     }
   }
 
@@ -729,15 +758,6 @@
      the gradient appears on several screens and must match. */
   .bg-brand {
     background-image: var(--brand-gradient);
-  }
-
-  /*
-    Prepared icons are white on transparency. On the light theme
-    that would vanish, so the mark flips to near-black. Dark keeps
-    the file as painted — the favicon and the header match.
-  */
-  html:not(.dark) .brand-mark {
-    filter: invert(1);
   }
 
   /*

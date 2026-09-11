@@ -112,11 +112,13 @@ function TokenRow({ entry, isLoading, portfolio, onRemove }: TokenRowProps) {
             {/* Symbol and name come from the contract author: they can
                 carry invisible characters and bidi overrides that make
                 a fake visually identical to the original. */}
-            <span className="flex items-center gap-1.5 truncate text-sm font-medium">
-              <UntrustedText value={entry.token.symbol} />
+            <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+              <span className="min-w-0 truncate">
+                <UntrustedText value={entry.token.symbol} />
+              </span>
               <TokenTrustBadge token={entry.token} />
             </span>
-            <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+            <span className="min-w-0 truncate text-xs text-muted-foreground">
               <UntrustedText value={entry.token.name} />
               {entry.token.address === null ? null : ` · ${shortenAddress(entry.token.address)}`}
             </span>
@@ -128,7 +130,7 @@ function TokenRow({ entry, isLoading, portfolio, onRemove }: TokenRowProps) {
                   aligned. `min-w-0` plus character wrap: a spam-token
                   balance stretched the row to 1738px in 734px. The
                   amount must not be truncated, so it wraps. */}
-              <span className="min-w-0 text-right text-base font-semibold break-all tabular-nums">
+              <span className="min-w-0 text-right text-base font-semibold break-words tabular-nums">
                 {entry.balance === null ? (
                   isLoading ? (
                     <RefreshCw className="size-4 animate-spin text-muted-foreground" aria-hidden />
@@ -222,7 +224,7 @@ function AssetValue({
     <span className="flex h-3 min-h-3 items-center justify-end">
       {value === null && isLoading ? <Skeleton className="h-3 w-14" /> : null}
       {value === null ? null : (
-        <span className="text-right text-xs break-words text-muted-foreground tabular-nums">
+        <span className="text-right text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           ≈ {formatUsd(value)}
         </span>
       )}

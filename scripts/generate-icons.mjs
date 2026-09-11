@@ -22,8 +22,22 @@ import { loadEnv } from 'vite'
  * become an unreadable dot in the centre. `trim` drops the transparent
  * edges so the mark fills the frame.
  *
+ * HOME SCREEN. iOS wants 180×180 (`apple-touch-icon`). Android / the
+ * web app manifest want 192 and 512, plus a maskable 512 whose mark
+ * sits in the inner 80% so adaptive-icon masks do not clip it.
+ *
+ * COLOUR. The purple cube is the ETX mark (`brand/icon-purple.png`)
+ * and is not used for Safe. Safe’s source is a black cube
+ * (`brand/icon-dark.png`). Tab and home-screen icons stay that
+ * black mark. A white 128 is painted only for the in-app mark on
+ * a dark canvas.
+ *
  * Run: `npm run icons`. Output lands in `public/` and in version
  * control: the build must not depend on `sharp` being present.
+ *
+ * `node scripts/generate-icons.mjs --home-screen` writes only the
+ * Apple-touch and maskable files so a logo-pipeline change does not
+ * rewrite every tab icon.
  */
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -31,7 +45,7 @@ const environment = loadEnv(process.env.NODE_ENV ?? 'development', ROOT, '')
 const themeDefinitions = JSON.parse(
   await readFile(resolve(ROOT, 'build/themes.json'), { encoding: 'utf8' }),
 )
-const theme = environment.THEME
+const theme = process.env.THEME ?? environment.THEME
 
 if (typeof theme !== 'string' || !Object.hasOwn(themeDefinitions, theme)) {
   throw new Error(
@@ -40,39 +54,64 @@ if (typeof theme !== 'string' || !Object.hasOwn(themeDefinitions, theme)) {
 }
 
 const CLIENT_ROOT = resolve(ROOT, themeDefinitions[theme].root)
-
-/**
- * Source mark without lettering.
- *
- * Lives in `brand/`, not `public/`: `public/` is copied into the build
- * wholesale, and the 1.4 MB source would ship even though nobody
- * requests it. `brand/` also holds the full wordmark for store listings
- * and documents where a light background is appropriate.
- */
-const SOURCE = resolve(CLIENT_ROOT, 'brand/icon.png')
+const HOME_SCREEN_ONLY = process.argv.includes('--home-screen')
 
 /**
  * Required sizes.
  *
  * 16, 32, 48, 128 — the Manifest v3 set. 192 and 512 — for installing
- * the web app on a home screen.
+ * the web app on a home screen. 180 is the Apple touch icon, written
+ * separately onto the theme background.
  */
 const SIZES = [16, 32, 48, 128, 192, 512]
+const APPLE_TOUCH_SIZE = 180
+const MASKABLE_SIZE = 512
 
 /**
  * Padding around the mark as a fraction of the side.
  *
  * Without it the mark hits the edges and is clipped at the corners on
- * the OS round masks.
+ * the OS round masks. Maskable icons need a wider safe zone: Android
+ * may crop to a circle whose diameter is 80% of the canvas.
  */
 const PADDING_RATIO = 0.08
+const MASKABLE_PADDING_RATIO = 0.2
+
+const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 }
+
+/**
+ * Per-theme source and paint.
+ *
+ * Tab icons keep the source on transparency. Home-screen tiles use
+ * an opaque theme colour so iOS does not fill transparency with
+ * black. Safe’s tile is light so the black mark stays visible. ETX
+ * keeps the purple cube on its dark tile.
+ */
+const THEME_ICON = {
+  etx: {
+    source: 'brand/icon-purple.png',
+    inAppWhite: false,
+    background: { r: 22, g: 20, b: 28, alpha: 1 },
+  },
+  safe: {
+    source: 'brand/icon-dark.png',
+    inAppWhite: true,
+    background: { r: 244, g: 244, b: 245, alpha: 1 },
+  },
+}
+
+const iconTheme = THEME_ICON[theme]
+
+if (iconTheme === undefined) {
+  throw new Error(`No icon paint rules for theme ${theme}.`)
+}
 
 /**
  * Keeps the mark's shape and paints every visible pixel white.
  *
- * The source is the old purple ribbon. Tab icons and the in-app
- * mark must be white; hue-rotate on a purple file left a violet
- * leftover in the favicon, which CSS cannot recolor.
+ * Hue-rotate on a coloured file leaves a tinted leftover in the
+ * favicon, which CSS cannot recolor. RGB is replaced; alpha stays,
+ * so anti-aliased edges remain.
  */
 async function toWhite(input) {
   const { data, info } = await sharp(input).ensureAlpha().raw().toBuffer({
@@ -96,44 +135,79 @@ async function toWhite(input) {
     .toBuffer()
 }
 
-async function main() {
-  const source = await readFile(SOURCE)
+async function writeIcon({ mark, outputDirectory, size, paddingRatio, background, filename }) {
+  const inner = Math.round(size * (1 - paddingRatio * 2))
+  const icon = await sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 4,
+      background,
+    },
+  })
+    .composite([
+      {
+        input: await sharp(mark)
+          .resize(inner, inner, { fit: 'contain', background: TRANSPARENT })
+          .toBuffer(),
+        gravity: 'center',
+      },
+    ])
+    .png({ compressionLevel: 9, palette: size <= 48 })
+    .toBuffer()
 
-  /* Transparent margins are trimmed once: doing it per size would
-     decode the source six times. */
-  const trimmed = await toWhite(await sharp(source).trim({ threshold: 10 }).png().toBuffer())
+  await writeFile(resolve(outputDirectory, filename), icon)
+  console.log(`${filename} — ${String(Math.round(icon.byteLength / 102.4) / 10)} KB`)
+}
+
+async function main() {
+  const source = await readFile(resolve(CLIENT_ROOT, iconTheme.source))
+  const mark = await sharp(source).trim({ threshold: 10 }).png().toBuffer()
   const outputDirectory = resolve(CLIENT_ROOT, 'public/icons')
 
   await mkdir(outputDirectory, { recursive: true })
 
-  for (const size of SIZES) {
-    const inner = Math.round(size * (1 - PADDING_RATIO * 2))
+  if (!HOME_SCREEN_ONLY) {
+    for (const size of SIZES) {
+      await writeIcon({
+        mark,
+        outputDirectory,
+        size,
+        paddingRatio: PADDING_RATIO,
+        background: TRANSPARENT,
+        filename: `icon-${String(size)}.png`,
+      })
+    }
 
-    const icon = await sharp({
-      create: {
-        width: size,
-        height: size,
-        channels: 4,
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      },
-    })
-      .composite([
-        {
-          input: await sharp(trimmed)
-            .resize(inner, inner, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-            .toBuffer(),
-          gravity: 'center',
-        },
-      ])
-      .png({ compressionLevel: 9, palette: size <= 48 })
-      .toBuffer()
-
-    const target = resolve(outputDirectory, `icon-${String(size)}.png`)
-
-    await writeFile(target, icon)
-
-    console.log(`icon-${String(size)}.png — ${String(Math.round(icon.byteLength / 102.4) / 10)} KB`)
+    if (iconTheme.inAppWhite) {
+      await writeIcon({
+        mark: await toWhite(mark),
+        outputDirectory,
+        size: 128,
+        paddingRatio: PADDING_RATIO,
+        background: TRANSPARENT,
+        filename: 'icon-white-128.png',
+      })
+    }
   }
+
+  await writeIcon({
+    mark,
+    outputDirectory,
+    size: APPLE_TOUCH_SIZE,
+    paddingRatio: PADDING_RATIO,
+    background: iconTheme.background,
+    filename: `icon-${String(APPLE_TOUCH_SIZE)}.png`,
+  })
+
+  await writeIcon({
+    mark,
+    outputDirectory,
+    size: MASKABLE_SIZE,
+    paddingRatio: MASKABLE_PADDING_RATIO,
+    background: iconTheme.background,
+    filename: `icon-maskable-${String(MASKABLE_SIZE)}.png`,
+  })
 }
 
 await main()

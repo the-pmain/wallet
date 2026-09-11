@@ -37,7 +37,7 @@ export function CurrencySwitch({ value, onChange }: CurrencySwitchProps) {
               onChange(currency)
             }}
             className={cn(
-              'focus-ring min-h-8 min-w-11 cursor-pointer rounded-md px-2 text-xs font-semibold tracking-wide',
+              'focus-ring min-h-8 min-w-11 cursor-pointer rounded-md px-2 text-xs font-semibold tracking-wide max-lg:min-h-11',
               isSelected
                 ? 'bg-primary/15 text-primary-emphasis shadow-surface'
                 : 'text-muted-foreground hover:text-foreground',

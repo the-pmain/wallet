@@ -284,7 +284,7 @@ function ActionTile({ icon: Icon, label, to, onClick, isActive, isDisabled }: Ac
       >
         <Icon className="size-4.5 max-lg:size-5" aria-hidden />
       </span>
-      <span className="w-full text-center leading-tight text-balance">{label}</span>
+      <span className="action-tile-label w-full text-center">{label}</span>
     </>
   )
 
