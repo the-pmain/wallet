@@ -837,6 +837,23 @@ describe('Admin cabinet', () => {
     expect(window.location.pathname).toContain('/admin/users/7')
   })
 
+  it('keeps the profile header and section tabs fixed while the page scrolls', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
+
+    const heading = await screen.findByRole('heading', { name: 'james@example.com' })
+    const chrome = heading.closest('.sticky')
+
+    expect(chrome).toHaveClass('top-14')
+    expect(chrome).toContainElement(screen.getByRole('link', { name: 'All users' }))
+    expect(chrome).toContainElement(screen.getByText('Profile section'))
+    expect(chrome).toContainElement(screen.getByRole('button', { name: 'Assets' }))
+    expect(chrome).not.toContainElement(screen.getByText(/Estimated total/i))
+  })
+
   it('opens spectator mode in a new tab without leaving the cabinet', async () => {
     const user = userEvent.setup()
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')

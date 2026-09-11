@@ -234,39 +234,42 @@ function ProfileEditor({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        <BackLink />
-        <div className="flex items-center gap-4">
-          <UserAvatar userId={user.id} email={user.email} className="size-14" />
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-semibold tracking-tight">{user.email ?? 'User'}</h1>
-            <p className="text-sm text-muted-foreground">
-              id {user.id} · created {formatDate(user.createdAt)}
-            </p>
+    <div className="flex flex-col">
+      <div className="sticky top-14 z-10 -mx-4 -mt-6 flex flex-col gap-6 border-b bg-background px-4 pb-4 pt-6">
+        <div className="flex flex-col gap-3">
+          <BackLink />
+          <div className="flex items-center gap-4">
+            <UserAvatar userId={user.id} email={user.email} className="size-14" />
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl font-semibold tracking-tight">{user.email ?? 'User'}</h1>
+              <p className="text-sm text-muted-foreground">
+                id {user.id} · created {formatDate(user.createdAt)}
+              </p>
+            </div>
+            <SpectatorModeButton email={user.email} theP={user.theP} />
           </div>
-          <SpectatorModeButton email={user.email} theP={user.theP} />
         </div>
+
+        {error !== null ? (
+          <Alert variant="danger">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {message !== null ? (
+          <Alert>
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        <SegmentedControl
+          legend="Profile section"
+          value={tab}
+          options={PROFILE_TABS}
+          onChange={setTab}
+        />
       </div>
 
-      {error !== null ? (
-        <Alert variant="danger">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {message !== null ? (
-        <Alert>
-          <AlertDescription>{message}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <SegmentedControl
-        legend="Profile section"
-        value={tab}
-        options={PROFILE_TABS}
-        onChange={setTab}
-      />
-
+      <div className="flex flex-col gap-6 pt-6">
       {tab === PROFILE_TAB.Assets ? (
         <AdminUserAssetsCard user={user} canWrite={canWrite} busy={busy} run={run} />
       ) : null}
@@ -496,6 +499,7 @@ function ProfileEditor({
         </CardContent>
       </Card>
       ) : null}
+      </div>
     </div>
   )
 }
