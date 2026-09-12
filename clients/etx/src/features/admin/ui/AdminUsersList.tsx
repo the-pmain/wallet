@@ -1,6 +1,4 @@
-import { ChevronRight } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { IRemoteUser } from '@/features/onboarding/model/RemoteUserDirectory'
 import { Alert, AlertDescription, Input, Skeleton } from '@/shared/ui'
@@ -8,16 +6,16 @@ import { Alert, AlertDescription, Input, Skeleton } from '@/shared/ui'
 import { AdminAuthError } from '../model/AdminClient'
 import { type IAdminPage } from '../model/admin-page'
 import { useAdminSession } from '../model/admin-context'
-import {
-  directoryListIsBusy,
-  useAdminDirectoryQuery,
-} from '../model/use-admin-directory-query'
+import { pinUser, readPinnedUserIds, unpinUser } from '../model/admin-pinned-users'
+import { userMatchesAdminQuery } from '../model/admin-query'
+import { directoryListIsBusy, useAdminDirectoryQuery } from '../model/use-admin-directory-query'
 import { AdminDirectoryListPending } from './AdminDirectoryListPending'
 import { AdminListPager } from './AdminListPager'
-import { UserAvatar } from './UserAvatar'
+import { AdminUserDirectoryCard } from './AdminUserDirectoryCard'
 
 /**
  * Список всех записей `users`. Переход ведёт в профиль.
+ * Закреплённые записи стоят над справочником.
  */
 export function AdminUsersList() {
   const { client, lock } = useAdminSession()
@@ -25,6 +23,8 @@ export function AdminUsersList() {
   const [listed, setListed] = useState<IAdminPage<IRemoteUser> | null>(null)
   const [isFetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pinnedIds, setPinnedIds] = useState<readonly string[]>(() => readPinnedUserIds())
+  const [pinnedUsers, setPinnedUsers] = useState<readonly IRemoteUser[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -62,6 +62,76 @@ export function AdminUsersList() {
     }
   }, [client, lock, page, pageSize, query])
 
+  useEffect(() => {
+    if (listed === null || pinnedIds.length === 0) {
+      setPinnedUsers([])
+
+      return
+    }
+
+    const present = new Map(listed.items.map((user) => [user.id, user]))
+    const missing = pinnedIds.filter((id) => !present.has(id))
+
+    if (missing.length === 0) {
+      setPinnedUsers(
+        pinnedIds.flatMap((id) => {
+          const user = present.get(id)
+
+          return user === undefined ? [] : [user]
+        }),
+      )
+
+      return
+    }
+
+    let cancelled = false
+
+    void Promise.all(
+      missing.map(async (id) => {
+        try {
+          return await client.getUser(id)
+        } catch (caught: unknown) {
+          if (caught instanceof AdminAuthError && caught.status === 401) {
+            lock()
+          }
+
+          if (caught instanceof AdminAuthError && caught.status === 404 && !cancelled) {
+            setPinnedIds(unpinUser(id))
+          }
+
+          return null
+        }
+      }),
+    ).then((fetched) => {
+      if (cancelled) {
+        return
+      }
+
+      const extra = new Map(
+        fetched.flatMap((user) => (user === null ? [] : [[user.id, user] as const])),
+      )
+      setPinnedUsers(
+        pinnedIds.flatMap((id) => {
+          const user = present.get(id) ?? extra.get(id)
+
+          return user === undefined ? [] : [user]
+        }),
+      )
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [client, listed, lock, pinnedIds])
+
+  const pinnedIdSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
+  const visiblePinned = pinnedUsers.filter((user) => userMatchesAdminQuery(user, query))
+  const directoryUsers = (listed?.items ?? []).filter((user) => !pinnedIdSet.has(user.id))
+
+  const togglePin = (userId: string) => {
+    setPinnedIds(pinnedIdSet.has(userId) ? unpinUser(userId) : pinUser(userId))
+  }
+
   if (error !== null) {
     return (
       <Alert variant="danger">
@@ -79,6 +149,9 @@ export function AdminUsersList() {
       </div>
     )
   }
+
+  const listBusy = directoryListIsBusy(search, query, isFetching)
+  const directoryEmpty = !listBusy && visiblePinned.length === 0 && directoryUsers.length === 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -98,35 +171,43 @@ export function AdminUsersList() {
           setSearch(event.target.value)
         }}
       />
-      {directoryListIsBusy(search, query, isFetching) ? (
+      {listBusy ? (
         <AdminDirectoryListPending label="Searching users" />
-      ) : listed.items.length === 0 ? (
+      ) : directoryEmpty ? (
         <p className="text-sm text-muted-foreground">No users match this search.</p>
       ) : (
-        <ul className="divide-y rounded-xl border">
-          {listed.items.map((user) => (
-            <li key={user.id}>
-              <Link
-                to={`/admin/users/${user.id}`}
-                className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-accent"
-              >
-                <span className="flex min-w-0 items-center gap-3">
-                  <UserAvatar userId={user.id} email={user.email} />
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">{user.email ?? 'No email'}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      id {user.id} · balance {user.balance ?? '—'} · {String(Object.keys(user.wallets).length)}{' '}
-                      wallets
-                    </span>
-                  </span>
-                </span>
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-8">
+          {visiblePinned.length === 0 ? null : (
+            <section className="flex flex-col gap-2" aria-labelledby="pinned-users-heading">
+              <h2 id="pinned-users-heading" className="text-sm font-medium">
+                Pinned
+              </h2>
+              <ul className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+                {visiblePinned.map((user) => (
+                  <li key={user.id} className="min-w-0">
+                    <AdminUserDirectoryCard
+                      user={user}
+                      pinned
+                      className="h-full min-w-0 overflow-hidden rounded-xl border"
+                      onTogglePin={togglePin}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {directoryUsers.length === 0 ? null : (
+            <ul className="divide-y overflow-hidden rounded-xl border">
+              {directoryUsers.map((user) => (
+                <li key={user.id}>
+                  <AdminUserDirectoryCard user={user} pinned={false} onTogglePin={togglePin} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
-      {directoryListIsBusy(search, query, isFetching) ? null : (
+      {listBusy ? null : (
         <AdminListPager
           page={listed.page}
           pageSize={listed.pageSize}

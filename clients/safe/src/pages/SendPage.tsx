@@ -7,7 +7,7 @@ import {
   ShieldAlert,
   Send,
 } from 'lucide-react'
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 
 import {
@@ -30,11 +30,9 @@ import {
 import {
   SPECTATOR_ACTION_BLOCKED,
   readLoginCredentials,
-  SENDING_SSE_TYPE,
   SENDING_STATUS,
   useDirectorySession,
   useRefreshRemoteAssets,
-  useSendingsSse,
 } from '@/features/onboarding'
 import { ConfirmPassword, UntrustedText, useSecurity } from '@/features/security'
 import {
@@ -138,61 +136,12 @@ export function SendPage() {
   const login = readLoginCredentials()
   const sendViaDirectory = isRemote || login !== null
   const fieldId = useId()
-  const sendingsUserId = directory.user?.id ?? login?.id ?? null
-  const [trackedSending, setTrackedSending] = useState<{
-    readonly id: string
-    readonly userId: string | null
-  } | null>(null)
-  const trackedSendingStatus = useRef<{
-    readonly id: string
-    readonly status: string | null
-  } | null>(null)
   const [sendingOutcome, setSendingOutcome] = useState<SendingOutcome>(null)
   const [sendingPreview, setSendingPreview] = useState<{
     readonly amount: string
     readonly symbol: string
     readonly recipient: string
   } | null>(null)
-
-  useSendingsSse(sendingsUserId, (event) => {
-    if (event.type_send !== SENDING_SSE_TYPE.Update) {
-      return
-    }
-
-    if (trackedSending === null) {
-      return
-    }
-
-    if (event.id !== trackedSending.id || event.userId !== trackedSending.userId) {
-      return
-    }
-
-    const previous =
-      trackedSendingStatus.current?.id === event.id ? trackedSendingStatus.current.status : null
-    trackedSendingStatus.current = { id: event.id, status: event.status }
-
-    if (
-      previous !== event.status &&
-      (previous === SENDING_STATUS.Success || event.status === SENDING_STATUS.Success)
-    ) {
-      void directory.refresh()
-    }
-
-    if (event.status === SENDING_STATUS.Success) {
-      setSendingOutcome({ status: SENDING_STATUS.Success })
-      return
-    }
-
-    if (event.status !== SENDING_STATUS.Failure) {
-      setSendingOutcome(null)
-      return
-    }
-
-    setSendingOutcome({
-      status: SENDING_STATUS.Failure,
-      message: event.failureMessage ?? 'The transfer could not be sent.',
-    })
-  })
 
   const [step, setStep] = useState<Step>(STEP.Form)
   const [recipient, setRecipient] = useState('')
@@ -412,8 +361,6 @@ export function SendPage() {
           assetDecimals: selected.token.decimals,
           assetIsVerified: selected.token.isVerified,
         })
-        trackedSendingStatus.current = { id: sending.id, status: sending.status }
-        setTrackedSending({ id: sending.id, userId: sending.userId })
         setRecipient('')
         setAmount('')
         setResolved(EMPTY_RECIPIENT)
@@ -793,8 +740,6 @@ export function SendPage() {
           onDismiss={() => {
             setSendingPreview(null)
             setSendingOutcome(null)
-            setTrackedSending(null)
-            trackedSendingStatus.current = null
           }}
         />
       )}

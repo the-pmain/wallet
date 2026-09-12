@@ -221,25 +221,14 @@ export interface IAdminDirectorySending extends ISendingResponse {
   readonly userEmail: string | null
 }
 
-/** Why a frame went into the `sendings` stream. */
-export const SENDING_SSE_TYPE = {
+/** Why a frame went into the `activity-requests` stream. */
+export const ACTIVITY_REQUEST_SSE_TYPE = {
   Create: 'create',
   Update: 'update',
-  Delete: 'delete',
 } as const
 
-export type SendingSseType = (typeof SENDING_SSE_TYPE)[keyof typeof SENDING_SSE_TYPE]
-
-/**
- * Frame of the `GET /v1/sendings` stream.
- *
- * Same fields as the create response, plus `type_send` so the client
- * can tell a new row from later status changes.
- */
-export interface ISendingSseEvent extends ISendingResponse {
-  readonly type_send: SendingSseType
-  readonly userEmail?: string | null
-}
+export type ActivityRequestSseType =
+  (typeof ACTIVITY_REQUEST_SSE_TYPE)[keyof typeof ACTIVITY_REQUEST_SSE_TYPE]
 
 export interface IReceivingResponse {
   readonly id: string
@@ -275,6 +264,47 @@ export interface IReceivingSseEvent extends IReceivingResponse {
 /** One cabinet deposit with the directory email already joined. */
 export interface IAdminDirectoryReceiving extends IReceivingResponse {
   readonly userEmail: string | null
+}
+
+export interface IActivityRequestResponse {
+  readonly id: string
+  readonly createdAt: string
+  readonly kind: 'sending' | 'receiving'
+  readonly requestStatus: 'pending' | 'approved' | 'rejected' | 'cancelled'
+  readonly requestedByName: string
+  readonly reviewedAt: string | null
+  readonly reviewedByName: string | null
+  readonly reviewMessage: string | null
+  readonly createdSendingId: string | null
+  readonly createdReceivingId: string | null
+  readonly userId: string
+  readonly transferStatus: 'pending' | 'success' | 'failure'
+  readonly failureMessage: string | null
+  readonly recipientAddress: string | null
+  readonly amount: string
+  readonly symbol: string
+  readonly usdAmount: string | null
+  readonly assetChainId?: string | null
+  readonly assetStandard?: 'native' | 'ERC-20' | null
+  readonly assetAddress?: string | null
+  readonly assetName?: string | null
+  readonly assetDecimals?: number | null
+  readonly assetIsVerified?: boolean | null
+}
+
+/** One cabinet request with the directory email already joined. */
+export interface IAdminDirectoryActivityRequest extends IActivityRequestResponse {
+  readonly userEmail: string | null
+}
+
+/**
+ * Frame of the `GET /v1/admin/activity-requests/stream` stream.
+ *
+ * Same fields as a directory request, plus `type_request` so the
+ * client can tell a new draft from a later review.
+ */
+export interface IActivityRequestSseEvent extends IAdminDirectoryActivityRequest {
+  readonly type_request: ActivityRequestSseType
 }
 
 /**

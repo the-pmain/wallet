@@ -1,12 +1,7 @@
 import { Pencil, Send } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import {
-  SENDING_SSE_TYPE,
-  SENDING_STATUS,
-  type IRemoteSending,
-  type ISendingSseEvent,
-} from '@/features/onboarding'
+import { SENDING_STATUS, type IRemoteSending } from '@/features/onboarding'
 import { AmountWithUnit } from '@/features/wallet/ui/AmountWithUnit'
 import { TokenAvatar } from '@/features/wallet/ui/TokenAvatar'
 import { Alert, AlertDescription, Button, EmptyState, Input, Skeleton } from '@/shared/ui'
@@ -16,12 +11,10 @@ import { addableAssetBySymbol } from '../model/addable-assets'
 import { type IAdminDirectorySending, type IAdminPage } from '../model/admin-page'
 import { directoryUserLabel } from '../model/admin-user-emails'
 import { useAdminSession } from '../model/admin-context'
-import { useHydrateAdminPendingSendings } from '../model/admin-pending-queue'
 import {
   directoryListIsBusy,
   useAdminDirectoryQuery,
 } from '../model/use-admin-directory-query'
-import { useAdminSendingsLive } from '../model/admin-sendings-live'
 import { requestAdminUserRefresh, settlementChanged } from '../model/admin-user-refresh'
 import { sendingMatchesAdminQuery } from '../model/sending-query'
 import { AdminDirectoryListPending } from './AdminDirectoryListPending'
@@ -30,16 +23,14 @@ import { SendingEditDialog } from './SendingEditDialog'
 import { SendingStatusBadge } from './SendingStatusBadge'
 
 /**
- * Список переводов кабинета.
+ * Cabinet transfer list.
  *
- * Одна страница: `GET /v1/admin/directory/sendings` уже склеивает
- * email, ищет и режет. Super-admin ещё слушает поток оболочки.
+ * One page: `GET /v1/admin/directory/sendings` already joins email,
+ * searches, and slices.
  */
 export function AdminSendingsList() {
   const { client, canWrite, lock } = useAdminSession()
   const { page, pageSize, query, search, setPage, setSearch } = useAdminDirectoryQuery()
-  const hydratePending = useHydrateAdminPendingSendings()
-  const didHydratePending = useRef(false)
   const [listed, setListed] = useState<IAdminPage<IAdminDirectorySending> | null>(null)
   const [isFetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -57,11 +48,6 @@ export function AdminSendingsList() {
         if (!cancelled) {
           setListed(next)
           setFetching(false)
-
-          if (!didHydratePending.current) {
-            didHydratePending.current = true
-            hydratePending?.(next.items)
-          }
         }
       })
       .catch((caught: unknown) => {
@@ -86,21 +72,7 @@ export function AdminSendingsList() {
     return () => {
       cancelled = true
     }
-  }, [client, hydratePending, lock, page, pageSize, query])
-
-  useAdminSendingsLive((event) => {
-    if (event.type_send === SENDING_SSE_TYPE.Delete) {
-      setListed((current) =>
-        current === null ? current : removeDirectoryItem(current, event.id),
-      )
-
-      return
-    }
-
-    setListed((current) =>
-      current === null ? current : upsertDirectorySending(current, event, query, page),
-    )
-  })
+  }, [client, lock, page, pageSize, query])
 
   async function saveSending(id: string, patch: IAdminSendingPatch): Promise<void> {
     setSaving(true)
@@ -350,7 +322,7 @@ function removeDirectoryItem<T extends { readonly id: string }>(
 
 function upsertDirectorySending(
   current: IAdminPage<IAdminDirectorySending>,
-  incoming: IRemoteSending | ISendingSseEvent,
+  incoming: IRemoteSending,
   query: string,
   page: number,
 ): IAdminPage<IAdminDirectorySending> {

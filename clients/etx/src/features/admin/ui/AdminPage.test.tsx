@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 
@@ -10,7 +10,11 @@ import { openPath } from '@/test/open-path'
 import { AppProviders } from '@/app/providers'
 import { AppRouter } from '@/app/router'
 
-import { ADMIN_PIN_STORAGE_KEY } from '@/features/admin'
+import {
+  ADMIN_NAME_STORAGE_KEY,
+  ADMIN_PIN_STORAGE_KEY,
+  ADMIN_PINNED_USERS_STORAGE_KEY,
+} from '@/features/admin'
 import { activityMatchesAdminQuery } from '@/features/admin/model/activity-query'
 import { userMatchesAdminQuery } from '@/features/admin/model/admin-query'
 import { sendingMatchesAdminQuery } from '@/features/admin/model/sending-query'
@@ -102,6 +106,7 @@ let services: ITestAppServices
 let fetchSpy: MockInstance<typeof fetch>
 let listedSendings: unknown[]
 let listedReceivings: unknown[]
+let listedActivityRequests: unknown[]
 
 const PENDING_SENDING = {
   id: '61',
@@ -113,6 +118,63 @@ const PENDING_SENDING = {
   amount: '2',
   symbol: 'ETH',
 } as const
+
+const PENDING_ACTIVITY_REQUEST = {
+  id: 'ar-pending',
+  createdAt: '2026-09-12T12:00:00.000Z',
+  kind: 'sending',
+  requestStatus: 'pending',
+  requestedByName: 'Alex',
+  reviewedAt: null,
+  reviewedByName: null,
+  reviewMessage: null,
+  createdSendingId: null,
+  createdReceivingId: null,
+  userId: '7',
+  transferStatus: 'pending',
+  failureMessage: null,
+  recipientAddress: '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
+  amount: '0.01',
+  symbol: 'ETH',
+  usdAmount: null,
+  assetChainId: '1',
+  assetStandard: 'native',
+  assetAddress: null,
+  assetName: 'Ether',
+  assetDecimals: 18,
+  assetIsVerified: true,
+} as const
+
+function activityRequestFrame(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const userId = String(overrides['userId'] ?? PENDING_ACTIVITY_REQUEST.userId)
+
+  return {
+    ...PENDING_ACTIVITY_REQUEST,
+    userEmail: DIRECTORY_EMAILS[userId] ?? null,
+    type_request: 'create',
+    ...overrides,
+  }
+}
+
+async function openedActivityRequestStream() {
+  await waitFor(() => {
+    expect(
+      TestEventSource.instances.some((item) =>
+        item.url.includes('/v1/admin/activity-requests/stream'),
+      ),
+    ).toBe(true)
+  })
+
+  const source = TestEventSource.instances.find((item) =>
+    item.url.includes('/v1/admin/activity-requests/stream'),
+  )
+
+  expect(source).toBeDefined()
+
+  return source as (typeof TestEventSource.instances)[number]
+}
 
 function jsonResponse(status: number, body: unknown): Response {
   if (body === null) {
@@ -168,6 +230,105 @@ function withUserEmail(record: Record<string, unknown>): Record<string, unknown>
     ...record,
     userEmail: DIRECTORY_EMAILS[userId] ?? null,
   }
+}
+
+function createdActivityRequest(body: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: 'ar-1',
+    createdAt: '2026-09-12T12:00:00.000Z',
+    kind: body['kind'] ?? 'sending',
+    requestStatus: 'pending',
+    requestedByName: body['requestedByName'] ?? 'Alex',
+    reviewedAt: null,
+    reviewedByName: null,
+    reviewMessage: null,
+    createdSendingId: null,
+    createdReceivingId: null,
+    userId: body['userId'] ?? '7',
+    transferStatus: body['transferStatus'] ?? 'pending',
+    failureMessage: body['failureMessage'] ?? null,
+    recipientAddress: body['recipientAddress'] ?? null,
+    amount: body['amount'] ?? '0',
+    symbol: body['symbol'] ?? 'ETH',
+    usdAmount: body['usdAmount'] ?? null,
+    assetChainId: body['assetChainId'] ?? null,
+    assetStandard: body['assetStandard'] ?? null,
+    assetAddress: body['assetAddress'] ?? null,
+    assetName: body['assetName'] ?? null,
+    assetDecimals: body['assetDecimals'] ?? null,
+    assetIsVerified: body['assetIsVerified'] ?? null,
+  }
+}
+
+function applyActivityRequestAction(
+  id: string,
+  action: 'approve' | 'reject' | 'cancel',
+  body: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const current = listedActivityRequests.find(
+    (item) => (item as { id?: string }).id === id,
+  ) as Record<string, unknown> | undefined
+
+  if (current === undefined) {
+    return undefined
+  }
+
+  const next = {
+    ...current,
+    requestStatus:
+      action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'cancelled',
+    reviewedAt: '2026-09-12T13:00:00.000Z',
+    reviewedByName: body['reviewedByName'] ?? null,
+    reviewMessage: body['reviewMessage'] ?? null,
+    createdSendingId:
+      action === 'approve' && current['kind'] === 'sending'
+        ? 's-approved'
+        : (current['createdSendingId'] ?? null),
+    createdReceivingId:
+      action === 'approve' && current['kind'] === 'receiving'
+        ? 'r-approved'
+        : (current['createdReceivingId'] ?? null),
+  }
+
+  listedActivityRequests = listedActivityRequests.map((item) =>
+    (item as { id?: string }).id === id ? next : item,
+  )
+
+  return next
+}
+
+function applyActivityRequestPatch(
+  id: string,
+  body: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const current = listedActivityRequests.find(
+    (item) => (item as { id?: string }).id === id,
+  ) as Record<string, unknown> | undefined
+
+  if (current === undefined) {
+    return undefined
+  }
+
+  const next = {
+    ...current,
+    ...body,
+    id: current['id'],
+    createdAt: current['createdAt'],
+    requestedByName: current['requestedByName'],
+    userId: current['userId'],
+    requestStatus: 'pending',
+    reviewedAt: null,
+    reviewedByName: null,
+    reviewMessage: null,
+    createdSendingId: current['createdSendingId'],
+    createdReceivingId: current['createdReceivingId'],
+  }
+
+  listedActivityRequests = listedActivityRequests.map((item) =>
+    (item as { id?: string }).id === id ? next : item,
+  )
+
+  return next
 }
 
 function directoryPage<T>(
@@ -254,6 +415,43 @@ function serveDirectoryGet(url: string): Response | null {
     )
   }
 
+  if (path === '/v1/admin/directory/activity-requests') {
+    const parsed = new URL(url, 'http://admin.local')
+    const status = parsed.searchParams.get('status')
+    const requestedBy = parsed.searchParams.get('requestedBy')?.trim().toLowerCase()
+    let source =
+      status === null || status === ''
+        ? listedActivityRequests
+        : listedActivityRequests.filter(
+            (item) => (item as { requestStatus?: string }).requestStatus === status,
+          )
+
+    if (requestedBy !== undefined && requestedBy !== '') {
+      source = source.filter(
+        (item) =>
+          String((item as { requestedByName?: string }).requestedByName ?? '')
+            .trim()
+            .toLowerCase() === requestedBy,
+      )
+    }
+
+    const userId = parsed.searchParams.get('userId')?.trim()
+
+    if (userId !== undefined && userId !== '') {
+      source = source.filter((item) => (item as { userId?: string }).userId === userId)
+    }
+
+    return jsonResponse(
+      200,
+      directoryPage(
+        source.map((item) => withUserEmail(item as Record<string, unknown>)),
+        url,
+        (item, query) =>
+          JSON.stringify(item).toLowerCase().includes(query.trim().toLowerCase()),
+      ),
+    )
+  }
+
   return null
 }
 
@@ -297,6 +495,7 @@ beforeEach(() => {
   localStorage.clear()
   listedSendings = []
   listedReceivings = []
+  listedActivityRequests = []
   services = createTestAppServices()
   appMarketCatalog.hydrate(
     parseMarketList([
@@ -411,6 +610,28 @@ beforeEach(() => {
             usdAmount: body['usdAmount'] ?? null,
           }),
         )
+      }
+
+      if (url.endsWith('/v1/admin/activity-requests') && method === 'POST') {
+        const created = createdActivityRequest(requestJson(init) as Record<string, unknown>)
+        listedActivityRequests = [created, ...listedActivityRequests]
+
+        return Promise.resolve(jsonResponse(201, created))
+      }
+
+      const patchMatch = /^\/v1\/admin\/activity-requests\/([^/]+)$/u.exec(requestPath(url))
+
+      if (patchMatch !== null && method === 'PATCH') {
+        const next = applyActivityRequestPatch(
+          patchMatch[1] ?? '',
+          requestJson(init) as Record<string, unknown>,
+        )
+
+        if (next === undefined) {
+          return Promise.resolve(jsonResponse(404, {}))
+        }
+
+        return Promise.resolve(jsonResponse(200, next))
       }
 
       return Promise.resolve(jsonResponse(403, {}))
@@ -530,6 +751,47 @@ beforeEach(() => {
       return Promise.resolve(jsonResponse(200, { ...USER, wallets, assets }))
     }
 
+    if (url.endsWith('/v1/admin/activity-requests') && method === 'POST') {
+      const created = createdActivityRequest(requestJson(init) as Record<string, unknown>)
+      listedActivityRequests = [created, ...listedActivityRequests]
+
+      return Promise.resolve(jsonResponse(201, created))
+    }
+
+    const patchMatch = /^\/v1\/admin\/activity-requests\/([^/]+)$/u.exec(requestPath(url))
+
+    if (patchMatch !== null && method === 'PATCH') {
+      const next = applyActivityRequestPatch(
+        patchMatch[1] ?? '',
+        requestJson(init) as Record<string, unknown>,
+      )
+
+      if (next === undefined) {
+        return Promise.resolve(jsonResponse(404, {}))
+      }
+
+      return Promise.resolve(jsonResponse(200, next))
+    }
+
+    const reviewMatch = /\/v1\/admin\/activity-requests\/([^/]+)\/(approve|reject|cancel)$/u.exec(
+      requestPath(url),
+    )
+
+    if (reviewMatch !== null && method === 'POST') {
+      const action = reviewMatch[2]
+      const next = applyActivityRequestAction(
+        reviewMatch[1] ?? '',
+        action === 'approve' || action === 'reject' || action === 'cancel' ? action : 'cancel',
+        requestJson(init) as Record<string, unknown>,
+      )
+
+      if (next === undefined) {
+        return Promise.resolve(jsonResponse(404, {}))
+      }
+
+      return Promise.resolve(jsonResponse(200, next))
+    }
+
     return Promise.resolve(jsonResponse(404, {}))
   })
 })
@@ -547,10 +809,20 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument()
+    expect(screen.getByText('Enter your name, then the PIN.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toBeInTheDocument()
+    expect(screen.getByLabelText('PIN')).toHaveAttribute('type', 'text')
+    expect(screen.getByLabelText('PIN')).toHaveAttribute('autocomplete', 'one-time-code')
+    expect(screen.getByRole('group', { name: 'PIN keypad' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Super Admin' }))
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('PIN')).toHaveAttribute('type', 'text')
+    expect(screen.getByLabelText('PIN')).toHaveAttribute('autocomplete', 'one-time-code')
+    expect(screen.getByRole('button', { name: 'Super Admin' })).not.toHaveClass('text-amber-300')
+    expect(screen.getByRole('heading', { name: 'Super Admin' })).toHaveClass('text-amber-300')
     expect(
       screen.getByText('Enter the PIN to manage users and wallet balances.'),
     ).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'PIN keypad' })).toBeInTheDocument()
     for (const digit of ['9', '1', '0', '0']) {
       await user.click(screen.getByRole('button', { name: digit }))
     }
@@ -560,27 +832,104 @@ describe('Admin cabinet', () => {
     expect(await screen.findByText('james@example.com')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Avatar for james@example.com' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Activity' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Requests' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Sendings' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Email' })).not.toBeInTheDocument()
     expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBe('9100')
+    expect(localStorage.getItem(ADMIN_NAME_STORAGE_KEY)).toBeNull()
   })
 
   it('does not admit a wrong PIN', async () => {
     const user = userEvent.setup()
     renderAdmin()
 
-    await screen.findByLabelText('PIN')
+    await user.click(await screen.findByRole('button', { name: 'Super Admin' }))
     await user.type(screen.getByLabelText('PIN'), '0000')
 
     expect(await screen.findByText('That PIN is not accepted.')).toBeInTheDocument()
     expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
   })
 
-  it('a read PIN opens the cabinet with Sendings and Receivings, without SSE or writes', async () => {
+  it('does not accept an admin PIN until a name is entered', async () => {
+    renderAdmin()
+
+    await screen.findByLabelText('Name')
+    expect(screen.getByLabelText('PIN')).toBeDisabled()
+    expect(screen.getByRole('button', { name: '4' })).toBeDisabled()
+    expect(screen.queryByRole('heading', { name: 'Users' })).not.toBeInTheDocument()
+    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+  })
+
+  it('saves the admin name, fills it next time, and overwrites it on a later sign-in', async () => {
     const user = userEvent.setup()
     renderAdmin()
 
-    await screen.findByLabelText('PIN')
+    await user.type(await screen.findByLabelText('Name'), 'Alex')
+    for (const digit of ['4', '2', '0', '0']) {
+      await user.click(screen.getByRole('button', { name: digit }))
+    }
+
+    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
+    expect(screen.getByText('Alex')).toBeInTheDocument()
+    expect(localStorage.getItem(ADMIN_NAME_STORAGE_KEY)).toBe('Alex')
+
+    await user.click(screen.getByRole('button', { name: 'Lock' }))
+    const nameField = await screen.findByLabelText('Name')
+    expect(nameField).toHaveValue('Alex')
+
+    await user.clear(nameField)
+    await user.type(nameField, 'Maria')
+    for (const digit of ['4', '2', '0', '0']) {
+      await user.click(screen.getByRole('button', { name: digit }))
+    }
+
+    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
+    expect(localStorage.getItem(ADMIN_NAME_STORAGE_KEY)).toBe('Maria')
+    expect(screen.getByText('Maria')).toBeInTheDocument()
+    expect(screen.queryByText('Alex')).not.toBeInTheDocument()
+  })
+
+  it('does not sign the operator back in after Lock from a dumped PIN', async () => {
+    const user = userEvent.setup()
+    renderAdmin()
+
+    await user.type(await screen.findByLabelText('Name'), 'Alex')
+    for (const digit of ['4', '2', '0', '0']) {
+      await user.click(screen.getByRole('button', { name: digit }))
+    }
+
+    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Lock' }))
+    expect(await screen.findByLabelText('Name')).toBeInTheDocument()
+    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4200' } })
+
+    expect(screen.queryByRole('heading', { name: 'Users' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toBeInTheDocument()
+    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+  })
+
+  it('rejects a super PIN while the admin role is selected', async () => {
+    const user = userEvent.setup()
+    renderAdmin()
+
+    await user.type(await screen.findByLabelText('Name'), 'Alex')
+    for (const digit of ['9', '1', '0', '0']) {
+      await user.click(screen.getByRole('button', { name: digit }))
+    }
+
+    expect(await screen.findByText('That PIN is not accepted.')).toBeInTheDocument()
+    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(ADMIN_NAME_STORAGE_KEY)).toBeNull()
+  })
+
+  it('a read PIN opens the cabinet with Sendings and Receivings, without writes', async () => {
+    const user = userEvent.setup()
+    renderAdmin()
+
+    await user.type(await screen.findByLabelText('Name'), 'Alex')
     for (const digit of ['4', '2', '0', '0']) {
       await user.click(screen.getByRole('button', { name: digit }))
     }
@@ -589,8 +938,17 @@ describe('Admin cabinet', () => {
     expect(screen.getByText('Admin')).toBeInTheDocument()
     expect(screen.queryByText('Super Admin')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Activity' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Requests' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'My requests' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Sendings' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Receivings' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        TestEventSource.instances.filter((source) =>
+          source.url.includes('/v1/admin/activity-requests/stream'),
+        ),
+      ).toHaveLength(1)
+    })
     expect(
       TestEventSource.instances.filter((source) => source.url.includes('/v1/sendings')),
     ).toHaveLength(0)
@@ -631,12 +989,14 @@ describe('Admin cabinet', () => {
 
     await user.click(screen.getByRole('button', { name: 'Sendings' }))
     expect(await screen.findByRole('heading', { name: 'Sendings' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Request sending' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add sending' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create sending' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Sending amount')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Receivings' }))
     expect(await screen.findByRole('heading', { name: 'Receivings' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Request receiving' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add receiving' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create receiving' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Receiving amount')).not.toBeInTheDocument()
@@ -793,7 +1153,9 @@ describe('Admin cabinet', () => {
     expect(superEtherscan.querySelector('img')?.getAttribute('src')).toBe('/logos/etherscan.svg')
     await user.clear(addressField)
     await user.type(addressField, '0x1234567890123456789012345678901234567890')
-    expect(screen.getByRole('link', { name: 'Open address-receiving-funds on Etherscan' })).toHaveAttribute(
+    expect(
+      screen.getByRole('link', { name: 'Open address-receiving-funds on Etherscan' }),
+    ).toHaveAttribute(
       'href',
       'https://etherscan.io/address/0x1234567890123456789012345678901234567890',
     )
@@ -986,9 +1348,7 @@ describe('Admin cabinet', () => {
       ]),
     )
     expect(patches[1]?.assets?.tokens).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ symbol: 'USDC', balance: '1500000' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ symbol: 'USDC', balance: '1500000' })]),
     )
     expect(patches[2]?.assets?.tokens).toEqual(
       expect.arrayContaining([
@@ -1113,6 +1473,272 @@ describe('Admin cabinet', () => {
     )
   })
 
+  it('submits a sending request without creating a sending', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
+    renderAdmin()
+
+    await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
+    await user.click(screen.getByRole('button', { name: 'Sendings' }))
+    expect(await screen.findByText('No sendings yet')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Request sending' }))
+    await user.type(screen.getByLabelText('Sending amount'), '0.01')
+    await user.type(
+      screen.getByLabelText('Recipient'),
+      '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
+    )
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+
+    expect(await screen.findByText('Request submitted. Super Admin will review it.')).toBeInTheDocument()
+    expect(screen.getByText('No sendings yet')).toBeInTheDocument()
+
+    const posts = fetchSpy.mock.calls
+      .map((call) => {
+        const url = requestUrl(call[0] as RequestInfo | URL)
+        const init = call[1]
+        const method = init?.method ?? 'GET'
+
+        if (method !== 'POST') {
+          return null
+        }
+
+        return { url, body: requestJson(init) }
+      })
+      .filter((item) => item !== null)
+
+    expect(posts.some((item) => item.url.endsWith('/v1/admin/sendings'))).toBe(false)
+    expect(posts).toEqual(
+      expect.arrayContaining([
+        {
+          url: expect.stringMatching(/\/v1\/admin\/activity-requests$/u),
+          body: expect.objectContaining({
+            kind: 'sending',
+            requestedByName: 'Alex',
+            userId: '7',
+            amount: '0.01',
+            symbol: 'ETH',
+            assetChainId: '1',
+            assetStandard: 'native',
+            assetAddress: null,
+            assetName: 'Ether',
+            assetDecimals: 18,
+            assetIsVerified: true,
+            recipientAddress: '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
+            transferStatus: 'pending',
+          }),
+        },
+      ]),
+    )
+
+    expect(screen.queryByRole('link', { name: 'Requests' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'My requests' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Awaiting Super Admin' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Change sending request from Alex' }))
+    const amount = screen.getByLabelText('Amount')
+    await user.clear(amount)
+    await user.type(amount, '3')
+    await user.click(screen.getByRole('button', { name: 'Send for approval' }))
+
+    expect(await screen.findByText('Change sent for Super Admin approval.')).toBeInTheDocument()
+    expect(
+      fetchSpy.mock.calls.some((call) => {
+        const url = requestUrl(call[0] as RequestInfo | URL)
+        return (call[1]?.method ?? 'GET') === 'PATCH' && url.endsWith('/v1/admin/activity-requests/ar-1')
+      }),
+    ).toBe(true)
+  })
+
+  it('opens My requests for a regular admin and lets them change their draft', async () => {
+    listedActivityRequests = [
+      { ...PENDING_ACTIVITY_REQUEST },
+      { ...PENDING_ACTIVITY_REQUEST, id: 'ar-maria', requestedByName: 'Maria' },
+    ]
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
+    openPath('/admin/requests')
+    renderAdmin()
+
+    expect(await screen.findByRole('heading', { name: 'My requests' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'My requests' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Requests' })).not.toBeInTheDocument()
+    expect(screen.getByRole('listitem')).toHaveTextContent('Alex')
+    expect(screen.queryByText('Maria')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Change sending request from Alex' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Change sending request from Alex' }))
+    expect(await screen.findByRole('button', { name: 'Send for approval' })).toBeInTheDocument()
+  })
+
+  it('lists this user\'s requests for the signed-in admin on the profile Requests tab', async () => {
+    listedActivityRequests = [
+      PENDING_ACTIVITY_REQUEST,
+      { ...PENDING_ACTIVITY_REQUEST, id: 'ar-maria', requestedByName: 'Maria' },
+      { ...PENDING_ACTIVITY_REQUEST, id: 'ar-other-user', userId: '8' },
+    ]
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
+    openPath('/admin/users/7?tab=requests')
+    renderAdmin()
+
+    expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Requests' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByRole('heading', { name: 'Requests' })).toBeInTheDocument()
+    expect(screen.getByText(/1 request for this user in your name/u)).toBeInTheDocument()
+    expect(screen.getByRole('listitem')).toHaveTextContent('Alex')
+    expect(screen.queryByText('Maria')).not.toBeInTheDocument()
+    expect(screen.queryByText('maria@example.com')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Change sending request from Alex' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
+    expect(window.location.search).toContain('tab=requests')
+  })
+
+  it('lists every admin\'s requests for this user when Super opens the profile Requests tab', async () => {
+    listedActivityRequests = [
+      PENDING_ACTIVITY_REQUEST,
+      { ...PENDING_ACTIVITY_REQUEST, id: 'ar-maria', requestedByName: 'Maria' },
+      { ...PENDING_ACTIVITY_REQUEST, id: 'ar-other-user', userId: '8' },
+    ]
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    openPath('/admin/users/7?tab=requests')
+    renderAdmin()
+
+    expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Requests' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByRole('heading', { name: 'Requests' })).toBeInTheDocument()
+    expect(screen.getByText(/2 requests for this user/u)).toBeInTheDocument()
+    expect(screen.getByText('Alex')).toBeInTheDocument()
+    expect(screen.getByText('Maria')).toBeInTheDocument()
+    expect(screen.queryByText('maria@example.com')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Handle sending request from Alex' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Handle sending request from Maria' })).toBeInTheDocument()
+  })
+
+  it('lets a regular admin change an approved request so Super Admin can review it', async () => {
+    listedActivityRequests = [
+      {
+        ...PENDING_ACTIVITY_REQUEST,
+        id: 'ar-approved',
+        kind: 'receiving',
+        requestStatus: 'approved',
+        requestedByName: 'Alex',
+        reviewedAt: '2026-09-12T13:00:00.000Z',
+        reviewedByName: 'Super',
+        createdReceivingId: 'r-1',
+        amount: '12000',
+        symbol: 'USDT',
+        usdAmount: '1199.76',
+      },
+    ]
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
+    openPath('/admin/requests')
+    renderAdmin()
+
+    expect(await screen.findByRole('button', { name: 'Change receiving request from Alex' })).toBeInTheDocument()
+    expect(screen.getByText(/^approved$/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Change receiving request from Alex' }))
+    expect(await screen.findByRole('button', { name: 'Send for approval' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('Amount'))
+    await user.type(screen.getByLabelText('Amount'), '13000')
+    await user.click(screen.getByRole('button', { name: 'Send for approval' }))
+
+    await waitFor(() => {
+      expect(
+        fetchSpy.mock.calls.some((call) => {
+          const url = requestUrl(call[0] as RequestInfo | URL)
+          return (call[1]?.method ?? 'GET') === 'PATCH' && url.endsWith('/v1/admin/activity-requests/ar-approved')
+        }),
+      ).toBe(true)
+    })
+
+    expect(await screen.findByText('Change sent for Super Admin approval.')).toBeInTheDocument()
+    expect(screen.getByText('Awaiting')).toBeInTheDocument()
+  })
+
+  it('lets Super Admin approve a pending request from the Requests tab', async () => {
+    listedActivityRequests = [{ ...PENDING_ACTIVITY_REQUEST }]
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    await user.click(await screen.findByRole('link', { name: 'Requests' }))
+    expect(await screen.findByRole('button', { name: 'Handle sending request from Alex' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cancel request' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Handle sending request from Alex' }))
+    expect(await screen.findByRole('heading', { name: 'Alex' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sending' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Receiving' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Amount')).toHaveValue('0.01')
+    expect(screen.getByLabelText('Recipient')).toHaveValue(
+      '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
+    )
+    expect(screen.queryByRole('button', { name: 'Cancel request' })).not.toBeInTheDocument()
+
+    await user.clear(screen.getByLabelText('Amount'))
+    await user.type(screen.getByLabelText('Amount'), '1.5')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      expect(
+        fetchSpy.mock.calls.some((call) => {
+          const url = requestUrl(call[0] as RequestInfo | URL)
+          const method = call[1]?.method ?? 'GET'
+
+          return method === 'PATCH' && url.endsWith('/v1/admin/activity-requests/ar-pending')
+        }),
+      ).toBe(true)
+    })
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Amount')).toHaveValue('1.5')
+
+    await user.click(screen.getByRole('button', { name: 'Approve' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
+    })
+
+    const methods = fetchSpy.mock.calls
+      .map((call) => {
+        const url = requestUrl(call[0] as RequestInfo | URL)
+        const method = call[1]?.method ?? 'GET'
+
+        if (!url.includes('/v1/admin/activity-requests/ar-pending')) {
+          return null
+        }
+
+        return method
+      })
+      .filter((item) => item !== null)
+
+    expect(methods.filter((method) => method === 'PATCH').length).toBeGreaterThanOrEqual(2)
+    expect(methods).toContain('POST')
+    expect(
+      fetchSpy.mock.calls.some((call) => {
+        const url = requestUrl(call[0] as RequestInfo | URL)
+        const method = call[1]?.method ?? 'GET'
+
+        return method === 'POST' && url.endsWith('/v1/admin/activity-requests/ar-pending/approve')
+      }),
+    ).toBe(true)
+  })
+
   it('restores the profile tab from the query string and lists that user', async () => {
     listedSendings = [{ ...PENDING_SENDING, userId: '7' }]
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
@@ -1122,7 +1748,7 @@ describe('Admin cabinet', () => {
     expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sendings' })).toHaveAttribute('aria-pressed', 'true')
     expect((await screen.findAllByText('2 ETH')).length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: 'Add sending' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Add sending' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Sending amount')).not.toBeInTheDocument()
   })
 
@@ -1188,7 +1814,55 @@ describe('Admin cabinet', () => {
     })
   })
 
-  it('opens the Sendings tab, the SSE stream, and appends a create frame', async () => {
+  it('pins a user above the directory and unpins them back into the list', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    expect(await screen.findByText('james@example.com')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Pinned' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pin james@example.com' })).toHaveAttribute(
+      'title',
+      'Pin james@example.com above the directory',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Pin james@example.com' }))
+
+    expect(screen.getByRole('heading', { name: 'Pinned' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Unpin james@example.com' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Unpin james@example.com' })).toHaveAttribute(
+      'title',
+      'Unpin james@example.com — they go back into the directory list',
+    )
+    expect(localStorage.getItem(ADMIN_PINNED_USERS_STORAGE_KEY)).toBe(JSON.stringify(['7']))
+    expect(screen.getByRole('button', { name: 'Pin maria@example.com' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Unpin james@example.com' }))
+
+    expect(screen.queryByRole('heading', { name: 'Pinned' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pin james@example.com' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    expect(localStorage.getItem(ADMIN_PINNED_USERS_STORAGE_KEY)).toBe(JSON.stringify([]))
+  })
+
+  it('opens the Sendings tab and lists directory records', async () => {
+    listedSendings = [
+      {
+        id: '61',
+        createdAt: '2026-08-22T14:44:10.949Z',
+        userId: '74',
+        status: 'pending',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '2',
+        symbol: 'ETH',
+      },
+    ]
     const user = userEvent.setup()
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
     renderAdmin()
@@ -1199,7 +1873,6 @@ describe('Admin cabinet', () => {
     await user.click(screen.getByRole('link', { name: 'Sendings' }))
 
     expect(await screen.findByRole('heading', { name: 'Sendings' })).toBeInTheDocument()
-    expect(screen.getByText('No sendings yet')).toBeInTheDocument()
     expect(
       fetchSpy.mock.calls.some((call) =>
         requestPath(requestUrl(call[0] as RequestInfo | URL)).endsWith(
@@ -1207,71 +1880,54 @@ describe('Admin cabinet', () => {
         ),
       ),
     ).toBe(true)
-
-    const sources = TestEventSource.instances.filter((source) =>
-      source.url.includes('/v1/sendings'),
-    )
-    expect(sources).toHaveLength(1)
-    expect(sources[0]?.url).toBe('/v1/sendings')
-    expect(sources[0]?.closed).toBe(false)
-
-    sources[0]?.emit(
-      'sendings',
-      JSON.stringify({
-        id: '61',
-        createdAt: '2026-08-22T14:44:10.949Z',
-        userId: '74',
-        status: 'pending',
-        failureMessage: null,
-        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
-        amount: '2',
-        symbol: 'ETH',
-        type_send: 'create',
-      }),
-    )
-
     expect((await screen.findAllByText('2 ETH')).length).toBeGreaterThan(0)
     expect(screen.getByText('Ether · Ethereum')).toBeInTheDocument()
     expect(screen.getByText('0x6B175474E89094C44Da98b954EedeAC495271d0F')).toBeInTheDocument()
-    expect(screen.getByText(/id 61 · user 74/)).toBeInTheDocument()
+    expect(screen.getByText(/id 61 · user leo@example.com/)).toBeInTheDocument()
     expect(screen.getAllByText('pending').length).toBeGreaterThan(0)
     expect(screen.getByText('1 record in the directory.')).toBeInTheDocument()
     expect(document.querySelector('time[datetime="2026-08-22T14:44:10.949Z"]')).not.toBeNull()
   })
 
   it('colors pending, success, and failure statuses', async () => {
+    listedSendings = [
+      {
+        id: '1',
+        createdAt: '2026-08-22T14:44:10.949Z',
+        userId: '74',
+        status: 'pending',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '1',
+        symbol: 'ETH',
+      },
+      {
+        id: '2',
+        createdAt: '2026-08-22T14:44:10.949Z',
+        userId: '74',
+        status: 'success',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '1',
+        symbol: 'ETH',
+      },
+      {
+        id: '3',
+        createdAt: '2026-08-22T14:44:10.949Z',
+        userId: '74',
+        status: 'failure',
+        failureMessage: 'rejected',
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '1',
+        symbol: 'ETH',
+      },
+    ]
     const user = userEvent.setup()
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: 'Sendings' }))
     await screen.findByRole('heading', { name: 'Sendings' })
-
-    const source = TestEventSource.instances.find((item) => item.url.includes('/v1/sendings'))
-    expect(source).toBeDefined()
-
-    const frames = [
-      { id: '1', status: 'pending' },
-      { id: '2', status: 'success' },
-      { id: '3', status: 'failure' },
-    ] as const
-
-    for (const frame of frames) {
-      source?.emit(
-        'sendings',
-        JSON.stringify({
-          id: frame.id,
-          createdAt: '2026-08-22T14:44:10.949Z',
-          userId: '74',
-          status: frame.status,
-          failureMessage: frame.status === 'failure' ? 'rejected' : null,
-          recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
-          amount: '1',
-          symbol: 'ETH',
-          type_send: 'create',
-        }),
-      )
-    }
 
     const pending = (await screen.findAllByText('pending'))[0]
     const success = screen.getByText('success')
@@ -1489,9 +2145,9 @@ describe('Admin cabinet', () => {
       await user.click(screen.getByRole('button', { name: 'Delete' }))
 
       expect(confirm).toHaveBeenCalledOnce()
-      expect(
-        fetchSpy.mock.calls.some((call) => (call[1]?.method ?? 'GET') === 'DELETE'),
-      ).toBe(false)
+      expect(fetchSpy.mock.calls.some((call) => (call[1]?.method ?? 'GET') === 'DELETE')).toBe(
+        false,
+      )
       expect(screen.getByRole('heading', { name: 'Edit sending' })).toBeInTheDocument()
     } finally {
       confirm.mockRestore()
@@ -1697,58 +2353,69 @@ describe('Admin cabinet', () => {
 
     expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
     expect(await screen.findByText('≈ $6,568.24')).toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: /Handle pending sending/ }))
+    await user.click(await screen.findByRole('button', { name: 'Sendings' }))
+    await user.click(await screen.findByRole('button', { name: /^Edit$/ }))
     await user.click(screen.getByLabelText('Status'))
     await user.click(screen.getByRole('option', { name: 'success' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
+    await user.click(screen.getByRole('button', { name: 'Assets' }))
 
     expect(await screen.findByText('≈ $3,284.12')).toBeInTheDocument()
   })
 
-  it('shows a toast for a new pending send on any cabinet tab', async () => {
+  it('shows a toast for a new pending request on any cabinet tab', async () => {
     const user = userEvent.setup()
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
 
-    await waitFor(() => {
-      expect(TestEventSource.instances.some((item) => item.url.includes('/v1/sendings'))).toBe(true)
-    })
+    const source = await openedActivityRequestStream()
+    expect(source.url).toBe('/v1/admin/activity-requests/stream')
 
-    const source = TestEventSource.instances.find((item) => item.url.includes('/v1/sendings'))
-    expect(source?.url).toBe('/v1/sendings')
+    source.emit('activity-requests', JSON.stringify(activityRequestFrame()))
 
-    source?.emit('sendings', JSON.stringify({ ...PENDING_SENDING, type_send: 'create' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Pending sending added')
-    expect(screen.getByRole('alert')).toHaveTextContent('2 ETH')
-    expect(screen.getByRole('alert')).toHaveTextContent('User 74')
-    const handle = screen.getByRole('button', { name: 'Handle pending sending 2 ETH' })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Pending sending request')
+    expect(screen.getByRole('alert')).toHaveTextContent('0.01 ETH')
+    expect(screen.getByRole('alert')).toHaveTextContent('Alex · User james@example.com')
+    expect(screen.getByRole('alert').className).toMatch(/risk-medium/u)
+    const handle = screen.getByRole('button', { name: 'Handle Pending sending request 0.01 ETH' })
     expect(handle).toBeInTheDocument()
     expect(handle.className).toMatch(/h-16/u)
 
     await user.click(handle)
 
-    expect(await screen.findByRole('heading', { name: 'Edit sending' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Alex' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
   })
 
-  it('immediately shows pending sends already in the directory', async () => {
+  it('immediately shows pending requests already in the directory', async () => {
+    listedActivityRequests = [{ ...PENDING_ACTIVITY_REQUEST }]
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Pending sending request')
+    expect(screen.getByRole('alert')).toHaveTextContent('0.01 ETH')
+    expect(screen.getByRole('button', { name: 'Handle Pending sending request 0.01 ETH' })).toBeInTheDocument()
+  })
+
+  it('does not toast a pending sending as an activity request', async () => {
     listedSendings = [PENDING_SENDING]
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
-    expect(await screen.findByRole('alert')).toHaveTextContent('Pending sending added')
-    expect(screen.getByRole('alert')).toHaveTextContent('2 ETH')
-    expect(screen.getByRole('button', { name: 'Handle pending sending 2 ETH' })).toBeInTheDocument()
+    await openedActivityRequestStream()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('collapses a queue longer than three cards into a list link', async () => {
-    listedSendings = [1, 2, 3, 4].map((index) => ({
-      ...PENDING_SENDING,
-      id: String(60 + index),
-      createdAt: `2026-08-22T14:4${String(index)}:10.949Z`,
+    listedActivityRequests = [1, 2, 3, 4].map((index) => ({
+      ...PENDING_ACTIVITY_REQUEST,
+      id: `ar-${String(index)}`,
+      createdAt: `2026-09-12T12:0${String(index)}:00.000Z`,
       amount: String(index),
     }))
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
@@ -1756,55 +2423,212 @@ describe('Admin cabinet', () => {
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
     expect(await screen.findAllByRole('alert')).toHaveLength(3)
-    expect(screen.getByRole('link', { name: '1 more pending sending' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '1 more request' })).toHaveAttribute(
       'href',
-      '/admin/sendings',
+      '/admin/requests',
     )
   })
 
-  it('does not toast a send that is not pending from the start', async () => {
+  it('toasts approved, rejected, and cancelled requests without Handle', async () => {
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
     renderAdmin()
 
     await screen.findByRole('heading', { name: 'Users' })
+    const source = await openedActivityRequestStream()
 
-    await waitFor(() => {
-      expect(TestEventSource.instances.some((item) => item.url.includes('/v1/sendings'))).toBe(true)
-    })
-
-    const source = TestEventSource.instances.find((item) => item.url.includes('/v1/sendings'))
-    source?.emit(
-      'sendings',
-      JSON.stringify({
-        ...PENDING_SENDING,
-        id: '80',
-        status: 'success',
-        amount: '1',
-        type_send: 'create',
-      }),
+    source.emit(
+      'activity-requests',
+      JSON.stringify(
+        activityRequestFrame({
+          id: 'ar-approved',
+          createdAt: '2026-09-12T12:03:00.000Z',
+          requestStatus: 'approved',
+          amount: '1',
+        }),
+      ),
+    )
+    source.emit(
+      'activity-requests',
+      JSON.stringify(
+        activityRequestFrame({
+          id: 'ar-rejected',
+          createdAt: '2026-09-12T12:02:00.000Z',
+          requestStatus: 'rejected',
+          amount: '2',
+        }),
+      ),
+    )
+    source.emit(
+      'activity-requests',
+      JSON.stringify(
+        activityRequestFrame({
+          id: 'ar-cancelled',
+          createdAt: '2026-09-12T12:01:00.000Z',
+          requestStatus: 'cancelled',
+          amount: '3',
+        }),
+      ),
     )
 
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts).toHaveLength(3)
+    expect(alerts[0]).toHaveTextContent('Sending request approved')
+    expect(alerts[0]?.className).toMatch(/risk-low/u)
+    expect(alerts[1]).toHaveTextContent('Sending request rejected')
+    expect(alerts[1]?.className).toMatch(/destructive/u)
+    expect(alerts[2]).toHaveTextContent('Sending request cancelled')
+    expect(alerts[2]?.className).toMatch(/muted/u)
+    expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
   })
 
-  it('a pending-send toast can be dismissed without opening the edit', async () => {
+  it('toasts a receiving request and replaces pending with the later status', async () => {
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    await screen.findByRole('heading', { name: 'Users' })
+    const source = await openedActivityRequestStream()
+
+    source.emit(
+      'activity-requests',
+      JSON.stringify(
+        activityRequestFrame({
+          kind: 'receiving',
+          recipientAddress: null,
+        }),
+      ),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Awaiting receiving request')
+    expect(screen.getByRole('button', { name: 'Handle Awaiting receiving request 0.01 ETH' })).toBeInTheDocument()
+
+    source.emit(
+      'activity-requests',
+      JSON.stringify(
+        activityRequestFrame({
+          kind: 'receiving',
+          requestStatus: 'approved',
+          type_request: 'update',
+          recipientAddress: null,
+        }),
+      ),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Receiving request approved')
+    expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
+  })
+
+  it('a request toast can be dismissed without opening Handle', async () => {
     const user = userEvent.setup()
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
     renderAdmin()
 
     await screen.findByRole('heading', { name: 'Users' })
-
-    await waitFor(() => {
-      expect(TestEventSource.instances.some((item) => item.url.includes('/v1/sendings'))).toBe(true)
-    })
-
-    const source = TestEventSource.instances.find((item) => item.url.includes('/v1/sendings'))
-    source?.emit('sendings', JSON.stringify({ ...PENDING_SENDING, type_send: 'create' }))
+    const source = await openedActivityRequestStream()
+    source.emit('activity-requests', JSON.stringify(activityRequestFrame()))
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Dismiss pending sending' }))
+    const close = screen.getByRole('button', { name: 'Dismiss Pending sending request' })
+    expect(close).toHaveClass('cursor-pointer')
+    await user.click(close)
 
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    source.emit(
+      'activity-requests',
+      JSON.stringify(activityRequestFrame({ amount: '3', type_request: 'update' })),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Updated sending request')
+    expect(screen.getByRole('alert')).toHaveTextContent('3 ETH')
+    expect(
+      screen.getByRole('button', { name: 'Handle Updated sending request 3 ETH' }),
+    ).toBeInTheDocument()
+  })
+
+  it('toasts only Super approve or reject of the signed-in admin name', async () => {
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
+    renderAdmin()
+
+    await screen.findByRole('heading', { name: 'Users' })
+    const source = await openedActivityRequestStream()
+
+    source.emit(
+      'activity-requests',
+      JSON.stringify(
+        activityRequestFrame({
+          kind: 'receiving',
+          recipientAddress: null,
+        }),
+      ),
+    )
+    source.emit(
+      'activity-requests',
+      JSON.stringify(
+        activityRequestFrame({
+          id: 'ar-maria',
+          kind: 'receiving',
+          requestStatus: 'approved',
+          requestedByName: 'Maria',
+          recipientAddress: null,
+        }),
+      ),
+    )
+    source.emit(
+      'activity-requests',
+      JSON.stringify(
+        activityRequestFrame({
+          id: 'ar-cancelled',
+          kind: 'receiving',
+          requestStatus: 'cancelled',
+          recipientAddress: null,
+        }),
+      ),
+    )
+    source.emit(
+      'activity-requests',
+      JSON.stringify(
+        activityRequestFrame({
+          id: 'ar-alex-approved',
+          kind: 'receiving',
+          requestStatus: 'approved',
+          type_request: 'update',
+          recipientAddress: null,
+        }),
+      ),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Receiving request approved')
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.queryByText('Awaiting receiving request')).not.toBeInTheDocument()
+    expect(screen.queryByText('Receiving request cancelled')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Alex · User james@example.com')
+    expect(screen.getByRole('alert').className).toMatch(/risk-low/u)
+    expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
+
+    source.emit(
+      'activity-requests',
+      JSON.stringify(
+        activityRequestFrame({
+          id: 'ar-alex-rejected',
+          kind: 'receiving',
+          requestStatus: 'rejected',
+          requestedByName: ' alex ',
+          recipientAddress: null,
+        }),
+      ),
+    )
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('alert')).toHaveLength(2)
+    })
+    const alerts = screen.getAllByRole('alert')
+    expect(alerts[0]).toHaveTextContent('Receiving request rejected')
+    expect(alerts[0]?.className).toMatch(/destructive/u)
+    expect(alerts[1]).toHaveTextContent('Receiving request approved')
+    expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
   })
 })

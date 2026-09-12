@@ -12,10 +12,7 @@ export interface IUserSendings {
 }
 
 /**
- * Переводы текущего входа: только `GET /v1/users/:id/sendings`.
- *
- * Потока `GET /v1/sendings` здесь нет: экран отправки сам слушает SSE,
- * а Activity — список для просмотра.
+ * Current sign-in transfers: only `GET /v1/users/:id/sendings`.
  */
 export function useUserSendings(enabled = true): IUserSendings {
   const directory = useDirectorySession()

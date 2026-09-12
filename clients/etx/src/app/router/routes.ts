@@ -15,6 +15,7 @@ export const ROUTE = {
   AdminSendings: '/admin/sendings',
   AdminReceivings: '/admin/receivings',
   AdminActivity: '/admin/activity',
+  AdminRequests: '/admin/requests',
 
   /* What you have to trust when using a wallet in the browser. Open
      before wallet creation: the facts are needed before the decision. */

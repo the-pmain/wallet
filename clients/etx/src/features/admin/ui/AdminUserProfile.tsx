@@ -25,6 +25,7 @@ import { AdminAuthError } from '../model/AdminClient'
 import { useAdminSession } from '../model/admin-context'
 import { listenForAdminUserRefresh } from '../model/admin-user-refresh'
 import { AdminUserAssetsCard } from './AdminUserAssetsCard'
+import { AdminActivityRequestsList } from './AdminActivityRequestsList'
 import { AdminUserReceivingsTab, AdminUserSendingsTab } from './AdminUserTransferSections'
 import { EtherscanWalletButton } from './EtherscanWalletButton'
 import { SpectatorModeButton } from './SpectatorModeButton'
@@ -39,6 +40,7 @@ const PROFILE_TAB = {
   Assets: 'assets',
   Sendings: 'sendings',
   Receivings: 'receivings',
+  Requests: 'requests',
   Account: 'account',
   Wallets: 'wallets',
 } as const
@@ -49,6 +51,7 @@ const PROFILE_TABS = [
   { value: PROFILE_TAB.Assets, label: 'Assets' },
   { value: PROFILE_TAB.Sendings, label: 'Sendings' },
   { value: PROFILE_TAB.Receivings, label: 'Receivings' },
+  { value: PROFILE_TAB.Requests, label: 'Requests' },
   { value: PROFILE_TAB.Account, label: 'Account' },
   { value: PROFILE_TAB.Wallets, label: 'Wallets' },
 ] as const
@@ -283,6 +286,8 @@ function ProfileEditor({
         <AdminUserReceivingsTab user={user} onUserUpdated={onUpdated} />
       ) : null}
 
+      {tab === PROFILE_TAB.Requests ? <AdminActivityRequestsList userId={user.id} /> : null}
+
       {tab === PROFILE_TAB.Account ? (
         <Card>
           <CardHeader>
@@ -351,12 +356,7 @@ function ProfileEditor({
       {tab === PROFILE_TAB.Wallets ? (
         <Card>
           <CardHeader>
-            <CardTitle>Wallets</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {canWrite
-                ? 'Add any named wallet. A mock wallet is present when none are stored yet.'
-                : 'Named wallets on this account. A mock wallet is shown when none are stored yet.'}
-            </p>
+            <CardTitle>Wallets (our wallets on which clients will send money)</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {wallets.length === 0 ? (

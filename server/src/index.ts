@@ -1,6 +1,7 @@
 import { buildApp } from './app.ts'
 import { loadConfig } from './config.ts'
 import { loadLocalEnv } from './load-env.ts'
+import { createActivityRequestsStore } from './activity-requests/createActivityRequestsStore.ts'
 import { createLoginEventsStore } from './login-events/createLoginEventsStore.ts'
 import { createReceivingsStore } from './receivings/createReceivingsStore.ts'
 import { createSendingsStore } from './sendings/createSendingsStore.ts'
@@ -25,6 +26,7 @@ async function main(): Promise<void> {
   const sendingsStore = await createSendingsStore(config)
   const receivingsStore = await createReceivingsStore(config)
   const loginEventsStore = await createLoginEventsStore(config)
+  const activityRequestsStore = await createActivityRequestsStore(config)
   const app = await buildApp({
     config,
     users: usersStore.users,
@@ -34,6 +36,7 @@ async function main(): Promise<void> {
     receivings: receivingsStore.receivings,
     receivingsStorageWarning: receivingsStore.storageWarning,
     loginEvents: loginEventsStore.loginEvents,
+    activityRequests: activityRequestsStore.activityRequests,
   })
 
   app.addHook('onClose', async () => {
@@ -41,6 +44,7 @@ async function main(): Promise<void> {
     await sendingsStore.close()
     await receivingsStore.close()
     await loginEventsStore.close()
+    await activityRequestsStore.close()
   })
 
   /* A signal stop closes connections instead of cutting them:

@@ -109,23 +109,6 @@ beforeEach(async () => {
 })
 
 describe('Отправка: форма', () => {
-  it('подключается к SSE sendings и закрывает поток при уходе', async () => {
-    const user = userEvent.setup()
-
-    renderApp()
-    await openSend()
-
-    const sources = TestEventSource.instances.filter((source) => source.url.includes('/v1/sendings'))
-
-    expect(sources).toHaveLength(1)
-    expect(sources[0]?.url).toBe('/v1/sendings')
-    expect(sources[0]?.closed).toBe(false)
-
-    await user.click(screen.getByRole('link', { name: /^wallet$/i }))
-
-    expect(sources[0]?.closed).toBe(true)
-  })
-
   it('показывает отправителя и доступный баланс', async () => {
     renderApp()
     await openSend()
@@ -831,7 +814,7 @@ describe('Отправка: запись справочника', () => {
     expect(screen.queryByText(/1\.2847 ETH/)).not.toBeInTheDocument()
   })
 
-  it('показывает failureMessage в панели статуса, если SSE update совпал с текущей отправкой', async () => {
+  it('показывает pending в панели статуса после записи в справочник и не открывает поток sendings', async () => {
     globalThis.fetch = mockDirectoryAndPriceFetch({
       id: '7',
       email: 'theguy@email.com',
@@ -876,145 +859,11 @@ describe('Отправка: запись справочника', () => {
 
     expect(await screen.findByRole('heading', { name: 'Status' })).toBeInTheDocument()
     expect(screen.getByText('pending')).toBeInTheDocument()
-
-    const source = TestEventSource.instances.find((item) => item.url.includes('/v1/sendings'))
-    expect(source).toBeDefined()
-
-    source?.emit(
-      'sendings',
-      JSON.stringify({
-        id: '1',
-        createdAt: '2026-08-22T14:59:14.037Z',
-        userId: '7',
-        status: 'failure',
-        failureMessage: 'Blocked by admin',
-        recipientAddress: RECIPIENT,
-        amount: '0.5',
-        symbol: 'ETH',
-        type_send: 'update',
-      }),
-    )
-
-    expect(await screen.findByText('failure')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Status' })).toBeInTheDocument()
-    expect(screen.getByText('Blocked by admin')).toBeInTheDocument()
+    expect(screen.getByText('The transfer was recorded as pending.')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('показывает success в панели статуса, если SSE update совпал с текущей отправкой', async () => {
-    globalThis.fetch = mockDirectoryAndPriceFetch({
-      id: '7',
-      email: 'theguy@email.com',
-      balance: '70',
-      createdAt: '2026-08-19T12:00:00.000Z',
-      assets: {
-        quoteCurrency: 'USD',
-        updatedAt: '2026-08-20T12:00:00.000Z',
-        tokens: [
-          {
-            chainId: '1',
-            standard: 'native',
-            address: null,
-            symbol: 'ETH',
-            name: 'Ether',
-            decimals: 18,
-            balance: '1284700000000000000',
-            isVerified: true,
-          },
-        ],
-      },
-    })
-
-    writeLoginCredentials({
-      id: '7',
-      email: 'theguy@email.com',
-      theP: PASSWORD,
-    })
-
-    renderApp()
-    await openSend()
-
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/Recipient address/), RECIPIENT)
-    await user.type(screen.getByLabelText(/Amount/), '0.5')
-
-    const next = screen.getByRole('button', { name: 'Next' })
-    await waitFor(() => {
-      expect(next).toBeEnabled()
-    })
-    await user.click(next)
-
-    expect(await screen.findByRole('heading', { name: 'Status' })).toBeInTheDocument()
-    expect(screen.getByText('pending')).toBeInTheDocument()
-
-    const source = TestEventSource.instances.find((item) => item.url.includes('/v1/sendings'))
-    expect(source).toBeDefined()
-    const userRefreshCount = () =>
-      vi.mocked(globalThis.fetch).mock.calls.filter((call) => {
-        const method = call[1]?.method ?? 'GET'
-        return method === 'GET' && String(call[0]).includes('/v1/users/7')
-      }).length
-    const refreshesBeforeSuccess = userRefreshCount()
-
-    source?.emit(
-      'sendings',
-      JSON.stringify({
-        id: '1',
-        createdAt: '2026-08-22T14:59:14.037Z',
-        userId: '7',
-        status: 'success',
-        failureMessage: null,
-        recipientAddress: RECIPIENT,
-        amount: '0.5',
-        symbol: 'ETH',
-        type_send: 'update',
-      }),
-    )
-
-    expect(await screen.findByText('success')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Status' })).toBeInTheDocument()
-    expect(screen.getByText('The transfer completed successfully.')).toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(userRefreshCount()).toBe(refreshesBeforeSuccess + 1)
-    })
-
-    source?.emit(
-      'sendings',
-      JSON.stringify({
-        id: '1',
-        createdAt: '2026-08-22T14:59:14.037Z',
-        userId: '7',
-        status: 'success',
-        failureMessage: null,
-        recipientAddress: RECIPIENT,
-        amount: '0.5',
-        symbol: 'ETH',
-        type_send: 'update',
-      }),
-    )
-    expect(userRefreshCount()).toBe(refreshesBeforeSuccess + 1)
-
-    source?.emit(
-      'sendings',
-      JSON.stringify({
-        id: '1',
-        createdAt: '2026-08-22T14:59:14.037Z',
-        userId: '7',
-        status: 'failure',
-        failureMessage: 'Settlement reversed',
-        recipientAddress: RECIPIENT,
-        amount: '0.5',
-        symbol: 'ETH',
-        type_send: 'update',
-      }),
-    )
-
-    expect(await screen.findByText('Settlement reversed')).toBeInTheDocument()
-    await waitFor(() => {
-      expect(userRefreshCount()).toBe(refreshesBeforeSuccess + 2)
-    })
+    expect(
+      TestEventSource.instances.filter((source) => source.url.includes('/v1/sendings')),
+    ).toHaveLength(0)
   })
 
   it('красит Available и блокирует отправку, если сумма больше баланса', async () => {

@@ -1,3 +1,5 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+
 import { Button } from '@/shared/ui'
 
 interface AdminListPagerProps {
@@ -7,51 +9,50 @@ interface AdminListPagerProps {
   readonly onPageChange: (page: number) => void
 }
 
-/** Previous / next for a cabinet directory page. */
+/**
+ * Переключатель страницы справочника. На одной странице не нужен:
+ * счётчик уже стоит в шапке списка.
+ */
 export function AdminListPager({ page, pageSize, total, onPageChange }: AdminListPagerProps) {
-  if (total === 0) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+
+  if (total === 0 || pageCount <= 1) {
     return null
   }
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const start = (page - 1) * pageSize + 1
-  const end = Math.min(page * pageSize, total)
-
   return (
-    <nav
-      className="flex flex-wrap items-center justify-between gap-3 pt-1"
-      aria-label="Pagination"
-    >
-      <p className="text-xs text-muted-foreground">
-        Showing {String(start)}–{String(end)} of {String(total)}
+    <nav className="flex items-center justify-end gap-1 pt-1" aria-label="Pagination">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        disabled={page <= 1}
+        aria-label="Previous page"
+        onClick={() => {
+          onPageChange(page - 1)
+        }}
+      >
+        <ChevronLeft />
+      </Button>
+      <p
+        className="min-w-10 text-center text-xs tabular-nums text-muted-foreground"
+        aria-live="polite"
+        aria-label={`Page ${String(page)} of ${String(pageCount)}`}
+      >
+        {String(page)} / {String(pageCount)}
       </p>
-      <span className="flex items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => {
-            onPageChange(page - 1)
-          }}
-        >
-          Previous
-        </Button>
-        <span className="text-xs tabular-nums text-muted-foreground">
-          Page {String(page)} of {String(pageCount)}
-        </span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={page >= pageCount}
-          onClick={() => {
-            onPageChange(page + 1)
-          }}
-        >
-          Next
-        </Button>
-      </span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        disabled={page >= pageCount}
+        aria-label="Next page"
+        onClick={() => {
+          onPageChange(page + 1)
+        }}
+      >
+        <ChevronRight />
+      </Button>
     </nav>
   )
 }

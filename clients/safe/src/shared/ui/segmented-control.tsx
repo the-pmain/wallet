@@ -140,9 +140,7 @@ export function SegmentedControl<TValue extends string | number>({
                 compact
                   ? 'min-h-7 gap-1 rounded-sm px-1.5 text-[11px]'
                   : 'min-h-11 gap-1.5 rounded-lg px-2 text-xs',
-                isDisabled
-                  ? 'cursor-not-allowed opacity-50'
-                  : 'cursor-pointer',
+                isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
                 isSelected
                   ? 'bg-primary/15 text-primary-emphasis shadow-surface'
                   : isDisabled

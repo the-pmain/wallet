@@ -7,6 +7,7 @@ export interface IAdminSession {
   readonly client: AdminClient
   readonly role: AdminRole
   readonly canWrite: boolean
+  readonly operatorName: string | null
   readonly lock: () => void
 }
 

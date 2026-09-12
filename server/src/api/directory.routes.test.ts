@@ -204,4 +204,101 @@ describe('admin directory pages', () => {
       'james@example.com',
     )
   })
+
+  it('joins email onto an activity-requests page', async () => {
+    const james = await users.create({ email: 'james@example.com', balance: '0', theP: 'james' })
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/activity-requests',
+      headers: { 'x-admin-pin': '4200' },
+      payload: {
+        kind: 'sending',
+        requestedByName: 'Alex',
+        userId: james.id,
+        recipientAddress: RECIPIENT,
+        amount: '2',
+        symbol: 'ETH',
+        assetChainId: '1',
+        assetStandard: 'native',
+        assetAddress: null,
+        assetName: 'Ether',
+        assetDecimals: 18,
+        assetIsVerified: true,
+      },
+    })
+
+    expect(created.statusCode).toBe(201)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/directory/activity-requests',
+      headers: { 'x-admin-pin': '4200' },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toMatchObject({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      items: [
+        {
+          userEmail: 'james@example.com',
+          requestedByName: 'Alex',
+          amount: '2',
+          kind: 'sending',
+        },
+      ],
+    })
+  })
+
+  it('filters activity-requests by userId', async () => {
+    const james = await users.create({ email: 'james@example.com', balance: '0', theP: 'james' })
+    const maria = await users.create({ email: 'maria@example.com', balance: '0', theP: 'maria' })
+    const payload = {
+      kind: 'sending' as const,
+      requestedByName: 'Alex',
+      recipientAddress: RECIPIENT,
+      amount: '2',
+      symbol: 'ETH',
+      assetChainId: '1',
+      assetStandard: 'native',
+      assetAddress: null,
+      assetName: 'Ether',
+      assetDecimals: 18,
+      assetIsVerified: true,
+    }
+
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/v1/admin/activity-requests',
+          headers: { 'x-admin-pin': '4200' },
+          payload: { ...payload, userId: james.id },
+        })
+      ).statusCode,
+    ).toBe(201)
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/v1/admin/activity-requests',
+          headers: { 'x-admin-pin': '4200' },
+          payload: { ...payload, userId: maria.id, amount: '9' },
+        })
+      ).statusCode,
+    ).toBe(201)
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/directory/activity-requests?userId=${james.id}`,
+      headers: { 'x-admin-pin': '4200' },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toMatchObject({
+      total: 1,
+      items: [{ userId: james.id, amount: '2' }],
+    })
+  })
 })

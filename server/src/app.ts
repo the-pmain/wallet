@@ -2,6 +2,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from 'fastify'
 
 import { AdminDirectory } from './admin/AdminDirectory.ts'
 import { registerAdminRoutes } from './api/admin.routes.ts'
+import { registerActivityRequestRoutes } from './api/activity-requests.routes.ts'
 import { registerDirectoryRoutes } from './api/directory.routes.ts'
 import { registerCatalogRoutes } from './api/catalog.routes.ts'
 import { registerNotificationRoutes } from './api/notifications.routes.ts'
@@ -14,6 +15,11 @@ import { CatalogService } from './catalog/CatalogService.ts'
 import { RUNTIME_MODE, type IServerConfig } from './config.ts'
 import { ApiError } from './lib/errors.ts'
 import { isApiUrl, isStaticAssetUrl } from './lib/ui.ts'
+import { MemoryActivityRequestsRepository } from './activity-requests/MemoryActivityRequestsRepository.ts'
+import { ActivityRequestsHub } from './activity-requests/ActivityRequestsHub.ts'
+import { ActivityRequestsService } from './activity-requests/ActivityRequestsService.ts'
+import { ActivityRequestsDatabaseError } from './activity-requests/SupabaseRestActivityRequestsRepository.ts'
+import type { IActivityRequestsRepository } from './activity-requests/contracts.ts'
 import { MemoryLoginEventsRepository } from './login-events/MemoryLoginEventsRepository.ts'
 import { LoginEventsDatabaseError } from './login-events/SupabaseRestLoginEventsRepository.ts'
 import type { ILoginEventsRepository } from './login-events/contracts.ts'
@@ -28,7 +34,6 @@ import { ReceivingsService } from './receivings/ReceivingsService.ts'
 import { ReceivingsDatabaseError } from './receivings/SupabaseRestReceivingsRepository.ts'
 import type { IReceivingsRepository } from './receivings/contracts.ts'
 import { MemorySendingsRepository } from './sendings/MemorySendingsRepository.ts'
-import { SendingsHub } from './sendings/SendingsHub.ts'
 import { SendingsService } from './sendings/SendingsService.ts'
 import { SendingsDatabaseError } from './sendings/SupabaseRestSendingsRepository.ts'
 import type { ISendingsRepository } from './sendings/contracts.ts'
@@ -50,11 +55,12 @@ export interface IAppDependencies {
   readonly usersKind?: UsersStoreKind
   readonly sendings?: ISendingsRepository
   readonly sendingsStorageWarning?: string | null
-  readonly sendingsHub?: SendingsHub
   readonly receivings?: IReceivingsRepository
   readonly receivingsStorageWarning?: string | null
   readonly receivingsHub?: ReceivingsHub
   readonly loginEvents?: ILoginEventsRepository
+  readonly activityRequests?: IActivityRequestsRepository
+  readonly activityRequestsHub?: ActivityRequestsHub
 }
 
 /**
@@ -131,11 +137,19 @@ export async function buildApp(dependencies: IAppDependencies): Promise<FastifyI
   const usersKind = dependencies.usersKind ?? USERS_STORE_KIND.Memory
   const sendings = dependencies.sendings ?? new MemorySendingsRepository()
   const sendingsService = new SendingsService(sendings, users)
-  const sendingsHub = dependencies.sendingsHub ?? new SendingsHub()
   const receivings = dependencies.receivings ?? new MemoryReceivingsRepository()
   const receivingsService = new ReceivingsService(receivings, users)
   const receivingsHub = dependencies.receivingsHub ?? new ReceivingsHub()
   const loginEvents = dependencies.loginEvents ?? new MemoryLoginEventsRepository()
+  const activityRequests =
+    dependencies.activityRequests ?? new MemoryActivityRequestsRepository()
+  const activityRequestsService = new ActivityRequestsService(
+    activityRequests,
+    users,
+    sendingsService,
+    receivingsService,
+  )
+  const activityRequestsHub = dependencies.activityRequestsHub ?? new ActivityRequestsHub()
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
     if (error instanceof ApiError) {
@@ -143,7 +157,8 @@ export async function buildApp(dependencies: IAppDependencies): Promise<FastifyI
         error instanceof UsersDatabaseError ||
         error instanceof SendingsDatabaseError ||
         error instanceof ReceivingsDatabaseError ||
-        error instanceof LoginEventsDatabaseError
+        error instanceof LoginEventsDatabaseError ||
+        error instanceof ActivityRequestsDatabaseError
       ) {
         request.log.error(
           {
@@ -157,7 +172,9 @@ export async function buildApp(dependencies: IAppDependencies): Promise<FastifyI
               ? 'receivings database error'
               : error instanceof LoginEventsDatabaseError
                 ? 'login events database error'
-                : 'users database error',
+                : error instanceof ActivityRequestsDatabaseError
+                  ? 'activity requests database error'
+                  : 'users database error',
         )
       }
 
@@ -222,15 +239,25 @@ export async function buildApp(dependencies: IAppDependencies): Promise<FastifyI
     sendings: sendingsService,
     receivings: receivingsService,
     loginEvents,
-    sendingsHub,
+    activityRequests,
+    activityRequestsHub,
     receivingsHub,
   })
 
   registerUserRoutes(app, users, loginEvents)
-  registerSendingRoutes(app, sendingsService, sendingsHub)
+  registerSendingRoutes(app, sendingsService, directory)
   registerReceivingRoutes(app, receivingsService, receivingsHub)
   registerAdminRoutes(app, users, loginEvents, directory)
   registerDirectoryRoutes(app, directory)
+  registerActivityRequestRoutes(
+    app,
+    activityRequestsService,
+    sendingsService,
+    activityRequestsHub,
+    receivingsService,
+    receivingsHub,
+    directory,
+  )
 
   if (config.staticRoot !== null) {
     await registerUi(app, config.staticRoot)

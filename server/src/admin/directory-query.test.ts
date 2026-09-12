@@ -7,6 +7,7 @@ import { emptyWallets } from '../users/wallets.ts'
 
 import {
   directoryActivityMatches,
+  directoryActivityRequestMatches,
   directoryTransferMatches,
   directoryUserMatches,
 } from './directory-query.ts'
@@ -76,5 +77,27 @@ describe('directoryActivityMatches', () => {
   it('finds by place', () => {
     expect(directoryActivityMatches(ACTIVITY, 'london')).toBe(true)
     expect(directoryActivityMatches(ACTIVITY, 'paris')).toBe(false)
+  })
+})
+
+describe('directoryActivityRequestMatches', () => {
+  it('finds by operator name or kind', () => {
+    const request = {
+      id: '11111111-1111-4111-8111-111111111111',
+      userId: '7',
+      kind: 'sending',
+      requestStatus: 'pending',
+      requestedByName: 'Alex',
+      reviewedByName: null,
+      reviewMessage: null,
+      transferStatus: 'pending',
+      recipientAddress: TRANSFER.recipientAddress,
+      amount: '2',
+      symbol: 'ETH',
+    }
+
+    expect(directoryActivityRequestMatches(request, 'alex', 'james@example.com')).toBe(true)
+    expect(directoryActivityRequestMatches(request, 'sending', 'james@example.com')).toBe(true)
+    expect(directoryActivityRequestMatches(request, 'maria', 'james@example.com')).toBe(false)
   })
 })

@@ -93,6 +93,10 @@ export const AdminActivityPage = lazy(async () => ({
   default: (await import('@/pages/AdminActivityPage')).AdminActivityPage,
 }))
 
+export const AdminRequestsPage = lazy(async () => ({
+  default: (await import('@/pages/AdminRequestsPage')).AdminRequestsPage,
+}))
+
 export const AdminUserPage = lazy(async () => ({
   default: (await import('@/pages/AdminUserPage')).AdminUserPage,
 }))

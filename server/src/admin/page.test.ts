@@ -19,9 +19,30 @@ describe('readAdminPageQuery', () => {
     })
   })
 
-  it('keeps a pending status filter and drops anything else', () => {
+  it('keeps a pending status filter and directory request statuses', () => {
     expect(readAdminPageQuery({ status: 'pending' }).status).toBe('pending')
+    expect(readAdminPageQuery({ status: 'approved' }).status).toBe('approved')
+    expect(readAdminPageQuery({ status: 'rejected' }).status).toBe('rejected')
+    expect(readAdminPageQuery({ status: 'cancelled' }).status).toBe('cancelled')
     expect(readAdminPageQuery({ status: 'success' })).toEqual({
+      page: 1,
+      pageSize: ADMIN_PAGE_SIZE,
+      q: '',
+    })
+  })
+
+  it('keeps a requestedBy operator filter', () => {
+    expect(readAdminPageQuery({ requestedBy: '  Alex  ' }).requestedBy).toBe('Alex')
+    expect(readAdminPageQuery({ requestedBy: '   ' })).toEqual({
+      page: 1,
+      pageSize: ADMIN_PAGE_SIZE,
+      q: '',
+    })
+  })
+
+  it('keeps a userId filter', () => {
+    expect(readAdminPageQuery({ userId: '  101  ' }).userId).toBe('101')
+    expect(readAdminPageQuery({ userId: '   ' })).toEqual({
       page: 1,
       pageSize: ADMIN_PAGE_SIZE,
       q: '',

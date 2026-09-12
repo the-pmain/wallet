@@ -27,13 +27,14 @@ describe('local schema', () => {
     expect(sql).toMatch(/create table public\.sendings/u)
     expect(sql).toMatch(/create table public\.receivings/u)
     expect(sql).toMatch(/create table public\.login_events/u)
+    expect(sql).toMatch(/create table public\.activity_requests/u)
     expect(sql).toMatch(/email text/u)
     expect(sql).toMatch(/the_p text/u)
     expect(sql).toMatch(/wallets jsonb/u)
     expect(sql).toMatch(/assets jsonb/u)
     expect(sql).toMatch(/seed_phrase text/u)
 
-    for (const table of ['users', 'sendings', 'receivings', 'login_events']) {
+    for (const table of ['users', 'sendings', 'receivings', 'login_events', 'activity_requests']) {
       expect(sql).toMatch(
         new RegExp(`alter table public\\.${table} enable row level security`, 'u'),
       )

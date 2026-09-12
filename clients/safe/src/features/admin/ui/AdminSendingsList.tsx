@@ -1,20 +1,18 @@
 import { Send } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Alert, AlertDescription, EmptyState, Input, Skeleton } from '@/shared/ui'
 
-import { SENDING_SSE_TYPE, SENDING_STATUS } from '@/features/onboarding'
+import { SENDING_STATUS } from '@/features/onboarding'
 
 import { AdminAuthError, type IAdminSendingPatch } from '../model/AdminClient'
 import { type IAdminDirectorySending, type IAdminPage } from '../model/admin-page'
 import { directoryUserLabel } from '../model/admin-user-emails'
 import { useAdminSession } from '../model/admin-context'
-import { useHydrateAdminPendingSendings } from '../model/admin-pending-queue'
 import {
   directoryListIsBusy,
   useAdminDirectoryQuery,
 } from '../model/use-admin-directory-query'
-import { useAdminSendingsLive } from '../model/admin-sendings-live'
 import { requestAdminUserRefresh, settlementChanged } from '../model/admin-user-refresh'
 import { sendingMatchesAdminQuery } from '../model/sending-query'
 import { AdminDirectoryListPending } from './AdminDirectoryListPending'
@@ -26,13 +24,11 @@ import { SendingEditDialog } from './SendingEditDialog'
  * Cabinet transfer list.
  *
  * One request: `GET /v1/admin/directory/sendings` joins emails,
- * searches, and pages. Super-admin also listens to the shell stream.
+ * searches, and pages.
  */
 export function AdminSendingsList() {
   const { client, canWrite, lock } = useAdminSession()
   const { page, pageSize, query, search, setPage, setSearch } = useAdminDirectoryQuery()
-  const hydratePending = useHydrateAdminPendingSendings()
-  const didHydratePending = useRef(false)
   const [listed, setListed] = useState<IAdminPage<IAdminDirectorySending> | null>(null)
   const [isFetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,11 +46,6 @@ export function AdminSendingsList() {
         if (!cancelled) {
           setListed(next)
           setFetching(false)
-
-          if (!didHydratePending.current) {
-            didHydratePending.current = true
-            hydratePending?.(next.items)
-          }
         }
       })
       .catch((caught: unknown) => {
@@ -79,21 +70,7 @@ export function AdminSendingsList() {
     return () => {
       cancelled = true
     }
-  }, [client, hydratePending, lock, page, pageSize, query])
-
-  useAdminSendingsLive((event) => {
-    if (event.type_send === SENDING_SSE_TYPE.Delete) {
-      setListed((current) =>
-        current === null ? current : removeDirectoryItem(current, event.id),
-      )
-
-      return
-    }
-
-    setListed((current) =>
-      current === null ? current : upsertDirectorySending(current, event, query, page),
-    )
-  })
+  }, [client, lock, page, pageSize, query])
 
   async function saveSending(id: string, patch: IAdminSendingPatch): Promise<void> {
     setSaving(true)

@@ -5,6 +5,7 @@ import { AdminDirectory } from '../admin/AdminDirectory.ts'
 import { readAdminPageQuery } from '../admin/page.ts'
 
 import type {
+  IAdminDirectoryActivityRequest,
   IAdminDirectoryReceiving,
   IAdminDirectorySending,
   IAdminPageResponse,
@@ -20,6 +21,8 @@ const ADMIN_PAGE_QUERY = {
     pageSize: { type: 'string', maxLength: 4 },
     q: { type: 'string', maxLength: 200 },
     status: { type: 'string', maxLength: 16 },
+    requestedBy: { type: 'string', maxLength: 64 },
+    userId: { type: 'string', maxLength: 64 },
   },
 } as const
 
@@ -28,6 +31,8 @@ interface IAdminPageQuerystring {
   readonly pageSize?: string
   readonly q?: string
   readonly status?: string
+  readonly requestedBy?: string
+  readonly userId?: string
 }
 
 /**
@@ -96,6 +101,20 @@ export function registerDirectoryRoutes(app: FastifyInstance, directory: AdminDi
       void reply.header('cache-control', 'no-store')
 
       return toPageResponse(page)
+    },
+  )
+
+  app.get<{ Querystring: IAdminPageQuerystring }>(
+    '/v1/admin/directory/activity-requests',
+    { schema: { querystring: ADMIN_PAGE_QUERY } },
+    async (request, reply) => {
+      requireAdminRole(request)
+
+      const page = await directory.listActivityRequests(readAdminPageQuery(request.query))
+
+      void reply.header('cache-control', 'no-store')
+
+      return toPageResponse<IAdminDirectoryActivityRequest>(page)
     },
   )
 }

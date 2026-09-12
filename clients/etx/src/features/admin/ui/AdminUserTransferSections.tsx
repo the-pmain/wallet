@@ -3,7 +3,6 @@ import { useEffect, useId, useMemo, useState } from 'react'
 
 import { isValidCryptoWalletAddress, normalizeCryptoWalletInput } from '@/core'
 import {
-  SENDING_SSE_TYPE,
   SENDING_STATUS,
   SENDING_STATUSES,
   type IRemoteReceiving,
@@ -37,8 +36,8 @@ import {
 import { AdminAuthError, type IAdminReceivingPatch, type IAdminSendingPatch } from '../model/AdminClient'
 import { addableAssetBySymbol, transactionAssetMetadata } from '../model/addable-assets'
 import { useAdminSession } from '../model/admin-context'
+import { ADMIN_ROLE } from '../model/admin-role'
 import { ADMIN_PAGE_SIZE } from '../model/admin-page'
-import { useAdminSendingsLive } from '../model/admin-sendings-live'
 import { directoryUserLabel } from '../model/admin-user-emails'
 import { listenForAdminUserRefresh, requestAdminUserRefresh, settlementChanged } from '../model/admin-user-refresh'
 import { sendingMatchesAdminQuery } from '../model/sending-query'
@@ -46,6 +45,7 @@ import { directoryListIsBusy, useAdminDirectoryQuery } from '../model/use-admin-
 
 import { MOCK_WALLET_ADDRESS, MOCK_WALLET_CODENAME } from './admin-wallets'
 import { AdminDirectoryListPending } from './AdminDirectoryListPending'
+import { AdminUserPendingRequests } from './AdminUserPendingRequests'
 import { AdminListPager } from './AdminListPager'
 import { ReceivingEditDialog } from './ReceivingEditDialog'
 import { SendingEditDialog } from './SendingEditDialog'
@@ -60,7 +60,9 @@ export function AdminUserSendingsTab({
   readonly user: IRemoteUser
   readonly onUserUpdated: (user: IRemoteUser) => void
 }) {
-  const { client, canWrite, lock } = useAdminSession()
+  const { client, canWrite, lock, operatorName, role } = useAdminSession()
+  const canRequest = role === ADMIN_ROLE.Admin && operatorName !== null
+  const canOpenForm = canWrite || canRequest
   const { page, pageSize, query, search, setPage, setSearch } = useAdminDirectoryQuery()
   const [items, setItems] = useState<readonly IRemoteSending[] | null>(null)
   const [isFetching, setFetching] = useState(false)
@@ -118,22 +120,6 @@ export function AdminUserSendingsTab({
         })
     })
   }, [client, lock, user.id])
-
-  useAdminSendingsLive((event) => {
-    if (event.userId !== user.id) {
-      return
-    }
-
-    if (event.type_send === SENDING_SSE_TYPE.Delete) {
-      setItems((current) =>
-        current === null ? current : current.filter((item) => item.id !== event.id),
-      )
-
-      return
-    }
-
-    setItems((current) => (current === null ? current : upsertById(current, event)))
-  })
 
   async function saveSending(id: string, patch: IAdminSendingPatch): Promise<void> {
     setSaving(true)
@@ -217,7 +203,7 @@ export function AdminUserSendingsTab({
             {query.trim() === '' ? ' for this user.' : ' match this search.'}
           </p>
         </div>
-        {canWrite ? (
+        {canOpenForm ? (
           <Button
             type="button"
             variant={isCreating ? 'outline' : 'default'}
@@ -230,15 +216,17 @@ export function AdminUserSendingsTab({
             ) : (
               <>
                 <Plus />
-                Add sending
+                {canWrite ? 'Add sending' : 'Request sending'}
               </>
             )}
           </Button>
         ) : null}
       </div>
-      {canWrite && isCreating ? (
+      {canOpenForm && isCreating ? (
         <UserSendingsSection
           user={user}
+          mode={canWrite ? 'create' : 'request'}
+          operatorName={operatorName}
           onUserUpdated={onUserUpdated}
           onCreated={(sending) => {
             setItems((current) => (current === null ? [sending] : upsertById(current, sending)))
@@ -246,6 +234,7 @@ export function AdminUserSendingsTab({
           }}
         />
       ) : null}
+      <AdminUserPendingRequests userId={user.id} kind="sending" />
       <Input
         type="search"
         value={search}
@@ -326,7 +315,9 @@ export function AdminUserReceivingsTab({
   readonly user: IRemoteUser
   readonly onUserUpdated: (user: IRemoteUser) => void
 }) {
-  const { client, canWrite, lock } = useAdminSession()
+  const { client, canWrite, lock, operatorName, role } = useAdminSession()
+  const canRequest = role === ADMIN_ROLE.Admin && operatorName !== null
+  const canOpenForm = canWrite || canRequest
   const { page, pageSize, query, search, setPage, setSearch } = useAdminDirectoryQuery()
   const [items, setItems] = useState<readonly IRemoteReceiving[] | null>(null)
   const [isFetching, setFetching] = useState(false)
@@ -467,7 +458,7 @@ export function AdminUserReceivingsTab({
             {query.trim() === '' ? ' for this user.' : ' match this search.'}
           </p>
         </div>
-        {canWrite ? (
+        {canOpenForm ? (
           <Button
             type="button"
             variant={isCreating ? 'outline' : 'default'}
@@ -480,15 +471,17 @@ export function AdminUserReceivingsTab({
             ) : (
               <>
                 <Plus />
-                Add receiving
+                {canWrite ? 'Add receiving' : 'Request receiving'}
               </>
             )}
           </Button>
         ) : null}
       </div>
-      {canWrite && isCreating ? (
+      {canOpenForm && isCreating ? (
         <UserReceivingsSection
           user={user}
+          mode={canWrite ? 'create' : 'request'}
+          operatorName={operatorName}
           onUserUpdated={onUserUpdated}
           onCreated={(receiving) => {
             setItems((current) => (current === null ? [receiving] : upsertById(current, receiving)))
@@ -496,6 +489,7 @@ export function AdminUserReceivingsTab({
           }}
         />
       ) : null}
+      <AdminUserPendingRequests userId={user.id} kind="receiving" />
       <Input
         type="search"
         value={search}
@@ -571,14 +565,19 @@ export function AdminUserReceivingsTab({
 
 function UserSendingsSection({
   user,
+  mode,
+  operatorName,
   onUserUpdated,
   onCreated,
 }: {
   readonly user: IRemoteUser
+  readonly mode: 'create' | 'request'
+  readonly operatorName: string | null
   readonly onUserUpdated: (user: IRemoteUser) => void
   readonly onCreated: (sending: IRemoteSending) => void
 }) {
   const { client, lock } = useAdminSession()
+  const isRequest = mode === 'request'
   const formId = useId()
   const [asset, setAsset] = useState(defaultTransferAsset)
   const [amount, setAmount] = useState('')
@@ -607,11 +606,37 @@ function UserSendingsSection({
       return
     }
 
+    if (isRequest && (operatorName === null || operatorName.trim() === '')) {
+      setError('Sign in with your name to submit a request.')
+      setMessage(null)
+      return
+    }
+
     setBusy(true)
     setError(null)
     setMessage(null)
 
     try {
+      if (isRequest && operatorName !== null) {
+        await client.createActivityRequest({
+          kind: 'sending',
+          requestedByName: operatorName,
+          userId: user.id,
+          recipientAddress,
+          amount: trimmedAmount,
+          symbol: asset.token.symbol,
+          ...transactionAssetMetadata(asset.token),
+          transferStatus: status,
+          failureMessage: status === SENDING_STATUS.Failure ? 'Rejected by admin' : null,
+        })
+        setAmount('')
+        setRecipient('')
+        setStatus(SENDING_STATUS.Pending)
+        setMessage('Request submitted. Super Admin will review it.')
+        requestAdminUserRefresh(user.id)
+        return
+      }
+
       const created = await client.createSending({
         userId: user.id,
         recipientAddress,
@@ -636,7 +661,7 @@ function UserSendingsSection({
         return
       }
 
-      setError('The sending could not be created.')
+      setError(isRequest ? 'The request could not be submitted.' : 'The sending could not be created.')
     } finally {
       setBusy(false)
     }
@@ -645,9 +670,11 @@ function UserSendingsSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sendings</CardTitle>
+        <CardTitle>{isRequest ? 'Request sending' : 'Sendings'}</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Create a transfer for this user. It appears on their Activity page.
+          {isRequest
+            ? 'Submit a sending for Super Admin to approve. It does not appear on Activity until then.'
+            : 'Create a transfer for this user. It appears on their Activity page.'}
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -702,7 +729,7 @@ function UserSendingsSection({
           </div>
           <div className="flex items-end">
             <Button type="button" disabled={busy} onClick={() => void createSending()}>
-              {busy ? 'Creating…' : 'Create sending'}
+              {busy ? (isRequest ? 'Submitting…' : 'Creating…') : isRequest ? 'Submit request' : 'Create sending'}
             </Button>
           </div>
         </div>
@@ -715,14 +742,19 @@ function UserSendingsSection({
 
 function UserReceivingsSection({
   user,
+  mode,
+  operatorName,
   onUserUpdated,
   onCreated,
 }: {
   readonly user: IRemoteUser
+  readonly mode: 'create' | 'request'
+  readonly operatorName: string | null
   readonly onUserUpdated: (user: IRemoteUser) => void
   readonly onCreated: (receiving: IRemoteReceiving) => void
 }) {
   const { client, lock } = useAdminSession()
+  const isRequest = mode === 'request'
   const formId = useId()
   const walletOptions = useMemo(() => walletChoices(user.wallets), [user.wallets])
   const [asset, setAsset] = useState(defaultTransferAsset)
@@ -745,6 +777,12 @@ function UserReceivingsSection({
       return
     }
 
+    if (isRequest && (operatorName === null || operatorName.trim() === '')) {
+      setError('Sign in with your name to submit a request.')
+      setMessage(null)
+      return
+    }
+
     const selected =
       walletOptions.find((item) => item.value === walletCodename) ?? walletOptions[0] ?? mockWalletChoice()
 
@@ -753,6 +791,26 @@ function UserReceivingsSection({
     setMessage(null)
 
     try {
+      if (isRequest && operatorName !== null) {
+        await client.createActivityRequest({
+          kind: 'receiving',
+          requestedByName: operatorName,
+          userId: user.id,
+          amount: trimmedAmount,
+          symbol: asset.token.symbol,
+          ...transactionAssetMetadata(asset.token),
+          usdAmount: usdAmountFromCryptoInput(trimmedAmount, priceUsd),
+          transferStatus: status,
+          failureMessage: status === SENDING_STATUS.Failure ? 'Rejected by admin' : null,
+          recipientAddress: selected.address,
+        })
+        setAmount('')
+        setStatus(SENDING_STATUS.Pending)
+        setMessage('Request submitted. Super Admin will review it.')
+        requestAdminUserRefresh(user.id)
+        return
+      }
+
       const created = await client.createReceiving({
         userId: user.id,
         amount: trimmedAmount,
@@ -777,7 +835,7 @@ function UserReceivingsSection({
         return
       }
 
-      setError('The receiving could not be created.')
+      setError(isRequest ? 'The request could not be submitted.' : 'The receiving could not be created.')
     } finally {
       setBusy(false)
     }
@@ -786,10 +844,11 @@ function UserReceivingsSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Receivings</CardTitle>
+        <CardTitle>{isRequest ? 'Request receiving' : 'Receivings'}</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Deposit any amount of any ticker. Pick a wallet or use the default mock wallet. The
-          record appears on the owner&apos;s Activity page.
+          {isRequest
+            ? 'Submit a receiving for Super Admin to approve. It does not appear on Activity until then.'
+            : "Deposit any amount of any ticker. Pick a wallet or use the default mock wallet. The record appears on the owner's Activity page."}
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -845,7 +904,7 @@ function UserReceivingsSection({
           </div>
           <div className="flex items-end">
             <Button type="button" disabled={busy} onClick={() => void createReceiving()}>
-              {busy ? 'Creating…' : 'Create receiving'}
+              {busy ? (isRequest ? 'Submitting…' : 'Creating…') : isRequest ? 'Submit request' : 'Create receiving'}
             </Button>
           </div>
         </div>

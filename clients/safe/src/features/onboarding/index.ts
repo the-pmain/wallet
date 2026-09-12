@@ -12,13 +12,6 @@ export {
   writeLoginCredentials,
   rememberLogin,
 } from './model/login-credentials'
-export { useSendingsSse, sendingsSseUrl } from './model/useSendingsSse'
-export {
-  parseSendingSseEvent,
-  SENDING_SSE_TYPE,
-  type ISendingSseEvent,
-  type SendingSseType,
-} from './model/sending-sse'
 export {
   SENDING_STATUS,
   SENDING_STATUSES,

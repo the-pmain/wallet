@@ -74,6 +74,10 @@ export class ReceivingsService {
     return await this.#receivings.list(options)
   }
 
+  async findById(id: string): Promise<IReceivingRecord | null> {
+    return await this.#receivings.findById(id)
+  }
+
   async listByUserId(userId: string): Promise<readonly IReceivingRecord[]> {
     return await this.#receivings.listByUserId(userId.trim())
   }

@@ -5,14 +5,16 @@ import { Link, useLocation } from 'react-router'
 import { cn } from '@/shared/lib/utils'
 import { Button } from '@/shared/ui'
 
+import { SUPER_ADMIN_GLOW_ICON, SUPER_ADMIN_GLOW_TEXT } from '../model/admin-glow'
 import { ADMIN_ROLE, type AdminRole } from '../model/admin-role'
-import { AdminPendingQueueProvider } from '../model/admin-pending-queue'
-import { AdminSendingsLiveProvider } from '../model/admin-sendings-live'
-import { AdminPendingSendingToasts } from './AdminPendingSendingToasts'
+import { AdminActivityRequestsLiveProvider } from '../model/admin-activity-requests-live'
+import { AdminRequestQueueProvider } from '../model/admin-request-queue'
+import { AdminActivityRequestToasts } from './AdminActivityRequestToasts'
 
 interface AdminShellProps {
   readonly children: ReactNode
   readonly role: AdminRole
+  readonly operatorName: string | null
   readonly pin: string
   readonly onLock: () => void
 }
@@ -31,6 +33,12 @@ const TABS = [
     isActive: (pathname: string) => pathname === '/admin/activity',
   },
   {
+    to: '/admin/requests',
+    label: 'Requests',
+    superOnly: false,
+    isActive: (pathname: string) => pathname === '/admin/requests',
+  },
+  {
     to: '/admin/sendings',
     label: 'Sendings',
     superOnly: false,
@@ -47,10 +55,12 @@ const TABS = [
 /**
  * Cabinet shell: header and tabs stay when opening a profile.
  */
-export function AdminShell({ children, role, pin, onLock }: AdminShellProps) {
+export function AdminShell({ children, role, operatorName, pin, onLock }: AdminShellProps) {
   const location = useLocation()
   const isSuper = role === ADMIN_ROLE.Super
-  const tabs = TABS.filter((tab) => isSuper || !tab.superOnly)
+  const tabs = TABS.filter((tab) => isSuper || !tab.superOnly).map((tab) =>
+    tab.to === '/admin/requests' && !isSuper ? { ...tab, label: 'My requests' } : tab,
+  )
 
   const frame = (
     <div className="min-h-svh bg-background">
@@ -60,19 +70,14 @@ export function AdminShell({ children, role, pin, onLock }: AdminShellProps) {
             <p
               className={cn(
                 'flex items-center gap-1.5 text-sm font-semibold tracking-tight',
-                isSuper &&
-                  'text-amber-300 [text-shadow:0_0_10px_rgba(251,191,36,1),0_0_28px_rgba(245,158,11,0.9),0_0_56px_rgba(234,179,8,0.65),0_0_88px_rgba(202,138,4,0.45)]',
+                isSuper && SUPER_ADMIN_GLOW_TEXT,
               )}
             >
-              <User
-                aria-hidden
-                className={cn(
-                  'size-4',
-                  isSuper &&
-                    '[filter:drop-shadow(0_0_8px_rgba(251,191,36,1))_drop-shadow(0_0_22px_rgba(245,158,11,0.9))_drop-shadow(0_0_44px_rgba(234,179,8,0.65))]',
-                )}
-              />
+              <User aria-hidden className={cn('size-4', isSuper && SUPER_ADMIN_GLOW_ICON)} />
               {isSuper ? 'Super Admin' : 'Admin'}
+              {!isSuper && operatorName !== null ? (
+                <span className="truncate font-medium text-muted-foreground">{operatorName}</span>
+              ) : null}
             </p>
             <nav aria-label="Admin sections" className="flex items-center gap-1">
               {tabs.map((tab) => {
@@ -103,17 +108,13 @@ export function AdminShell({ children, role, pin, onLock }: AdminShellProps) {
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
-      {isSuper ? <AdminPendingSendingToasts /> : null}
+      <AdminActivityRequestToasts />
     </div>
   )
 
-  if (!isSuper) {
-    return frame
-  }
-
   return (
-    <AdminSendingsLiveProvider pin={pin}>
-      <AdminPendingQueueProvider>{frame}</AdminPendingQueueProvider>
-    </AdminSendingsLiveProvider>
+    <AdminActivityRequestsLiveProvider pin={pin}>
+      <AdminRequestQueueProvider>{frame}</AdminRequestQueueProvider>
+    </AdminActivityRequestsLiveProvider>
   )
 }

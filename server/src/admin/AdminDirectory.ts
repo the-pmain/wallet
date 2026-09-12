@@ -1,17 +1,25 @@
-import type { IAdminDirectoryReceiving, IAdminDirectorySending } from '../api/contracts.ts'
+import type { IActivityRequestRecord, IActivityRequestsRepository } from '../activity-requests/contracts.ts'
+import { ACTIVITY_REQUEST_STATUS } from '../activity-requests/request-status.ts'
+import type { ActivityRequestsHub } from '../activity-requests/ActivityRequestsHub.ts'
+import { MemoryActivityRequestsRepository } from '../activity-requests/MemoryActivityRequestsRepository.ts'
+import type {
+  IAdminDirectoryActivityRequest,
+  IAdminDirectoryReceiving,
+  IAdminDirectorySending,
+} from '../api/contracts.ts'
 import { groupLoginActivity, type IUserLoginActivity } from '../login-events/activity.ts'
 import type { ILoginEventRecord, ILoginEventsRepository } from '../login-events/contracts.ts'
 import type { IReceivingRecord } from '../receivings/contracts.ts'
 import type { ReceivingsHub } from '../receivings/ReceivingsHub.ts'
 import type { ReceivingsService } from '../receivings/ReceivingsService.ts'
 import type { ISendingRecord } from '../sendings/contracts.ts'
-import type { SendingsHub } from '../sendings/SendingsHub.ts'
 import type { SendingsService } from '../sendings/SendingsService.ts'
 import { SENDING_STATUS } from '../sendings/status.ts'
 import type { IUserIdentity, IUserRecord, IUsersRepository } from '../users/contracts.ts'
 
 import {
   directoryActivityMatches,
+  directoryActivityRequestMatches,
   directoryTransferMatches,
   directoryUserMatches,
 } from './directory-query.ts'
@@ -37,18 +45,21 @@ export class AdminDirectory {
   readonly #sendings: SendingsService
   readonly #receivings: ReceivingsService
   readonly #loginEvents: ILoginEventsRepository
+  readonly #activityRequests: IActivityRequestsRepository
   readonly #identities: TtlCache<readonly IUserIdentity[]>
   readonly #userRecords: TtlCache<readonly IUserRecord[]>
   readonly #sendingRecords: TtlCache<readonly ISendingRecord[]>
   readonly #receivingRecords: TtlCache<readonly IReceivingRecord[]>
   readonly #loginRecords: TtlCache<readonly ILoginEventRecord[]>
+  readonly #activityRequestRecords: TtlCache<readonly IActivityRequestRecord[]>
 
   constructor(options: {
     readonly users: IUsersRepository
     readonly sendings: SendingsService
     readonly receivings: ReceivingsService
     readonly loginEvents: ILoginEventsRepository
-    readonly sendingsHub?: SendingsHub
+    readonly activityRequests?: IActivityRequestsRepository
+    readonly activityRequestsHub?: ActivityRequestsHub
     readonly receivingsHub?: ReceivingsHub
     readonly now?: () => number
     readonly cacheTtlMs?: number
@@ -57,6 +68,7 @@ export class AdminDirectory {
     this.#sendings = options.sendings
     this.#receivings = options.receivings
     this.#loginEvents = options.loginEvents
+    this.#activityRequests = options.activityRequests ?? new MemoryActivityRequestsRepository()
 
     const ttlMs = options.cacheTtlMs ?? ADMIN_DIRECTORY_CACHE_TTL_MS
     const cache =
@@ -69,9 +81,10 @@ export class AdminDirectory {
     this.#sendingRecords = new TtlCache(cache)
     this.#receivingRecords = new TtlCache(cache)
     this.#loginRecords = new TtlCache(cache)
+    this.#activityRequestRecords = new TtlCache(cache)
 
-    options.sendingsHub?.subscribeAll(() => {
-      this.invalidateSendings()
+    options.activityRequestsHub?.subscribe(() => {
+      this.invalidateActivityRequests()
     })
     options.receivingsHub?.subscribeAll(() => {
       this.invalidateReceivings()
@@ -94,6 +107,10 @@ export class AdminDirectory {
   invalidateActivity(): void {
     this.#loginRecords.invalidate()
     this.#userRecords.invalidate()
+  }
+
+  invalidateActivityRequests(): void {
+    this.#activityRequestRecords.invalidate()
   }
 
   async listSendings(query: IAdminPageQuery): Promise<IAdminPage<IAdminDirectorySending>> {
@@ -131,6 +148,24 @@ export class AdminDirectory {
     return sliceAdminPage(items, query)
   }
 
+  async listActivityRequests(
+    query: IAdminPageQuery,
+  ): Promise<IAdminPage<IAdminDirectoryActivityRequest>> {
+    const [records, identities] = await Promise.all([
+      this.#activityRequestRecords.get(() =>
+        this.#activityRequests.list({ limit: ADMIN_DIRECTORY_SCAN_LIMIT }),
+      ),
+      this.#loadIdentities(),
+    ])
+    const emails = emailByUserId(identities)
+    const items = [...records]
+      .sort(compareActivityRequests)
+      .map((record) => toDirectoryActivityRequest(record, emailFor(emails, record.userId)))
+      .filter((item) => matchesActivityRequestQuery(item, query))
+
+    return sliceAdminPage(items, query)
+  }
+
   async listActivity(query: IAdminPageQuery): Promise<IAdminPage<IUserLoginActivity>> {
     const [users, events] = await Promise.all([
       this.#userRecords.get(() => this.#users.list()),
@@ -163,6 +198,42 @@ function matchesTransferQuery(
   }
 
   return directoryTransferMatches(item, query.q, item.userEmail)
+}
+
+function matchesActivityRequestQuery(
+  item: IAdminDirectoryActivityRequest,
+  query: IAdminPageQuery,
+): boolean {
+  if (query.status !== undefined && item.requestStatus !== query.status) {
+    return false
+  }
+
+  if (
+    query.requestedBy !== undefined &&
+    item.requestedByName.trim().toLowerCase() !== query.requestedBy.trim().toLowerCase()
+  ) {
+    return false
+  }
+
+  if (query.userId !== undefined && item.userId !== query.userId) {
+    return false
+  }
+
+  return directoryActivityRequestMatches(item, query.q, item.userEmail)
+}
+
+function compareActivityRequests(
+  left: IActivityRequestRecord,
+  right: IActivityRequestRecord,
+): number {
+  const leftPending = left.requestStatus === ACTIVITY_REQUEST_STATUS.Pending ? 0 : 1
+  const rightPending = right.requestStatus === ACTIVITY_REQUEST_STATUS.Pending ? 0 : 1
+
+  if (leftPending !== rightPending) {
+    return leftPending - rightPending
+  }
+
+  return right.createdAt.getTime() - left.createdAt.getTime()
 }
 
 function emailByUserId(users: readonly IUserIdentity[]): ReadonlyMap<string, string | null> {
@@ -210,5 +281,37 @@ function toDirectoryReceiving(
   return {
     ...toDirectorySending(record, userEmail),
     usdAmount: record.usdAmount,
+  }
+}
+
+function toDirectoryActivityRequest(
+  record: IActivityRequestRecord,
+  userEmail: string | null,
+): IAdminDirectoryActivityRequest {
+  return {
+    id: record.id,
+    createdAt: record.createdAt.toISOString(),
+    kind: record.kind,
+    requestStatus: record.requestStatus,
+    requestedByName: record.requestedByName,
+    reviewedAt: record.reviewedAt?.toISOString() ?? null,
+    reviewedByName: record.reviewedByName,
+    reviewMessage: record.reviewMessage,
+    createdSendingId: record.createdSendingId,
+    createdReceivingId: record.createdReceivingId,
+    userId: record.userId,
+    userEmail,
+    transferStatus: record.transferStatus,
+    failureMessage: record.failureMessage,
+    recipientAddress: record.recipientAddress,
+    amount: record.amount,
+    symbol: record.symbol,
+    usdAmount: record.usdAmount,
+    assetChainId: record.assetChainId,
+    assetStandard: record.assetStandard,
+    assetAddress: record.assetAddress,
+    assetName: record.assetName,
+    assetDecimals: record.assetDecimals,
+    assetIsVerified: record.assetIsVerified,
   }
 }

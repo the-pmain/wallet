@@ -143,6 +143,227 @@ describe('AdminClient', () => {
     })
   })
 
+  it('reads a directory activity-requests page with the joined email', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        items: [
+          {
+            id: 'ar-1',
+            createdAt: '2026-09-12T12:00:00.000Z',
+            kind: 'sending',
+            requestStatus: 'pending',
+            requestedByName: 'Alex',
+            reviewedAt: null,
+            reviewedByName: null,
+            reviewMessage: null,
+            createdSendingId: null,
+            createdReceivingId: null,
+            userId: '7',
+            userEmail: 'james@example.com',
+            transferStatus: 'pending',
+            failureMessage: null,
+            recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+            amount: '0.01',
+            symbol: 'ETH',
+            usdAmount: null,
+            assetChainId: '1',
+            assetStandard: 'native',
+            assetAddress: null,
+            assetName: 'Ether',
+            assetDecimals: 18,
+            assetIsVerified: true,
+          },
+        ],
+        page: 1,
+        pageSize: 20,
+        total: 1,
+      }),
+    )
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '4200',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const page = await client.listDirectoryActivityRequests({
+      page: 1,
+      pageSize: 20,
+      q: '',
+      status: 'pending',
+      requestedBy: 'Alex',
+      userId: '7',
+    })
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      '/v1/admin/directory/activity-requests?page=1&pageSize=20&status=pending&requestedBy=Alex&userId=7',
+    )
+    expect(page.items[0]).toMatchObject({
+      id: 'ar-1',
+      requestedByName: 'Alex',
+      userEmail: 'james@example.com',
+    })
+  })
+
+  it('creates an activity request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(201, {
+        id: 'ar-1',
+        createdAt: '2026-09-12T12:00:00.000Z',
+        kind: 'sending',
+        requestStatus: 'pending',
+        requestedByName: 'Alex',
+        reviewedAt: null,
+        reviewedByName: null,
+        reviewMessage: null,
+        createdSendingId: null,
+        createdReceivingId: null,
+        userId: '7',
+        transferStatus: 'pending',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '0.01',
+        symbol: 'ETH',
+        usdAmount: null,
+        assetChainId: '1',
+        assetStandard: 'native',
+        assetAddress: null,
+        assetName: 'Ether',
+        assetDecimals: 18,
+        assetIsVerified: true,
+      }),
+    )
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '4200',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const created = await client.createActivityRequest({
+      kind: 'sending',
+      requestedByName: 'Alex',
+      userId: '7',
+      amount: '0.01',
+      symbol: 'ETH',
+      recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+      transferStatus: 'pending',
+      failureMessage: null,
+      assetChainId: '1',
+      assetStandard: 'native',
+      assetAddress: null,
+      assetName: 'Ether',
+      assetDecimals: 18,
+      assetIsVerified: true,
+    })
+
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('POST')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/activity-requests')
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      kind: 'sending',
+      requestedByName: 'Alex',
+      userId: '7',
+      amount: '0.01',
+      symbol: 'ETH',
+      transferStatus: 'pending',
+      assetAddress: null,
+    })
+    expect(created.requestStatus).toBe('pending')
+  })
+
+  it('patches an activity request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        id: 'ar-1',
+        createdAt: '2026-09-12T12:00:00.000Z',
+        kind: 'sending',
+        requestStatus: 'pending',
+        requestedByName: 'Alex',
+        reviewedAt: null,
+        reviewedByName: null,
+        reviewMessage: null,
+        createdSendingId: null,
+        createdReceivingId: null,
+        userId: '7',
+        transferStatus: 'success',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '1.5',
+        symbol: 'ETH',
+        usdAmount: null,
+      }),
+    )
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '9100',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const updated = await client.updateActivityRequest('ar-1', {
+      kind: 'sending',
+      amount: '1.5',
+      symbol: 'ETH',
+      transferStatus: 'success',
+      failureMessage: null,
+      recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+      assetChainId: '1',
+      assetStandard: 'native',
+      assetAddress: null,
+      assetName: 'Ether',
+      assetDecimals: 18,
+      assetIsVerified: true,
+    })
+
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('PATCH')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/activity-requests/ar-1')
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+      kind: 'sending',
+      amount: '1.5',
+      transferStatus: 'success',
+      usdAmount: null,
+    })
+    expect(updated.amount).toBe('1.5')
+    expect(updated.requestStatus).toBe('pending')
+  })
+
+  it('approves an activity request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        id: 'ar-1',
+        createdAt: '2026-09-12T12:00:00.000Z',
+        kind: 'sending',
+        requestStatus: 'approved',
+        requestedByName: 'Alex',
+        reviewedAt: '2026-09-12T13:00:00.000Z',
+        reviewedByName: null,
+        reviewMessage: null,
+        createdSendingId: 's-approved',
+        createdReceivingId: null,
+        userId: '7',
+        transferStatus: 'pending',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '0.01',
+        symbol: 'ETH',
+        usdAmount: null,
+      }),
+    )
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '9100',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const approved = await client.approveActivityRequest('ar-1')
+
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('POST')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/activity-requests/ar-1/approve')
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      reviewedByName: null,
+      reviewMessage: null,
+    })
+    expect(approved.requestStatus).toBe('approved')
+    expect(approved.createdSendingId).toBe('s-approved')
+  })
+
   it('shares one in-flight GET for the same directory page', async () => {
     const fetchMock = vi.fn().mockImplementation(
       () =>

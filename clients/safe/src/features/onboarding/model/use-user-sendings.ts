@@ -13,9 +13,6 @@ export interface IUserSendings {
 
 /**
  * Transfers for the current sign-in: only `GET /v1/users/:id/sendings`.
- *
- * There is no `GET /v1/sendings` stream here: the send screen listens
- * to SSE itself, and Activity is a read-only list.
  */
 export function useUserSendings(enabled = true): IUserSendings {
   const directory = useDirectorySession()

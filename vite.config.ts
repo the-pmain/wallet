@@ -72,7 +72,7 @@ export default defineConfig(({ mode }) => {
           configure(proxy) {
             proxy.on('proxyRes', (proxyRes, req) => {
               const path = (req.url ?? '').split('?')[0]
-              if (path === '/v1/sendings' || path === '/v1/receivings') {
+              if (path === '/v1/receivings' || path === '/v1/admin/activity-requests/stream') {
                 proxyRes.headers['cache-control'] = 'no-store, no-transform'
                 proxyRes.headers['x-accel-buffering'] = 'no'
               }

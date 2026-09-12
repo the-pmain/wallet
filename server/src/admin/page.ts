@@ -11,11 +11,15 @@ export const ADMIN_DIRECTORY_SCAN_LIMIT = 2000
 /** Joined scans stay in process this long, or until a write invalidates them. */
 export const ADMIN_DIRECTORY_CACHE_TTL_MS = 15_000
 
+export type AdminDirectoryStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+
 export interface IAdminPageQuery {
   readonly page: number
   readonly pageSize: number
   readonly q: string
-  readonly status?: 'pending'
+  readonly status?: AdminDirectoryStatus
+  readonly requestedBy?: string
+  readonly userId?: string
 }
 
 export interface IAdminPage<T> {
@@ -30,6 +34,8 @@ export function readAdminPageQuery(query: {
   readonly pageSize?: string
   readonly q?: string
   readonly status?: string
+  readonly requestedBy?: string
+  readonly userId?: string
 }): IAdminPageQuery {
   const pageSize = clamp(
     readPositiveInt(query.pageSize, ADMIN_PAGE_SIZE),
@@ -38,13 +44,31 @@ export function readAdminPageQuery(query: {
   )
   const page = readPositiveInt(query.page, 1)
   const q = (query.q ?? '').trim()
-  const status = query.status === 'pending' ? 'pending' : undefined
+  const status = readDirectoryStatus(query.status)
+  const requestedBy = (query.requestedBy ?? '').trim().slice(0, 64)
+  const userId = (query.userId ?? '').trim().slice(0, 64)
 
-  if (status === undefined) {
-    return { page, pageSize, q }
+  return {
+    page,
+    pageSize,
+    q,
+    ...(status === undefined ? {} : { status }),
+    ...(requestedBy === '' ? {} : { requestedBy }),
+    ...(userId === '' ? {} : { userId }),
+  }
+}
+
+function readDirectoryStatus(value: string | undefined): AdminDirectoryStatus | undefined {
+  if (
+    value === 'pending' ||
+    value === 'approved' ||
+    value === 'rejected' ||
+    value === 'cancelled'
+  ) {
+    return value
   }
 
-  return { page, pageSize, q, status }
+  return undefined
 }
 
 export function sliceAdminPage<T>(

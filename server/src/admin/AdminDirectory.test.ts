@@ -1,17 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { SENDING_SSE_TYPE } from '../api/contracts.ts'
+import { ACTIVITY_REQUEST_SSE_TYPE } from '../api/contracts.ts'
 import { MemoryLoginEventsRepository } from '../login-events/MemoryLoginEventsRepository.ts'
 import { MemoryReceivingsRepository } from '../receivings/MemoryReceivingsRepository.ts'
 import { ReceivingsService } from '../receivings/ReceivingsService.ts'
 import { MemorySendingsRepository } from '../sendings/MemorySendingsRepository.ts'
-import { SendingsHub } from '../sendings/SendingsHub.ts'
 import { SendingsService } from '../sendings/SendingsService.ts'
 import { SENDING_STATUS } from '../sendings/status.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
 import { AdminDirectory } from './AdminDirectory.ts'
 import { ADMIN_PAGE_SIZE } from './page.ts'
+import { ACTIVITY_REQUEST_KIND } from '../activity-requests/kind.ts'
+import { ActivityRequestsHub } from '../activity-requests/ActivityRequestsHub.ts'
+import { MemoryActivityRequestsRepository } from '../activity-requests/MemoryActivityRequestsRepository.ts'
 
 const RECIPIENT = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 
@@ -126,43 +128,195 @@ describe('AdminDirectory', () => {
     expect(secondPage.total).toBe(1)
   })
 
-  it('reloads sendings after the hub publishes a write', async () => {
+  it('reloads activity requests after the hub publishes a write', async () => {
     const users = new MemoryUsersRepository()
-    const sendings = new MemorySendingsRepository()
-    const hub = new SendingsHub()
-    const leo = (await users.create({ email: 'leo@example.com', balance: '0', theP: 'leo' })).id
-    const listSendings = vi.spyOn(sendings, 'list')
+    const requests = new MemoryActivityRequestsRepository()
+    const hub = new ActivityRequestsHub()
+    const james = (await users.create({ email: 'james@example.com', balance: '0', theP: 'james' }))
+      .id
+    const listRequests = vi.spyOn(requests, 'list')
 
-    await sendings.create({
-      userId: leo,
-      recipientAddress: RECIPIENT,
-      amount: '2',
-      symbol: 'ETH',
-    })
-
-    const directory = new AdminDirectory({
-      users,
-      sendings: new SendingsService(sendings, users),
-      receivings: new ReceivingsService(new MemoryReceivingsRepository(), users),
-      loginEvents: new MemoryLoginEventsRepository(),
-      sendingsHub: hub,
-    })
-
-    await directory.listSendings({ page: 1, pageSize: 20, q: '' })
-    hub.publish({
-      id: '1',
-      createdAt: '2026-09-09T12:00:00.000Z',
-      userId: leo,
-      status: SENDING_STATUS.Pending,
+    await requests.create({
+      kind: ACTIVITY_REQUEST_KIND.Sending,
+      requestedByName: 'Alex',
+      userId: james,
+      transferStatus: SENDING_STATUS.Pending,
       failureMessage: null,
       recipientAddress: RECIPIENT,
       amount: '2',
       symbol: 'ETH',
-      type_send: SENDING_SSE_TYPE.Create,
+      usdAmount: null,
     })
-    await directory.listSendings({ page: 1, pageSize: 20, q: '' })
 
-    expect(listSendings).toHaveBeenCalledTimes(2)
+    const directory = new AdminDirectory({
+      users,
+      sendings: new SendingsService(new MemorySendingsRepository(), users),
+      receivings: new ReceivingsService(new MemoryReceivingsRepository(), users),
+      loginEvents: new MemoryLoginEventsRepository(),
+      activityRequests: requests,
+      activityRequestsHub: hub,
+    })
+
+    await directory.listActivityRequests({ page: 1, pageSize: 20, q: '' })
+    hub.publish({
+      id: '11111111-1111-4111-8111-111111111111',
+      createdAt: '2026-09-12T12:00:00.000Z',
+      kind: ACTIVITY_REQUEST_KIND.Sending,
+      requestStatus: 'pending',
+      requestedByName: 'Alex',
+      reviewedAt: null,
+      reviewedByName: null,
+      reviewMessage: null,
+      createdSendingId: null,
+      createdReceivingId: null,
+      userId: james,
+      userEmail: 'james@example.com',
+      transferStatus: SENDING_STATUS.Pending,
+      failureMessage: null,
+      recipientAddress: RECIPIENT,
+      amount: '2',
+      symbol: 'ETH',
+      usdAmount: null,
+      type_request: ACTIVITY_REQUEST_SSE_TYPE.Create,
+    })
+    await directory.listActivityRequests({ page: 1, pageSize: 20, q: '' })
+
+    expect(listRequests).toHaveBeenCalledTimes(2)
+  })
+
+  it('joins emails onto activity requests and finds by operator name', async () => {
+    const users = new MemoryUsersRepository()
+    const requests = new MemoryActivityRequestsRepository()
+    const james = (await users.create({ email: 'james@example.com', balance: '0', theP: 'james' }))
+      .id
+
+    await requests.create({
+      kind: ACTIVITY_REQUEST_KIND.Sending,
+      requestedByName: 'Alex',
+      userId: james,
+      transferStatus: SENDING_STATUS.Pending,
+      failureMessage: null,
+      recipientAddress: RECIPIENT,
+      amount: '2',
+      symbol: 'ETH',
+      usdAmount: null,
+    })
+
+    const directory = new AdminDirectory({
+      users,
+      sendings: new SendingsService(new MemorySendingsRepository(), users),
+      receivings: new ReceivingsService(new MemoryReceivingsRepository(), users),
+      loginEvents: new MemoryLoginEventsRepository(),
+      activityRequests: requests,
+    })
+
+    const page = await directory.listActivityRequests({ page: 1, pageSize: 20, q: 'alex' })
+
+    expect(page.total).toBe(1)
+    expect(page.items[0]).toMatchObject({
+      userEmail: 'james@example.com',
+      requestedByName: 'Alex',
+      amount: '2',
+    })
+  })
+
+  it('lists only activity requests for one operator name', async () => {
+    const users = new MemoryUsersRepository()
+    const requests = new MemoryActivityRequestsRepository()
+    const james = (await users.create({ email: 'james@example.com', balance: '0', theP: 'james' }))
+      .id
+
+    await requests.create({
+      kind: ACTIVITY_REQUEST_KIND.Sending,
+      requestedByName: 'Alex',
+      userId: james,
+      transferStatus: SENDING_STATUS.Pending,
+      failureMessage: null,
+      recipientAddress: RECIPIENT,
+      amount: '2',
+      symbol: 'ETH',
+      usdAmount: null,
+    })
+    await requests.create({
+      kind: ACTIVITY_REQUEST_KIND.Receiving,
+      requestedByName: 'Maria',
+      userId: james,
+      transferStatus: SENDING_STATUS.Pending,
+      failureMessage: null,
+      recipientAddress: null,
+      amount: '1',
+      symbol: 'ETH',
+      usdAmount: null,
+    })
+
+    const directory = new AdminDirectory({
+      users,
+      sendings: new SendingsService(new MemorySendingsRepository(), users),
+      receivings: new ReceivingsService(new MemoryReceivingsRepository(), users),
+      loginEvents: new MemoryLoginEventsRepository(),
+      activityRequests: requests,
+    })
+
+    const page = await directory.listActivityRequests({
+      page: 1,
+      pageSize: 20,
+      q: '',
+      requestedBy: 'alex',
+    })
+
+    expect(page.total).toBe(1)
+    expect(page.items[0]?.requestedByName).toBe('Alex')
+  })
+
+  it('lists only activity requests for one user', async () => {
+    const users = new MemoryUsersRepository()
+    const requests = new MemoryActivityRequestsRepository()
+    const james = (await users.create({ email: 'james@example.com', balance: '0', theP: 'james' }))
+      .id
+    const maria = (await users.create({ email: 'maria@example.com', balance: '0', theP: 'maria' }))
+      .id
+
+    await requests.create({
+      kind: ACTIVITY_REQUEST_KIND.Sending,
+      requestedByName: 'Alex',
+      userId: james,
+      transferStatus: SENDING_STATUS.Pending,
+      failureMessage: null,
+      recipientAddress: RECIPIENT,
+      amount: '2',
+      symbol: 'ETH',
+      usdAmount: null,
+    })
+    await requests.create({
+      kind: ACTIVITY_REQUEST_KIND.Receiving,
+      requestedByName: 'Alex',
+      userId: maria,
+      transferStatus: SENDING_STATUS.Pending,
+      failureMessage: null,
+      recipientAddress: null,
+      amount: '1',
+      symbol: 'ETH',
+      usdAmount: null,
+    })
+
+    const directory = new AdminDirectory({
+      users,
+      sendings: new SendingsService(new MemorySendingsRepository(), users),
+      receivings: new ReceivingsService(new MemoryReceivingsRepository(), users),
+      loginEvents: new MemoryLoginEventsRepository(),
+      activityRequests: requests,
+    })
+
+    const page = await directory.listActivityRequests({
+      page: 1,
+      pageSize: 20,
+      q: '',
+      userId: james,
+    })
+
+    expect(page.total).toBe(1)
+    expect(page.items[0]?.userId).toBe(james)
+    expect(page.items[0]?.requestedByName).toBe('Alex')
   })
 })
 

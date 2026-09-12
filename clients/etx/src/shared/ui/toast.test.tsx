@@ -44,7 +44,10 @@ describe('Уведомления', () => {
     expect(screen.queryByRole('status')).not.toBeNull()
 
     act(() => {
-      vi.advanceTimersByTime(4500)
+      vi.advanceTimersByTime(4000)
+    })
+    act(() => {
+      vi.advanceTimersByTime(200)
     })
 
     expect(screen.queryByRole('status')).toBeNull()
@@ -57,7 +60,15 @@ describe('Уведомления', () => {
       toast('Закрой меня')
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /dismiss/i }))
+    const close = screen.getByRole('button', { name: /dismiss/i })
+    expect(close).toHaveClass('cursor-pointer')
+    fireEvent.click(close)
+
+    expect(screen.getByRole('status')).toHaveClass('fade-out')
+
+    act(() => {
+      vi.advanceTimersByTime(200)
+    })
 
     expect(screen.queryByRole('status')).toBeNull()
   })

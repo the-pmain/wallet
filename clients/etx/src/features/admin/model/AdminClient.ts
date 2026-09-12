@@ -14,9 +14,14 @@ import type { SendingStatus } from '@/features/onboarding/model/sending-status'
 
 import {
   adminPageSearch,
+  parseActivityRequest,
+  parseAdminDirectoryActivityRequest,
   parseAdminDirectoryReceiving,
   parseAdminDirectorySending,
   parseAdminPage,
+  type ActivityRequestKind,
+  type IAdminActivityRequest,
+  type IAdminDirectoryActivityRequest,
   type IAdminDirectoryReceiving,
   type IAdminDirectorySending,
   type IAdminPage,
@@ -107,6 +112,33 @@ export interface IAdminUserActivity {
   readonly email: string | null
   readonly loginCount: number
   readonly logins: readonly IAdminLogin[]
+}
+
+export interface IAdminActivityRequestCreate extends ITransactionAssetMetadata {
+  readonly kind: ActivityRequestKind
+  readonly requestedByName: string
+  readonly userId: string
+  readonly amount: string
+  readonly symbol: string
+  readonly transferStatus?: SendingStatus
+  readonly failureMessage?: string | null
+  readonly recipientAddress?: string | null
+  readonly usdAmount?: string | null
+}
+
+export interface IAdminActivityRequestReview {
+  readonly reviewedByName?: string | null
+  readonly reviewMessage?: string | null
+}
+
+export interface IAdminActivityRequestPatch extends ITransactionAssetMetadata {
+  readonly kind: ActivityRequestKind
+  readonly transferStatus: SendingStatus
+  readonly failureMessage: string | null
+  readonly recipientAddress: string | null
+  readonly amount: string
+  readonly symbol: string
+  readonly usdAmount?: string | null
 }
 
 export class AdminClient {
@@ -206,6 +238,17 @@ export class AdminClient {
       query,
       parseAdminDirectoryReceiving,
       'receivings',
+    )
+  }
+
+  async listDirectoryActivityRequests(
+    query: IAdminPageQuery,
+  ): Promise<IAdminPage<IAdminDirectoryActivityRequest>> {
+    return await this.#listDirectory(
+      '/v1/admin/directory/activity-requests',
+      query,
+      parseAdminDirectoryActivityRequest,
+      'activity requests',
     )
   }
 
@@ -456,6 +499,132 @@ export class AdminClient {
     if (!response.ok) {
       throw this.#failure(response.status, 'delete receiving failed')
     }
+  }
+
+  async createActivityRequest(input: IAdminActivityRequestCreate): Promise<IAdminActivityRequest> {
+    const response = await this.#request('/v1/admin/activity-requests', {
+      method: 'POST',
+      body: {
+        kind: input.kind,
+        requestedByName: input.requestedByName,
+        userId: input.userId,
+        amount: input.amount,
+        symbol: input.symbol,
+        ...(input.transferStatus === undefined ? {} : { transferStatus: input.transferStatus }),
+        failureMessage: input.failureMessage ?? null,
+        recipientAddress: input.recipientAddress ?? null,
+        usdAmount: input.usdAmount ?? null,
+        ...assetMetadataBody(input),
+      },
+    })
+    const payload = parseJson(await response.text())
+
+    if (!response.ok) {
+      throw this.#failure(response.status, 'create activity request failed')
+    }
+
+    const request = parseActivityRequest(payload)
+
+    if (request === null) {
+      throw new AdminAuthError(response.status, 'create activity request returned an unexpected response')
+    }
+
+    return request
+  }
+
+  async updateActivityRequest(
+    id: string,
+    patch: IAdminActivityRequestPatch,
+  ): Promise<IAdminActivityRequest> {
+    const response = await this.#request(`/v1/admin/activity-requests/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: {
+        kind: patch.kind,
+        amount: patch.amount,
+        symbol: patch.symbol,
+        transferStatus: patch.transferStatus,
+        failureMessage: patch.failureMessage,
+        recipientAddress: patch.recipientAddress,
+        usdAmount: patch.usdAmount ?? null,
+        ...assetMetadataBody(patch),
+      },
+    })
+    const payload = parseJson(await response.text())
+
+    if (response.status === 404) {
+      throw new AdminAuthError(404, 'activity request not found')
+    }
+
+    if (!response.ok) {
+      throw this.#failure(response.status, 'update activity request failed')
+    }
+
+    const request = parseActivityRequest(payload)
+
+    if (request === null) {
+      throw new AdminAuthError(
+        response.status,
+        'update activity request returned an unexpected response',
+      )
+    }
+
+    return request
+  }
+
+  async approveActivityRequest(
+    id: string,
+    input: IAdminActivityRequestReview = {},
+  ): Promise<IAdminActivityRequest> {
+    return await this.#reviewActivityRequest(id, 'approve', 'approve activity request failed', input)
+  }
+
+  async rejectActivityRequest(
+    id: string,
+    input: IAdminActivityRequestReview = {},
+  ): Promise<IAdminActivityRequest> {
+    return await this.#reviewActivityRequest(id, 'reject', 'reject activity request failed', input)
+  }
+
+  async cancelActivityRequest(
+    id: string,
+    input: IAdminActivityRequestReview = {},
+  ): Promise<IAdminActivityRequest> {
+    return await this.#reviewActivityRequest(id, 'cancel', 'cancel activity request failed', input)
+  }
+
+  async #reviewActivityRequest(
+    id: string,
+    action: 'approve' | 'reject' | 'cancel',
+    failure: string,
+    input: IAdminActivityRequestReview,
+  ): Promise<IAdminActivityRequest> {
+    const response = await this.#request(
+      `/v1/admin/activity-requests/${encodeURIComponent(id)}/${action}`,
+      {
+        method: 'POST',
+        body: {
+          reviewedByName: input.reviewedByName ?? null,
+          reviewMessage: input.reviewMessage ?? null,
+        },
+      },
+    )
+    const payload = parseJson(await response.text())
+
+    if (response.status === 404) {
+      throw new AdminAuthError(404, 'activity request not found')
+    }
+
+    if (!response.ok) {
+      throw this.#failure(response.status, failure)
+    }
+
+    const request = parseActivityRequest(payload)
+
+    if (request === null) {
+      throw new AdminAuthError(response.status, `${action} activity request returned an unexpected response`)
+    }
+
+    return request
   }
 
   async getUser(id: string): Promise<IRemoteUser> {

@@ -11,6 +11,7 @@ import {
   type IToast,
   type ToastTone,
 } from './toast-store'
+import { useToastFadeDismiss } from './use-toast-fade'
 
 const TONE_STYLES: Record<ToastTone, string> = {
   neutral: 'border-border bg-card text-card-foreground',
@@ -54,26 +55,32 @@ export function Toaster() {
 
 function ToastCard({ toast: item }: { readonly toast: IToast }) {
   const Icon = TONE_ICON[item.tone]
+  const { isLeaving, dismiss } = useToastFadeDismiss(() => {
+    dismissToast(item.id)
+  })
 
   /* The toast dismisses itself on a timer. The timer lives in the
      effect, not the shared store: it is tied to the card's life and
      will not outlive a user dismiss. */
   useEffect(() => {
     const timer = globalThis.setTimeout(() => {
-      dismissToast(item.id)
+      dismiss()
     }, TOAST_DURATION_MS)
 
     return () => {
       globalThis.clearTimeout(timer)
     }
-  }, [item.id])
+  }, [dismiss, item.id])
 
   return (
     <div
       role="status"
       className={cn(
-        'pointer-events-auto flex w-full max-w-sm items-start gap-2.5 rounded-xl border p-3 text-sm shadow-lg backdrop-blur-md',
-        'animate-in duration-200 fade-in slide-in-from-top-2 motion-reduce:animate-none',
+        'flex w-full max-w-sm items-start gap-2.5 rounded-xl border p-3 text-sm shadow-lg backdrop-blur-md',
+        'duration-200 motion-reduce:animate-none',
+        isLeaving
+          ? 'pointer-events-none animate-out fade-out'
+          : 'pointer-events-auto animate-in fade-in slide-in-from-top-2',
         TONE_STYLES[item.tone],
       )}
     >
@@ -83,10 +90,8 @@ function ToastCard({ toast: item }: { readonly toast: IToast }) {
       <button
         type="button"
         aria-label="Dismiss"
-        className="-m-1 rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
-        onClick={() => {
-          dismissToast(item.id)
-        }}
+        className="-m-1 cursor-pointer rounded p-1 text-muted-foreground transition-[color,opacity] duration-150 hover:text-foreground hover:opacity-70"
+        onClick={dismiss}
       >
         <X className="size-4" aria-hidden />
       </button>

@@ -1,12 +1,11 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 
 import { requireAdminRole, requireSuperAdmin } from '../admin/access.ts'
+import type { AdminDirectory } from '../admin/AdminDirectory.ts'
 import { RECIPIENT_ADDRESS_MAX_LENGTH, RECIPIENT_ADDRESS_MIN_LENGTH } from '../lib/crypto-wallet.ts'
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../lib/errors.ts'
-import { API_CONTENT_SECURITY_POLICY } from '../lib/ui.ts'
 import { SENDING_AMOUNT_JSON_PATTERN } from '../sendings/amount.ts'
 import { SENDING_STATUS } from '../sendings/status.ts'
-import { formatSendingsSseFrame, type SendingsHub } from '../sendings/SendingsHub.ts'
 import { SENDING_SYMBOL_JSON_PATTERN } from '../sendings/symbol.ts'
 import {
   SendingsAuthError,
@@ -14,12 +13,7 @@ import {
   type SendingsService,
 } from '../sendings/SendingsService.ts'
 import type { ISendingRecord } from '../sendings/contracts.ts'
-import {
-  SENDING_SSE_TYPE,
-  type ISendingResponse,
-  type ISendingSseEvent,
-  type SendingSseType,
-} from './contracts.ts'
+import type { ISendingResponse } from './contracts.ts'
 
 const ASSET_METADATA_PROPERTIES = {
   assetChainId: { type: 'string', minLength: 1, maxLength: 78, pattern: '^\\d+$' },
@@ -135,16 +129,6 @@ const LIST_USER_SENDINGS_QUERY = {
   },
 } as const
 
-const SENDINGS_SSE_QUERY = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    user_id: { type: 'string', minLength: 1, maxLength: 20, pattern: '^\\d+$' },
-  },
-} as const
-
-const SSE_KEEPALIVE_MS = 30_000
-
 interface IAssetMetadataBody {
   readonly assetChainId?: string
   readonly assetStandard?: 'native' | 'ERC-20'
@@ -193,10 +177,6 @@ interface IListUserSendingsQuery {
   readonly the_p: string
 }
 
-interface ISendingsSseQuery {
-  readonly user_id?: string
-}
-
 /**
  * Transfers in `public.sendings`.
  *
@@ -207,54 +187,12 @@ interface ISendingsSseQuery {
  * are Super Admin: `x-admin-pin`.
  * The store uses the service-role client. A user-scoped JWT does not
  * fit: `user_id` is `users.id`, not `auth.uid()`.
- * `GET /v1/sendings` is an in-process SSE stream; it does not read the table.
  */
 export function registerSendingRoutes(
   app: FastifyInstance,
   sendingsService: SendingsService,
-  sendingsHub: SendingsHub,
+  directory: AdminDirectory,
 ): void {
-  app.get<{ Querystring: ISendingsSseQuery }>(
-    '/v1/sendings',
-    { schema: { querystring: SENDINGS_SSE_QUERY } },
-    (request, reply) => {
-      /* No user_id — cabinet stream: every new record. With a filter —
-         only that user's transfers on the send screen. */
-      const userId = emptyToNull(request.query.user_id)
-
-      if (userId === null) {
-        requireSuperAdmin(request)
-      }
-
-      reply.hijack()
-      request.raw.setTimeout(0)
-      request.raw.socket?.setTimeout(0)
-      request.raw.socket?.setNoDelay?.(true)
-
-      reply.raw.writeHead(200, sseHeaders(request))
-      reply.raw.write(': connected\n\n')
-
-      const send = (event: ISendingSseEvent) => {
-        reply.raw.write(formatSendingsSseFrame(event))
-      }
-      const unsubscribe =
-        userId === null ? sendingsHub.subscribeAll(send) : sendingsHub.subscribe(userId, send)
-
-      const heartbeat = setInterval(() => {
-        reply.raw.write(': keepalive\n\n')
-      }, SSE_KEEPALIVE_MS)
-
-      const cleanup = () => {
-        clearInterval(heartbeat)
-        unsubscribe()
-      }
-
-      request.raw.once('close', cleanup)
-      request.raw.once('end', cleanup)
-      request.raw.once('error', cleanup)
-    },
-  )
-
   app.get<{ Params: IListUserSendingsParams; Querystring: IListUserSendingsQuery }>(
     '/v1/users/:id/sendings',
     { schema: { params: LIST_USER_SENDINGS_PARAMS, querystring: LIST_USER_SENDINGS_QUERY } },
@@ -327,7 +265,7 @@ export function registerSendingRoutes(
         throw error
       }
 
-      sendingsHub.publish(await toSendingSseEvent(sendingsService, record, SENDING_SSE_TYPE.Create))
+      directory.invalidateSendings()
 
       void reply.status(201).header('cache-control', 'no-store')
 
@@ -374,7 +312,7 @@ export function registerSendingRoutes(
         throw new NotFoundError('Sending not found.')
       }
 
-      sendingsHub.publish(await toSendingSseEvent(sendingsService, record, SENDING_SSE_TYPE.Update))
+      directory.invalidateSendings()
 
       void reply.header('cache-control', 'no-store')
 
@@ -401,7 +339,7 @@ export function registerSendingRoutes(
       throw new NotFoundError('Sending not found.')
     }
 
-    sendingsHub.publish(await toSendingSseEvent(sendingsService, record, SENDING_SSE_TYPE.Delete))
+    directory.invalidateSendings()
 
     void reply.status(204).header('cache-control', 'no-store')
   })
@@ -440,7 +378,7 @@ export function registerSendingRoutes(
         throw error
       }
 
-      sendingsHub.publish(await toSendingSseEvent(sendingsService, record, SENDING_SSE_TYPE.Create))
+      directory.invalidateSendings()
 
       void reply.status(201).header('cache-control', 'no-store')
 
@@ -492,40 +430,6 @@ function readAssetMetadata(body: IAssetMetadataBody): IAssetMetadataBody {
     ...(body.assetDecimals === undefined ? {} : { assetDecimals: body.assetDecimals }),
     ...(body.assetIsVerified === undefined ? {} : { assetIsVerified: body.assetIsVerified }),
   }
-}
-
-async function toSendingSseEvent(
-  sendingsService: SendingsService,
-  record: ISendingRecord,
-  typeSend: SendingSseType,
-): Promise<ISendingSseEvent> {
-  const userEmail = await sendingsService.emailForUserId(record.userId)
-
-  return {
-    ...toSendingResponse(record),
-    type_send: typeSend,
-    userEmail,
-  }
-}
-
-function sseHeaders(request: FastifyRequest): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-store, no-transform',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no',
-    'Content-Security-Policy': API_CONTENT_SECURITY_POLICY,
-    'Cross-Origin-Resource-Policy': 'cross-origin',
-  }
-
-  const origin = request.headers.origin
-
-  if (typeof origin === 'string' && origin !== '') {
-    headers['Access-Control-Allow-Origin'] = origin
-    headers['Vary'] = 'Origin'
-  }
-
-  return headers
 }
 
 function emptyToNull(value: string | null | undefined): string | null {

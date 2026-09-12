@@ -5,7 +5,6 @@ import { buildApp } from '../app.ts'
 import { RUNTIME_MODE, type IServerConfig } from '../config.ts'
 import { MemorySettingsRepository } from '../settings/MemorySettingsRepository.ts'
 import { MemorySendingsRepository } from '../sendings/MemorySendingsRepository.ts'
-import { SendingsHub } from '../sendings/SendingsHub.ts'
 import { STARTING_TOKENS } from '../users/assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
@@ -65,19 +64,16 @@ let app: FastifyInstance
 let settings: MemorySettingsRepository
 let users: MemoryUsersRepository
 let sendings: MemorySendingsRepository
-let sendingsHub: SendingsHub
 
 beforeEach(async () => {
   settings = new MemorySettingsRepository()
   users = new MemoryUsersRepository()
   sendings = new MemorySendingsRepository()
-  sendingsHub = new SendingsHub()
   app = await buildApp({
     config: CONFIG,
     settings,
     users,
     sendings,
-    sendingsHub,
   })
 })
 
@@ -1003,225 +999,6 @@ describe('Users', () => {
     expect(sendings.records).toHaveLength(0)
   })
 
-  it('after a successful create sends a sendings frame with type_send create', async () => {
-    const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
-    const received: unknown[] = []
-
-    const created = await app.inject({
-      method: 'POST',
-      url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
-    })
-    const userId = created.json<{ id: string }>().id
-    sendingsHub.subscribe(userId, (event) => {
-      received.push(event)
-    })
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/v1/users/sendings',
-      payload: {
-        user_id: userId,
-        email: 'james@example.com',
-        the_p: 'demo',
-        recipient_address: recipient,
-        amount: '1',
-        symbol: 'ETH',
-      },
-    })
-
-    expect(response.statusCode).toBe(201)
-    expect(received).toEqual([
-      {
-        ...response.json(),
-        type_send: 'create',
-        userEmail: 'james@example.com',
-      },
-    ])
-  })
-
-  it('does not send a frame when create is rejected', async () => {
-    const received: unknown[] = []
-
-    const created = await app.inject({
-      method: 'POST',
-      url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
-    })
-    sendingsHub.subscribe(created.json<{ id: string }>().id, (event) => {
-      received.push(event)
-    })
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/v1/users/sendings',
-      payload: {
-        user_id: '1',
-        email: 'james@example.com',
-        the_p: 'demo',
-        recipient_address: '0x123',
-        amount: '1',
-        symbol: 'ETH',
-      },
-    })
-
-    expect(response.statusCode).toBe(400)
-    expect(received).toEqual([])
-  })
-
-  it('GET /v1/sendings holds the stream and yields a frame after create', async () => {
-    const address = await app.listen({ host: '127.0.0.1', port: 0 })
-    const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
-
-    const created = await app.inject({
-      method: 'POST',
-      url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
-    })
-    const userId = created.json<{ id: string }>().id
-
-    const controller = new AbortController()
-    const stream = await fetch(`${address}/v1/sendings?user_id=${userId}`, {
-      headers: { Accept: 'text/event-stream' },
-      signal: controller.signal,
-    })
-
-    expect(stream.status).toBe(200)
-    expect(stream.headers.get('content-type')).toMatch(/text\/event-stream/i)
-
-    const reader = stream.body?.getReader()
-    expect(reader).toBeDefined()
-
-    const decoder = new TextDecoder()
-    const chunks: string[] = []
-    const reading = (async () => {
-      if (reader === undefined) {
-        return
-      }
-
-      while (true) {
-        const { done, value } = await reader.read()
-
-        if (done) {
-          break
-        }
-
-        chunks.push(decoder.decode(value, { stream: true }))
-
-        if (chunks.join('').includes('type_send')) {
-          break
-        }
-      }
-    })()
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/v1/users/sendings',
-      payload: {
-        user_id: userId,
-        email: 'james@example.com',
-        the_p: 'demo',
-        recipient_address: recipient,
-        amount: '1',
-        symbol: 'ETH',
-      },
-    })
-
-    expect(response.statusCode).toBe(201)
-    await reading
-
-    controller.abort()
-
-    const body = chunks.join('')
-    expect(body).toContain('event: sendings')
-    expect(body).toContain('"type_send":"create"')
-    expect(body).toContain(`"userId":"${userId}"`)
-    expect(body).toContain(recipient)
-  })
-
-  it('GET /v1/sendings without user_id yields a frame for any new record', async () => {
-    const address = await app.listen({ host: '127.0.0.1', port: 0 })
-    const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
-
-    const created = await app.inject({
-      method: 'POST',
-      url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
-    })
-    const userId = created.json<{ id: string }>().id
-
-    const controller = new AbortController()
-    const stream = await fetch(`${address}/v1/sendings`, {
-      headers: { Accept: 'text/event-stream', 'x-admin-pin': '9100' },
-      signal: controller.signal,
-    })
-
-    expect(stream.status).toBe(200)
-
-    const reader = stream.body?.getReader()
-    expect(reader).toBeDefined()
-
-    const decoder = new TextDecoder()
-    const chunks: string[] = []
-    const reading = (async () => {
-      if (reader === undefined) {
-        return
-      }
-
-      while (true) {
-        const { done, value } = await reader.read()
-
-        if (done) {
-          break
-        }
-
-        chunks.push(decoder.decode(value, { stream: true }))
-
-        if (chunks.join('').includes('type_send')) {
-          break
-        }
-      }
-    })()
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/v1/users/sendings',
-      payload: {
-        user_id: userId,
-        email: 'james@example.com',
-        the_p: 'demo',
-        recipient_address: recipient,
-        amount: '2',
-        symbol: 'ETH',
-      },
-    })
-
-    expect(response.statusCode).toBe(201)
-    await reading
-
-    controller.abort()
-
-    const body = chunks.join('')
-    expect(body).toContain('event: sendings')
-    expect(body).toContain('"type_send":"create"')
-    expect(body).toContain(`"userId":"${userId}"`)
-    expect(body).toContain('"amount":"2"')
-    expect(body).toContain(recipient)
-  })
-
-  it('GET /v1/sendings without user_id does not open the stream on a read PIN', async () => {
-    const address = await app.listen({ host: '127.0.0.1', port: 0 })
-    const denied = await fetch(`${address}/v1/sendings`, {
-      headers: { Accept: 'text/event-stream' },
-    })
-    const reader = await fetch(`${address}/v1/sendings`, {
-      headers: { Accept: 'text/event-stream', 'x-admin-pin': '4200' },
-    })
-
-    expect(denied.status).toBe(401)
-    expect(reader.status).toBe(403)
-  })
-
   it('rejects a send when user_id does not match the record', async () => {
     const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
 
@@ -1648,7 +1425,7 @@ describe('Admin cabinet', () => {
     })
   })
 
-  it('PATCH /v1/admin/sendings/:id writes fields and sends a type_send update frame', async () => {
+  it('PATCH /v1/admin/sendings/:id writes fields', async () => {
     const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
     const created = await app.inject({
       method: 'POST',
@@ -1669,10 +1446,6 @@ describe('Admin cabinet', () => {
       },
     })
     const sendingId = sending.json<{ id: string }>().id
-    const received: unknown[] = []
-    sendingsHub.subscribe(userId, (event) => {
-      received.push(event)
-    })
 
     const response = await app.inject({
       method: 'PATCH',
@@ -1694,13 +1467,6 @@ describe('Admin cabinet', () => {
       failureMessage: 'Blocked by admin',
       symbol: 'ETH',
     })
-    expect(received).toEqual([
-      {
-        ...response.json(),
-        type_send: 'update',
-        userEmail: 'james@example.com',
-      },
-    ])
   })
 
   it('PATCH success debits amount from users.assets.tokens and does not debit twice', async () => {
@@ -1845,7 +1611,7 @@ describe('Admin cabinet', () => {
     expect(users.records[0]?.assets.tokens[0]?.balance).toBe('41000000000000000')
   })
 
-  it('DELETE /v1/admin/sendings/:id removes the row and sends a type_send delete frame', async () => {
+  it('DELETE /v1/admin/sendings/:id removes the row', async () => {
     const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
     const created = await app.inject({
       method: 'POST',
@@ -1866,10 +1632,6 @@ describe('Admin cabinet', () => {
       },
     })
     const sendingId = sending.json<{ id: string }>().id
-    const received: unknown[] = []
-    sendingsHub.subscribe(userId, (event) => {
-      received.push(event)
-    })
 
     const denied = await app.inject({
       method: 'DELETE',
@@ -1891,13 +1653,6 @@ describe('Admin cabinet', () => {
     expect(response.statusCode).toBe(204)
     expect(missing.statusCode).toBe(404)
     expect(sendings.records).toHaveLength(0)
-    expect(received).toEqual([
-      expect.objectContaining({
-        id: sendingId,
-        type_send: 'delete',
-        userEmail: 'james@example.com',
-      }),
-    ])
   })
 
   it('DELETE success sending credits the amount back onto users.assets.tokens', async () => {
