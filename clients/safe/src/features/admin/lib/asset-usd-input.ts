@@ -93,6 +93,31 @@ export function tryParseCryptoToMinimalUnits(
   return BigInt(whole) * scale + fractionValue
 }
 
+/** Field error when the typed amount is larger than the stored holding. */
+export function sendingAmountHoldingError(
+  amountInput: string,
+  token: IRemoteAssetToken,
+): string | null {
+  const units = tryParseCryptoToMinimalUnits(amountInput, token.decimals)
+
+  if (units === null) {
+    return null
+  }
+
+  let holding = 0n
+  try {
+    holding = BigInt(token.balance)
+  } catch {
+    holding = 0n
+  }
+
+  if (units > holding) {
+    return `Not enough ${token.symbol} to create this sending.`
+  }
+
+  return null
+}
+
 /** Human transfer amount from minimal units, e.g. `0.200526`. */
 export function humanAmountFromMinimalUnits(units: bigint, decimals: number): string {
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) {

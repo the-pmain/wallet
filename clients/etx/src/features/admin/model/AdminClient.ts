@@ -53,6 +53,13 @@ export class AdminAuthError extends Error {
   }
 }
 
+/** Cabinet 400s carry a sentence the form can show as-is. */
+export function adminRequestMessage(error: unknown, fallback: string): string {
+  return error instanceof AdminAuthError && error.status === 400 && error.message.trim() !== ''
+    ? error.message
+    : fallback
+}
+
 export interface IAdminSendingCreate extends ITransactionAssetMetadata {
   readonly userId: string
   readonly recipientAddress: string
@@ -310,7 +317,7 @@ export class AdminClient {
     const payload = parseJson(await response.text())
 
     if (!response.ok) {
-      throw this.#failure(response.status, 'create sending failed')
+      throw this.#failure(response.status, 'create sending failed', payload)
     }
 
     const sending = parseRemoteSending(payload)
@@ -358,7 +365,7 @@ export class AdminClient {
     }
 
     if (!response.ok) {
-      throw this.#failure(response.status, 'update sending failed')
+      throw this.#failure(response.status, 'update sending failed', payload)
     }
 
     const sending = parseRemoteSending(payload)
@@ -520,7 +527,7 @@ export class AdminClient {
     const payload = parseJson(await response.text())
 
     if (!response.ok) {
-      throw this.#failure(response.status, 'create activity request failed')
+      throw this.#failure(response.status, 'create activity request failed', payload)
     }
 
     const request = parseActivityRequest(payload)
@@ -556,7 +563,7 @@ export class AdminClient {
     }
 
     if (!response.ok) {
-      throw this.#failure(response.status, 'update activity request failed')
+      throw this.#failure(response.status, 'update activity request failed', payload)
     }
 
     const request = parseActivityRequest(payload)
@@ -615,7 +622,7 @@ export class AdminClient {
     }
 
     if (!response.ok) {
-      throw this.#failure(response.status, failure)
+      throw this.#failure(response.status, failure, payload)
     }
 
     const request = parseActivityRequest(payload)
@@ -803,9 +810,15 @@ export class AdminClient {
     }
   }
 
-  #failure(status: number, message: string): AdminAuthError {
+  #failure(status: number, message: string, payload?: unknown): AdminAuthError {
     if (status === 401) {
       return new AdminAuthError(401, 'pin did not match')
+    }
+
+    const invalid = readInvalidRequestMessage(payload)
+
+    if (invalid !== null) {
+      return new AdminAuthError(status, invalid)
     }
 
     return new AdminAuthError(status, `${message} (${String(status)})`)
@@ -849,6 +862,27 @@ function parseJson(raw: string): unknown {
   } catch {
     return null
   }
+}
+
+function readInvalidRequestMessage(payload: unknown): string | null {
+  if (payload === null || typeof payload !== 'object') {
+    return null
+  }
+
+  const error = (payload as { error?: unknown }).error
+
+  if (error === null || typeof error !== 'object') {
+    return null
+  }
+
+  const code = (error as { code?: unknown }).code
+  const message = (error as { message?: unknown }).message
+
+  if (code !== 'invalid_request' || typeof message !== 'string' || message.trim() === '') {
+    return null
+  }
+
+  return message
 }
 
 function parseUserList(payload: unknown): readonly IRemoteUser[] | null {

@@ -9,7 +9,11 @@ import { useToastFadeDismiss } from '@/shared/ui/use-toast-fade'
 
 import { formatAdminTimestampParts } from '../lib/format-admin-timestamp'
 import { formatStoredUsdAmount } from '../lib/asset-usd-input'
-import { AdminAuthError, type IAdminActivityRequestPatch } from '../model/AdminClient'
+import {
+  AdminAuthError,
+  adminRequestMessage,
+  type IAdminActivityRequestPatch,
+} from '../model/AdminClient'
 import { useAdminSession } from '../model/admin-context'
 import type { ActivityRequestStatus, IAdminDirectoryActivityRequest } from '../model/admin-page'
 import { directoryUserLabel } from '../model/admin-user-emails'
@@ -97,7 +101,7 @@ export function AdminActivityRequestToasts() {
         return
       }
 
-      setReviewError('The request could not be saved.')
+      setReviewError(adminRequestMessage(caught, 'The request could not be saved.'))
     } finally {
       setBusy(false)
     }
@@ -137,9 +141,12 @@ export function AdminActivityRequestToasts() {
       }
 
       setReviewError(
-        action === 'approve'
-          ? 'The request could not be approved.'
-          : 'The request could not be rejected.',
+        adminRequestMessage(
+          caught,
+          action === 'approve'
+            ? 'The request could not be approved.'
+            : 'The request could not be rejected.',
+        ),
       )
     } finally {
       setBusy(false)

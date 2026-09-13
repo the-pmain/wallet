@@ -7,6 +7,7 @@ import { MemoryLoginEventsRepository } from '../login-events/MemoryLoginEventsRe
 import { MemoryReceivingsRepository } from '../receivings/MemoryReceivingsRepository.ts'
 import { MemorySendingsRepository } from '../sendings/MemorySendingsRepository.ts'
 import { SENDING_STATUS } from '../sendings/status.ts'
+import { ASSET_STANDARD } from '../users/assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
 process.env['ADMIN_PIN'] = '4200'
@@ -39,6 +40,23 @@ const CONFIG: IServerConfig = {
 }
 
 const RECIPIENT = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
+
+const TWO_ETH = {
+  quoteCurrency: 'USD' as const,
+  updatedAt: '2026-09-10T00:00:00.000Z',
+  tokens: [
+    {
+      chainId: '1',
+      standard: ASSET_STANDARD.Native,
+      address: null,
+      symbol: 'ETH',
+      name: 'Ether',
+      decimals: 18,
+      balance: '2000000000000000000',
+      isVerified: true,
+    },
+  ],
+}
 
 describe('admin directory pages', () => {
   let app: FastifyInstance
@@ -206,7 +224,12 @@ describe('admin directory pages', () => {
   })
 
   it('joins email onto an activity-requests page', async () => {
-    const james = await users.create({ email: 'james@example.com', balance: '0', theP: 'james' })
+    const james = await users.create({
+      email: 'james@example.com',
+      balance: '0',
+      theP: 'james',
+      assets: TWO_ETH,
+    })
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
@@ -252,8 +275,18 @@ describe('admin directory pages', () => {
   })
 
   it('filters activity-requests by userId', async () => {
-    const james = await users.create({ email: 'james@example.com', balance: '0', theP: 'james' })
-    const maria = await users.create({ email: 'maria@example.com', balance: '0', theP: 'maria' })
+    const james = await users.create({
+      email: 'james@example.com',
+      balance: '0',
+      theP: 'james',
+      assets: TWO_ETH,
+    })
+    const maria = await users.create({
+      email: 'maria@example.com',
+      balance: '0',
+      theP: 'maria',
+      assets: TWO_ETH,
+    })
     const payload = {
       kind: 'sending' as const,
       requestedByName: 'Alex',
@@ -284,7 +317,7 @@ describe('admin directory pages', () => {
           method: 'POST',
           url: '/v1/admin/activity-requests',
           headers: { 'x-admin-pin': '4200' },
-          payload: { ...payload, userId: maria.id, amount: '9' },
+          payload: { ...payload, userId: maria.id, amount: '1.5' },
         })
       ).statusCode,
     ).toBe(201)

@@ -28,13 +28,24 @@ import {
 } from '@/shared/ui'
 
 import {
+  cryptoInputFromStoredBalance,
   formatStoredUsdAmount,
   quotePriceUsd,
+  sendingAmountHoldingError,
   usdAmountFromCryptoInput,
   usdEquivalentFromCryptoAmount,
 } from '../lib/asset-usd-input'
-import { AdminAuthError, type IAdminReceivingPatch, type IAdminSendingPatch } from '../model/AdminClient'
-import { addableAssetBySymbol, transactionAssetMetadata } from '../model/addable-assets'
+import {
+  AdminAuthError,
+  adminRequestMessage,
+  type IAdminReceivingPatch,
+  type IAdminSendingPatch,
+} from '../model/AdminClient'
+import {
+  addableAssetBySymbol,
+  sendableAssetsFromTokens,
+  transactionAssetMetadata,
+} from '../model/addable-assets'
 import { useAdminSession } from '../model/admin-context'
 import { ADMIN_ROLE } from '../model/admin-role'
 import { ADMIN_PAGE_SIZE } from '../model/admin-page'
@@ -140,7 +151,7 @@ export function AdminUserSendingsTab({
         return
       }
 
-      setEditError('The sending could not be saved.')
+      setEditError(adminRequestMessage(caught, 'The sending could not be saved.'))
     } finally {
       setSaving(false)
     }
@@ -579,29 +590,49 @@ function UserSendingsSection({
   const { client, lock } = useAdminSession()
   const isRequest = mode === 'request'
   const formId = useId()
-  const [asset, setAsset] = useState(defaultTransferAsset)
+  const sendableAssets = useMemo(
+    () => sendableAssetsFromTokens(user.assets.tokens),
+    [user.assets.tokens],
+  )
+  const [selectedId, setSelectedId] = useState(() => sendableAssets[0]?.id ?? '')
+  const asset = sendableAssets.find((item) => item.id === selectedId) ?? sendableAssets[0] ?? null
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
-  const { quotes } = useRemoteAssetQuotes([asset.token])
-  const priceUsd = quotePriceUsd(asset.token, quotes)
+  const { quotes } = useRemoteAssetQuotes(asset === null ? [] : [asset.token])
+  const priceUsd = asset === null ? null : quotePriceUsd(asset.token, quotes)
   const usdEquivalent = usdEquivalentFromCryptoAmount(amount, priceUsd)
   const [status, setStatus] = useState<SendingStatus>(SENDING_STATUS.Pending)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const hasSendableAsset = asset !== null
+  const holdingError = asset === null ? null : sendingAmountHoldingError(amount, asset.token)
+  const availableAmount =
+    asset === null ? null : cryptoInputFromStoredBalance(asset.token.balance, asset.token.decimals)
 
   async function createSending(): Promise<void> {
     const recipientAddress = normalizeCryptoWalletInput(recipient)
     const trimmedAmount = amount.trim()
 
-    if (!isValidCryptoWalletAddress(recipientAddress)) {
-      setError('Recipient must be a valid crypto wallet address.')
+    if (!hasSendableAsset) {
+      setError('This user has no assets to send.')
       setMessage(null)
       return
     }
 
     if (trimmedAmount === '' || !/^\d+(\.\d+)?$/u.test(trimmedAmount)) {
       setError('Amount must be a number.')
+      setMessage(null)
+      return
+    }
+
+    if (holdingError !== null) {
+      setMessage(null)
+      return
+    }
+
+    if (!isValidCryptoWalletAddress(recipientAddress)) {
+      setError('Recipient must be a valid crypto wallet address.')
       setMessage(null)
       return
     }
@@ -661,7 +692,12 @@ function UserSendingsSection({
         return
       }
 
-      setError(isRequest ? 'The request could not be submitted.' : 'The sending could not be created.')
+      setError(
+        adminRequestMessage(
+          caught,
+          isRequest ? 'The request could not be submitted.' : 'The sending could not be created.',
+        ),
+      )
     } finally {
       setBusy(false)
     }
@@ -683,10 +719,16 @@ function UserSendingsSection({
             <Label htmlFor={`${formId}-symbol`}>Sending asset</Label>
             <TransferAssetSelect
               id={`${formId}-symbol`}
-              value={asset.id}
-              disabled={busy}
-              onChange={setAsset}
+              value={asset?.id ?? ''}
+              options={sendableAssets}
+              disabled={busy || !hasSendableAsset}
+              onChange={(next) => {
+                setSelectedId(next.id)
+              }}
             />
+            {hasSendableAsset ? null : (
+              <p className="text-xs text-muted-foreground">This user has no assets to send.</p>
+            )}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor={`${formId}-amount`}>Sending amount</Label>
@@ -694,12 +736,26 @@ function UserSendingsSection({
               id={`${formId}-amount`}
               value={amount}
               inputMode="decimal"
-              disabled={busy}
+              disabled={busy || !hasSendableAsset}
+              aria-invalid={holdingError !== null}
               onChange={(event) => {
                 setAmount(event.target.value)
+                if (error !== null) {
+                  setError(null)
+                }
               }}
             />
-            {usdEquivalent === null ? null : (
+            {availableAmount === null || asset === null ? null : (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                Available {availableAmount} {asset.token.symbol}
+              </p>
+            )}
+            {holdingError === null ? null : (
+              <p className="text-xs text-destructive" role="alert">
+                {holdingError}
+              </p>
+            )}
+            {usdEquivalent === null || holdingError !== null ? null : (
               <p className="text-xs text-muted-foreground tabular-nums">{usdEquivalent}</p>
             )}
           </div>
@@ -709,7 +765,7 @@ function UserSendingsSection({
               id={`${formId}-recipient`}
               value={recipient}
               className="font-mono"
-              disabled={busy}
+              disabled={busy || !hasSendableAsset}
               onChange={(event) => {
                 setRecipient(event.target.value)
               }}
@@ -720,7 +776,7 @@ function UserSendingsSection({
             <Select
               id={`${formId}-status`}
               value={status}
-              disabled={busy}
+              disabled={busy || !hasSendableAsset}
               options={SENDING_STATUSES.map((item) => ({ value: item, label: item }))}
               onChange={(value) => {
                 setStatus(value as SendingStatus)
@@ -728,7 +784,7 @@ function UserSendingsSection({
             />
           </div>
           <div className="flex items-end">
-            <Button type="button" disabled={busy} onClick={() => void createSending()}>
+            <Button type="button" disabled={busy || !hasSendableAsset} onClick={() => void createSending()}>
               {busy ? (isRequest ? 'Submitting…' : 'Creating…') : isRequest ? 'Submit request' : 'Create sending'}
             </Button>
           </div>

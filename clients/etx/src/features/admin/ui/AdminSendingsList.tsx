@@ -6,7 +6,7 @@ import { AmountWithUnit } from '@/features/wallet/ui/AmountWithUnit'
 import { TokenAvatar } from '@/features/wallet/ui/TokenAvatar'
 import { Alert, AlertDescription, Button, EmptyState, Input, Skeleton } from '@/shared/ui'
 
-import { AdminAuthError, type IAdminSendingPatch } from '../model/AdminClient'
+import { AdminAuthError, adminRequestMessage, type IAdminSendingPatch } from '../model/AdminClient'
 import { addableAssetBySymbol } from '../model/addable-assets'
 import { type IAdminDirectorySending, type IAdminPage } from '../model/admin-page'
 import { directoryUserLabel } from '../model/admin-user-emails'
@@ -94,7 +94,7 @@ export function AdminSendingsList() {
         return
       }
 
-      setEditError('The sending could not be saved.')
+      setEditError(adminRequestMessage(caught, 'The sending could not be saved.'))
     } finally {
       setSaving(false)
     }

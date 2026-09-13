@@ -5,7 +5,7 @@ import { Alert, AlertDescription, EmptyState, Input, Skeleton } from '@/shared/u
 
 import { SENDING_STATUS } from '@/features/onboarding'
 
-import { AdminAuthError, type IAdminSendingPatch } from '../model/AdminClient'
+import { AdminAuthError, adminRequestMessage, type IAdminSendingPatch } from '../model/AdminClient'
 import { type IAdminDirectorySending, type IAdminPage } from '../model/admin-page'
 import { directoryUserLabel } from '../model/admin-user-emails'
 import { useAdminSession } from '../model/admin-context'
@@ -92,7 +92,7 @@ export function AdminSendingsList() {
         return
       }
 
-      setEditError('The sending could not be saved.')
+      setEditError(adminRequestMessage(caught, 'The sending could not be saved.'))
     } finally {
       setSaving(false)
     }

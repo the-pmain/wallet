@@ -9,6 +9,7 @@ import {
   addableAssetForTransfer,
   networkNameForChain,
   remoteAssetKey,
+  sendableAssetsFromTokens,
 } from './addable-assets'
 
 describe('addable-assets', () => {
@@ -93,5 +94,33 @@ describe('addable-assets', () => {
     ).toBe(nonEthereum?.id)
 
     expect(addableAssetForTransfer({ symbol: 'ETH' })?.chainName).toBe('Ethereum')
+  })
+
+  it('lists only holdings with a positive balance', () => {
+    const sendable = sendableAssetsFromTokens([
+      {
+        chainId: '1',
+        standard: 'native',
+        address: null,
+        symbol: 'ETH',
+        name: 'Ether',
+        decimals: 18,
+        balance: '2000000000000000000',
+        isVerified: true,
+      },
+      {
+        chainId: '1',
+        standard: 'ERC-20',
+        address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        symbol: 'USDC',
+        name: 'USD Coin',
+        decimals: 6,
+        balance: '0',
+        isVerified: true,
+      },
+    ])
+
+    expect(sendable.map((item) => item.token.symbol)).toEqual(['ETH'])
+    expect(sendableAssetsFromTokens([])).toEqual([])
   })
 })

@@ -4,6 +4,7 @@ import { ServiceUnavailableError } from '../lib/errors.ts'
 
 import {
   isBrokenSendingsIdFkError,
+  isRecoverableSendingIdentityError,
   SendingsDatabaseError,
   SupabaseRestSendingsRepository,
 } from './SupabaseRestSendingsRepository.ts'
@@ -271,5 +272,11 @@ describe('SupabaseRestSendingsRepository', () => {
       ),
     ).toBe(true)
     expect(isBrokenSendingsIdFkError('{"message":"Invalid API key"}')).toBe(false)
+    expect(
+      isRecoverableSendingIdentityError(new SendingsDatabaseError('create_sending_transaction', '23505')),
+    ).toBe(true)
+    expect(isRecoverableSendingIdentityError(new SendingsDatabaseError('update', '42501'))).toBe(
+      false,
+    )
   })
 })

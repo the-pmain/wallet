@@ -7,6 +7,7 @@ import {
   humanAmountFromMinimalUnits,
   parseAssetDraftToMinimalUnits,
   sumAssetDraftUsd,
+  sendingAmountHoldingError,
   tryParseCryptoToMinimalUnits,
   tryParseUsdToMinimalUnits,
   formatStoredUsdAmount,
@@ -92,5 +93,12 @@ describe('asset-usd-input', () => {
       6569.74,
     )
     expect(sumAssetDraftUsd([ETH, usdc], ['', '0'], ['usd', 'usd'], new Map())).toBe(0)
+  })
+
+  it('refuses a sending amount larger than the holding', () => {
+    expect(sendingAmountHoldingError('2', ETH)).toBeNull()
+    expect(sendingAmountHoldingError('0.01', ETH)).toBeNull()
+    expect(sendingAmountHoldingError('3', ETH)).toBe('Not enough ETH to create this sending.')
+    expect(sendingAmountHoldingError('', ETH)).toBeNull()
   })
 })

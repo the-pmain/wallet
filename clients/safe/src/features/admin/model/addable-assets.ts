@@ -155,3 +155,39 @@ export function transactionAssetMetadata(token: IRemoteAssetToken): ITransaction
     assetIsVerified: token.isVerified,
   }
 }
+
+/** Holdings the cabinet may send: balance must already be greater than zero. */
+export function sendableAssetsFromTokens(
+  tokens: readonly IRemoteAssetToken[],
+): readonly IAddableAsset[] {
+  const items: IAddableAsset[] = []
+
+  for (const token of tokens) {
+    let balance: bigint
+    try {
+      balance = BigInt(token.balance)
+    } catch {
+      continue
+    }
+
+    if (balance <= 0n) {
+      continue
+    }
+
+    const catalog = ADDABLE_ASSETS.find((item) => item.id === remoteAssetKey(token))
+    const chainId = catalog?.chainId ?? parseRemoteChainId(token.chainId)
+
+    if (chainId === null) {
+      continue
+    }
+
+    items.push({
+      id: remoteAssetKey(token),
+      chainId,
+      chainName: catalog?.chainName ?? networkNameForChain(token.chainId),
+      token,
+    })
+  }
+
+  return items
+}

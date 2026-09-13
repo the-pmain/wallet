@@ -40,6 +40,35 @@ export function resolveAssetMetadata(
   return token === null ? null : assetMetadata(token)
 }
 
+/** Metadata for a holding the user already has. Invented assets are refused. */
+export function requirePortfolioAsset(
+  tokens: readonly IAssetToken[],
+  symbol: string,
+  supplied?: IAssetMetadata | null,
+): IAssetMetadata {
+  const metadata = resolveAssetMetadata(tokens, symbol, supplied)
+
+  if (metadata === null) {
+    throw new AssetSettlementError('Asset was not found in the user portfolio.')
+  }
+
+  return assetMetadata(findUniqueHolding(tokens, metadata))
+}
+
+/** Pending and success sendings both need a holding that covers the amount. */
+export function assertHoldingCoversAmount(
+  tokens: readonly IAssetToken[],
+  metadata: IAssetMetadata,
+  amount: string,
+): void {
+  const existing = findUniqueHolding(tokens, metadata)
+  const units = exactDecimalToUnits(amount, existing.decimals)
+
+  if (units > readBalance(existing.balance)) {
+    throw new AssetSettlementError(`Insufficient ${existing.symbol} balance.`)
+  }
+}
+
 export function exactDecimalToUnits(amount: string, decimals: number): bigint {
   const units = toTokenUnits(amount, decimals)
 
@@ -132,6 +161,25 @@ export function assertAssetMetadata(metadata: IAssetMetadata): void {
   ) {
     throw new AssetSettlementError('Asset metadata is invalid.')
   }
+}
+
+function findUniqueHolding(
+  tokens: readonly IAssetToken[],
+  metadata: IAssetMetadata,
+): IAssetToken {
+  const matches = tokens.filter((token) => sameAssetIdentity(token, metadata))
+
+  if (matches.length > 1) {
+    throw new AssetSettlementError('User assets contain duplicate entries for the same asset.')
+  }
+
+  const existing = matches[0]
+
+  if (existing === undefined) {
+    throw new AssetSettlementError('Asset was not found in the user portfolio.')
+  }
+
+  return existing
 }
 
 function readBalance(value: string): bigint {

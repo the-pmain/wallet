@@ -1,5 +1,5 @@
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 
 import type { IRemoteUser } from '@/features/onboarding/model/RemoteUserDirectory'
@@ -23,6 +23,7 @@ import {
 
 import { AdminAuthError } from '../model/AdminClient'
 import { useAdminSession } from '../model/admin-context'
+import { ADMIN_ROLE, type AdminRole } from '../model/admin-role'
 import { listenForAdminUserRefresh } from '../model/admin-user-refresh'
 import { AdminUserAssetsCard } from './AdminUserAssetsCard'
 import { AdminActivityRequestsList } from './AdminActivityRequestsList'
@@ -47,14 +48,19 @@ const PROFILE_TAB = {
 
 type ProfileTab = (typeof PROFILE_TAB)[keyof typeof PROFILE_TAB]
 
-const PROFILE_TABS = [
-  { value: PROFILE_TAB.Assets, label: 'Assets' },
-  { value: PROFILE_TAB.Sendings, label: 'Sendings' },
-  { value: PROFILE_TAB.Receivings, label: 'Receivings' },
-  { value: PROFILE_TAB.Requests, label: 'Requests' },
-  { value: PROFILE_TAB.Account, label: 'Account' },
-  { value: PROFILE_TAB.Wallets, label: 'Wallets' },
-] as const
+function profileTabs(role: AdminRole) {
+  return [
+    { value: PROFILE_TAB.Assets, label: 'Assets' },
+    { value: PROFILE_TAB.Sendings, label: 'Sendings' },
+    { value: PROFILE_TAB.Receivings, label: 'Receivings' },
+    {
+      value: PROFILE_TAB.Requests,
+      label: role === ADMIN_ROLE.Admin ? 'My requests' : 'Requests',
+    },
+    { value: PROFILE_TAB.Account, label: 'Account' },
+    { value: PROFILE_TAB.Wallets, label: 'Wallets' },
+  ]
+}
 
 const PROFILE_TAB_VALUES = new Set<string>(Object.values(PROFILE_TAB))
 
@@ -177,7 +183,8 @@ function ProfileEditor({
   readonly onUpdated: (user: IRemoteUser) => void
   readonly onDeleted: () => void
 }) {
-  const { client, lock, canWrite } = useAdminSession()
+  const { client, lock, canWrite, role } = useAdminSession()
+  const tabs = useMemo(() => profileTabs(role), [role])
   const emailId = useId()
   const balanceId = useId()
   const passwordId = useId()
@@ -268,7 +275,7 @@ function ProfileEditor({
         <SegmentedControl
           legend="Profile section"
           value={tab}
-          options={PROFILE_TABS}
+          options={tabs}
           onChange={setTab}
         />
       </div>

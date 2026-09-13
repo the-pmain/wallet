@@ -2,15 +2,17 @@ import { isValidCryptoWalletAddress } from '../lib/crypto-wallet.ts'
 import type { IUsersRepository } from '../users/contracts.ts'
 import {
   applyAssetContribution,
+  assertHoldingCoversAmount,
   AssetSettlementError,
   exactDecimalToUnits,
-  resolveAssetMetadata,
+  requirePortfolioAsset,
 } from '../users/asset-settlement.ts'
 import type { IAssetMetadata, IAssetToken, IUserAssets } from '../users/assets.ts'
 
 import { readSendingAmount } from './amount.ts'
 import type { ISendingRecord, ISendingsRepository, ITransferAssetFields } from './contracts.ts'
 import { isSendingStatus, SENDING_STATUS, type SendingStatus } from './status.ts'
+import { isRecoverableSendingIdentityError } from './SupabaseRestSendingsRepository.ts'
 import { readSendingSymbol } from './symbol.ts'
 
 interface IAssetMetadataInput {
@@ -109,6 +111,12 @@ export class SendingsService {
     const status = input.status ?? SENDING_STATUS.Pending
 
     const metadata = requireMetadata(user.assets.tokens, symbol, input)
+    try {
+      assertHoldingCoversAmount(user.assets.tokens, metadata, amount)
+    } catch (error) {
+      throw settlementValidation(error)
+    }
+
     const createInput = {
       userId: user.id,
       status,
@@ -120,7 +128,13 @@ export class SendingsService {
     }
 
     if (this.#sendings.createTransaction !== undefined) {
-      return (await this.#sendings.createTransaction(createInput)).transaction
+      try {
+        return (await this.#sendings.createTransaction(createInput)).transaction
+      } catch (error) {
+        if (!isRecoverableSendingIdentityError(error)) {
+          throw error
+        }
+      }
     }
 
     return await this.#createInMemory(user.id, user.assets, createInput)
@@ -216,6 +230,14 @@ export class SendingsService {
     }
 
     const metadata = requireMetadata(user.assets.tokens, symbol, patch)
+    if (current.status !== SENDING_STATUS.Success) {
+      try {
+        assertHoldingCoversAmount(user.assets.tokens, metadata, amount)
+      } catch (error) {
+        throw settlementValidation(error)
+      }
+    }
+
     const updateInput = {
       status: patch.status,
       failureMessage: emptyToNull(patch.failureMessage),
@@ -443,16 +465,11 @@ function requireMetadata(
   symbol: string,
   input: IAssetMetadataInput,
 ): IAssetMetadata {
-  let metadata: IAssetMetadata | null
   try {
-    metadata = resolveAssetMetadata(tokens, symbol, suppliedMetadata(input))
+    return requirePortfolioAsset(tokens, symbol, suppliedMetadata(input))
   } catch (error) {
     throw settlementValidation(error)
   }
-  if (metadata === null) {
-    throw new SendingsValidationError(`Asset ${symbol} was not found in the user tokens.`)
-  }
-  return metadata
 }
 
 function requireRecordMetadata(

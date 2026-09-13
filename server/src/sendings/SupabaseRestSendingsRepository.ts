@@ -530,7 +530,9 @@ export function isBrokenSendingsIdFkError(message: string): boolean {
     (message.includes('23503') && message.includes('table \\"users\\"')) ||
     (message.includes('23503') && message.includes('table "users"')) ||
     (message.includes('23505') &&
-      (message.includes('sendings_pkey') || message.includes('Key (id)=')))
+      (message.includes('sendings_pkey') ||
+        message.includes('Key (id)=') ||
+        message.includes('duplicate key')))
   )
 }
 
@@ -540,6 +542,15 @@ export function isBrokenSendingsFk(error: unknown): boolean {
   }
 
   return error instanceof ServiceUnavailableError && isBrokenSendingsIdFkError(error.message)
+}
+
+/** Sequence/id collision on sendings.id. REST create() can reuse an unused users.id. */
+export function isRecoverableSendingIdentityError(error: unknown): boolean {
+  if (error instanceof SendingsDatabaseError) {
+    return error.isBrokenIdFk || error.supabaseCode === '23505'
+  }
+
+  return isBrokenSendingsFk(error)
 }
 
 function readPositiveInt(value: string): number | null {

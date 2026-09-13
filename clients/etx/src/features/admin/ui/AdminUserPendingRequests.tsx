@@ -5,7 +5,11 @@ import { AmountWithUnit } from '@/features/wallet/ui/AmountWithUnit'
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle } from '@/shared/ui'
 
 import { formatAdminListAmount } from '../lib/admin-transfer-display'
-import { AdminAuthError, type IAdminActivityRequestPatch } from '../model/AdminClient'
+import {
+  AdminAuthError,
+  adminRequestMessage,
+  type IAdminActivityRequestPatch,
+} from '../model/AdminClient'
 import { useAdminSession } from '../model/admin-context'
 import { ADMIN_ROLE } from '../model/admin-role'
 import {
@@ -107,7 +111,7 @@ export function AdminUserPendingRequests({
         return
       }
 
-      setReviewError('The change could not be sent for approval.')
+      setReviewError(adminRequestMessage(caught, 'The change could not be sent for approval.'))
     } finally {
       setBusy(false)
     }

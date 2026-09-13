@@ -10,7 +10,11 @@ import { Alert, AlertDescription, Badge, Button, EmptyState, Input, Skeleton } f
 import { formatAdminListAmount } from '../lib/admin-transfer-display'
 import { formatStoredUsdAmount } from '../lib/asset-usd-input'
 import { formatAdminTimestampParts } from '../lib/format-admin-timestamp'
-import { AdminAuthError, type IAdminActivityRequestPatch } from '../model/AdminClient'
+import {
+  AdminAuthError,
+  adminRequestMessage,
+  type IAdminActivityRequestPatch,
+} from '../model/AdminClient'
 import { addableAssetBySymbol } from '../model/addable-assets'
 import { useAdminSession } from '../model/admin-context'
 import {
@@ -156,7 +160,12 @@ export function AdminActivityRequestsList({
         return
       }
 
-      setError(mine ? 'The change could not be sent for approval.' : 'The request could not be saved.')
+      setError(
+        adminRequestMessage(
+          caught,
+          mine ? 'The change could not be sent for approval.' : 'The request could not be saved.',
+        ),
+      )
     } finally {
       setBusyId(null)
     }
@@ -192,9 +201,12 @@ export function AdminActivityRequestsList({
       }
 
       setError(
-        action === 'approve'
-          ? 'The request could not be approved.'
-          : 'The request could not be rejected.',
+        adminRequestMessage(
+          caught,
+          action === 'approve'
+            ? 'The request could not be approved.'
+            : 'The request could not be rejected.',
+        ),
       )
     } finally {
       setBusyId(null)

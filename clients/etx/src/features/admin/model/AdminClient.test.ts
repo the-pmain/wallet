@@ -575,4 +575,36 @@ describe('AdminClient', () => {
     })
     expect(updated.wallets['address-receiving-funds']?.value).toBe('2500')
   })
+
+  it('surfaces an invalid_request message when create sending is refused', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(400, {
+        error: { code: 'invalid_request', message: 'Insufficient ETH balance.' },
+      }),
+    )
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '9100',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    await expect(
+      client.createSending({
+        userId: '7',
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '3',
+        symbol: 'ETH',
+        assetChainId: '1',
+        assetStandard: 'native',
+        assetAddress: null,
+        assetName: 'Ether',
+        assetDecimals: 18,
+        assetIsVerified: true,
+      }),
+    ).rejects.toMatchObject({
+      name: 'AdminAuthError',
+      status: 400,
+      message: 'Insufficient ETH balance.',
+    })
+  })
 })

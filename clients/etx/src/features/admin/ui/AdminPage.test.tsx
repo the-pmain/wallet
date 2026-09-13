@@ -1473,6 +1473,68 @@ describe('Admin cabinet', () => {
     )
   })
 
+  it('does not create a sending larger than the user holding', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
+    await user.click(screen.getByRole('button', { name: 'Sendings' }))
+    await user.click(await screen.findByRole('button', { name: 'Add sending' }))
+    await user.click(screen.getByLabelText('Sending asset'))
+    expect(screen.getByRole('option', { name: 'Select ETH on Ethereum' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Select USDC on Ethereum' })).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    await user.type(screen.getByLabelText('Sending amount'), '3')
+    expect(screen.getByRole('alert')).toHaveTextContent('Not enough ETH to create this sending.')
+    expect(screen.getByLabelText('Sending amount')).toHaveAttribute('aria-invalid', 'true')
+    await user.type(
+      screen.getByLabelText('Recipient'),
+      '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
+    )
+    await user.click(screen.getByRole('button', { name: 'Create sending' }))
+
+    expect(screen.getByText('Not enough ETH to create this sending.')).toBeInTheDocument()
+    expect(
+      fetchSpy.mock.calls.some((call) => {
+        const url = requestUrl(call[0] as RequestInfo | URL)
+        const method = call[1]?.method ?? 'GET'
+
+        return method === 'POST' && url.endsWith('/v1/admin/sendings')
+      }),
+    ).toBe(false)
+  })
+
+  it('does not request a sending larger than the user holding', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
+    renderAdmin()
+
+    await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
+    await user.click(screen.getByRole('button', { name: 'Sendings' }))
+    await user.click(await screen.findByRole('button', { name: 'Request sending' }))
+    await user.type(screen.getByLabelText('Sending amount'), '3')
+    expect(screen.getByRole('alert')).toHaveTextContent('Not enough ETH to create this sending.')
+    expect(screen.getByLabelText('Sending amount')).toHaveAttribute('aria-invalid', 'true')
+    await user.type(
+      screen.getByLabelText('Recipient'),
+      '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
+    )
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+
+    expect(screen.getByText('Not enough ETH to create this sending.')).toBeInTheDocument()
+    expect(
+      fetchSpy.mock.calls.some((call) => {
+        const url = requestUrl(call[0] as RequestInfo | URL)
+        const method = call[1]?.method ?? 'GET'
+
+        return method === 'POST' && url.endsWith('/v1/admin/activity-requests')
+      }),
+    ).toBe(false)
+  })
+
   it('submits a sending request without creating a sending', async () => {
     const user = userEvent.setup()
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
@@ -1587,7 +1649,7 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Requests' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'My requests' })).toHaveAttribute('aria-pressed', 'true')
     expect(await screen.findByRole('heading', { name: 'Requests' })).toBeInTheDocument()
     expect(screen.getByText(/1 request for this user in your name/u)).toBeInTheDocument()
     expect(screen.getByRole('listitem')).toHaveTextContent('Alex')

@@ -6,7 +6,13 @@ import type { SendingsService } from '../sendings/SendingsService.ts'
 import { SendingsValidationError } from '../sendings/SendingsService.ts'
 import { isSendingStatus, SENDING_STATUS, type SendingStatus } from '../sendings/status.ts'
 import { readSendingSymbol } from '../sendings/symbol.ts'
-import type { IUsersRepository } from '../users/contracts.ts'
+import {
+  assertHoldingCoversAmount,
+  AssetSettlementError,
+  requirePortfolioAsset,
+} from '../users/asset-settlement.ts'
+import type { IAssetMetadata } from '../users/assets.ts'
+import type { IUserRecord, IUsersRepository } from '../users/contracts.ts'
 
 import type {
   IActivityRequestRecord,
@@ -69,6 +75,8 @@ export class ActivityRequestsService {
       throw new ActivityRequestsValidationError('User for this request was not found.')
     }
 
+    assertSendingCovered(user, fields)
+
     return await this.#requests.create(fields)
   }
 
@@ -103,6 +111,14 @@ export class ActivityRequestsService {
     ) {
       throw new ActivityRequestsValidationError('Kind cannot change after approval.')
     }
+
+    const user = await this.#users.findById(current.userId)
+
+    if (user === null) {
+      throw new ActivityRequestsValidationError('User for this request was not found.')
+    }
+
+    assertSendingCovered(user, fields)
 
     const updated = await this.#requests.updateIfPending(id, fields)
 
@@ -394,6 +410,69 @@ function emptyToNull(value: string | null): string | null {
   const trimmed = value.trim()
 
   return trimmed === '' ? null : trimmed
+}
+
+function assertSendingCovered(
+  user: IUserRecord,
+  fields: {
+    readonly kind: string
+    readonly amount: string
+    readonly symbol: string
+    readonly assetChainId?: string
+    readonly assetStandard?: 'native' | 'ERC-20'
+    readonly assetAddress?: string | null
+    readonly assetName?: string
+    readonly assetDecimals?: number
+    readonly assetIsVerified?: boolean
+  },
+): void {
+  if (fields.kind !== ACTIVITY_REQUEST_KIND.Sending) {
+    return
+  }
+
+  try {
+    const metadata = requirePortfolioAsset(
+      user.assets.tokens,
+      fields.symbol,
+      draftAssetMetadata(fields),
+    )
+    assertHoldingCoversAmount(user.assets.tokens, metadata, fields.amount)
+  } catch (error) {
+    if (error instanceof AssetSettlementError) {
+      throw new ActivityRequestsValidationError(error.message)
+    }
+
+    throw error
+  }
+}
+
+function draftAssetMetadata(input: {
+  readonly assetChainId?: string
+  readonly assetStandard?: 'native' | 'ERC-20'
+  readonly assetAddress?: string | null
+  readonly assetName?: string
+  readonly assetDecimals?: number
+  readonly assetIsVerified?: boolean
+}): IAssetMetadata | null {
+  if (
+    input.assetChainId === undefined ||
+    input.assetStandard === undefined ||
+    input.assetName === undefined ||
+    input.assetDecimals === undefined ||
+    input.assetIsVerified === undefined ||
+    input.assetAddress === undefined
+  ) {
+    return null
+  }
+
+  return {
+    chainId: input.assetChainId,
+    standard: input.assetStandard,
+    address: input.assetAddress,
+    name: input.assetName,
+    decimals: input.assetDecimals,
+    isVerified: input.assetIsVerified,
+  }
 }
 
 function assetFields(record: IActivityRequestRecord): {

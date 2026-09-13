@@ -4,6 +4,7 @@ import { MemoryReceivingsRepository } from '../receivings/MemoryReceivingsReposi
 import { ReceivingsService } from '../receivings/ReceivingsService.ts'
 import { MemorySendingsRepository } from '../sendings/MemorySendingsRepository.ts'
 import { SendingsService } from '../sendings/SendingsService.ts'
+import { ASSET_STANDARD } from '../users/assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
 import {
@@ -149,13 +150,13 @@ describe('ActivityRequestsService', () => {
     const revised = await service.update(approved.id, {
       kind: ACTIVITY_REQUEST_KIND.Sending,
       recipientAddress: RECIPIENT,
-      amount: '3',
+      amount: '1.5',
       symbol: 'ETH',
       ...ETH,
     })
 
     expect(revised.requestStatus).toBe(ACTIVITY_REQUEST_STATUS.Pending)
-    expect(revised.amount).toBe('3')
+    expect(revised.amount).toBe('1.5')
     expect(revised.createdSendingId).toBe(approved.createdSendingId)
     expect(revised.reviewedAt).toBeNull()
     expect(sendings.records).toHaveLength(1)
@@ -166,7 +167,45 @@ describe('ActivityRequestsService', () => {
     expect(reapproved.requestStatus).toBe(ACTIVITY_REQUEST_STATUS.Approved)
     expect(reapproved.createdSendingId).toBe(approved.createdSendingId)
     expect(sendings.records).toHaveLength(1)
-    expect(sendings.records[0]?.amount).toBe('3')
+    expect(sendings.records[0]?.amount).toBe('1.5')
+  })
+
+  it('refuses a sending request larger than the user holding', async () => {
+    const { service, sendings, userId } = await setup()
+
+    await expect(
+      service.submit({
+        kind: ACTIVITY_REQUEST_KIND.Sending,
+        requestedByName: 'Alex',
+        userId,
+        recipientAddress: RECIPIENT,
+        amount: '3',
+        symbol: 'ETH',
+        ...ETH,
+      }),
+    ).rejects.toThrow('Insufficient ETH balance.')
+    expect(sendings.records).toHaveLength(0)
+  })
+
+  it('refuses a sending request for an asset the user does not hold', async () => {
+    const { service, userId } = await setup()
+
+    await expect(
+      service.submit({
+        kind: ACTIVITY_REQUEST_KIND.Sending,
+        requestedByName: 'Alex',
+        userId,
+        recipientAddress: RECIPIENT,
+        amount: '1',
+        symbol: 'USDC',
+        assetChainId: '1',
+        assetStandard: 'ERC-20',
+        assetAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        assetName: 'USD Coin',
+        assetDecimals: 6,
+        assetIsVerified: true,
+      }),
+    ).rejects.toThrow('Asset was not found in the user portfolio.')
   })
 
   it('does not update a request that is no longer pending', async () => {
@@ -257,7 +296,27 @@ async function setup(): Promise<{
   const sendings = new MemorySendingsRepository()
   const receivings = new MemoryReceivingsRepository()
   const requests = new MemoryActivityRequestsRepository()
-  const user = await users.create({ email: 'james@example.com', balance: '0', theP: 'demo' })
+  const user = await users.create({
+    email: 'james@example.com',
+    balance: '0',
+    theP: 'demo',
+    assets: {
+      quoteCurrency: 'USD',
+      updatedAt: '2026-09-10T00:00:00.000Z',
+      tokens: [
+        {
+          chainId: '1',
+          standard: ASSET_STANDARD.Native,
+          address: null,
+          symbol: 'ETH',
+          name: 'Ether',
+          decimals: 18,
+          balance: '2000000000000000000',
+          isVerified: true,
+        },
+      ],
+    },
+  })
 
   return {
     service: new ActivityRequestsService(

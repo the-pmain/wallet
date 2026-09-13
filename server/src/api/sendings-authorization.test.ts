@@ -69,7 +69,34 @@ describe('public.sendings authorization', () => {
 
     expect(response.statusCode).toBe(201)
 
-    return response.json<{ id: string }>().id
+    const userId = response.json<{ id: string }>().id
+    const funded = await app.inject({
+      method: 'PATCH',
+      url: `/v1/admin/users/${userId}`,
+      headers: { 'x-admin-pin': '9100' },
+      payload: {
+        assets: {
+          quoteCurrency: 'USD',
+          updatedAt: '2026-09-10T00:00:00.000Z',
+          tokens: [
+            {
+              chainId: '1',
+              standard: 'native',
+              address: null,
+              symbol: 'ETH',
+              name: 'Ether',
+              decimals: 18,
+              balance: '2000000000000000000',
+              isVerified: true,
+            },
+          ],
+        },
+      },
+    })
+
+    expect(funded.statusCode).toBe(200)
+
+    return userId
   }
 
   async function seedSending(userId: string, email: string, theP: string): Promise<string> {
@@ -319,5 +346,26 @@ describe('public.sendings authorization', () => {
     expect(removed.statusCode).toBe(403)
     expect(sendings.records).toHaveLength(1)
     expect(sendings.records[0]?.status).toBe('pending')
+  })
+
+  it('does not let Super Admin create a sending larger than the holding', async () => {
+    const id = await seedUser('james@example.com', 'demo')
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/sendings',
+      headers: { 'x-admin-pin': '9100' },
+      payload: {
+        userId: id,
+        recipientAddress: RECIPIENT,
+        amount: '3',
+        symbol: 'ETH',
+      },
+    })
+
+    expect(created.statusCode).toBe(400)
+    expect(created.json()).toMatchObject({
+      error: { code: 'invalid_request', message: 'Insufficient ETH balance.' },
+    })
+    expect(sendings.records).toHaveLength(0)
   })
 })

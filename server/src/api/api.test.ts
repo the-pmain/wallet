@@ -1433,6 +1433,31 @@ describe('Admin cabinet', () => {
       payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
     })
     const userId = created.json<{ id: string }>().id
+
+    await app.inject({
+      method: 'PATCH',
+      url: `/v1/admin/users/${userId}`,
+      headers: { 'x-admin-pin': '9100' },
+      payload: {
+        assets: {
+          quoteCurrency: 'USD',
+          updatedAt: '2026-08-20T12:00:00.000Z',
+          tokens: [
+            {
+              chainId: '1',
+              standard: 'native',
+              address: null,
+              symbol: 'ETH',
+              name: 'Ether',
+              decimals: 18,
+              balance: '4000000000000000000',
+              isVerified: true,
+            },
+          ],
+        },
+      },
+    })
+
     const sending = await app.inject({
       method: 'POST',
       url: '/v1/users/sendings',

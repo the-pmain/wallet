@@ -5,6 +5,7 @@ import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 import { MemorySendingsRepository } from './MemorySendingsRepository.ts'
 import { SendingsService, SendingsValidationError } from './SendingsService.ts'
 import { SENDING_STATUS } from './status.ts'
+import { SendingsDatabaseError } from './SupabaseRestSendingsRepository.ts'
 
 const RECIPIENT = '0x0000000000000000000000000000000000000002'
 
@@ -101,6 +102,18 @@ describe('SendingsService settlement', () => {
       symbol: 'ETH',
     })
     await expect(excessive).rejects.toBeInstanceOf(SendingsValidationError)
+    await expect(excessive).rejects.toThrow('Insufficient ETH balance.')
+    expect((await users.findById('1'))?.assets.tokens[0]?.balance).toBe('2000000000000000000')
+
+    await expect(
+      service.registerByAdmin({
+        userId: '1',
+        status: SENDING_STATUS.Pending,
+        recipientAddress: RECIPIENT,
+        amount: '3',
+        symbol: 'ETH',
+      }),
+    ).rejects.toThrow('Insufficient ETH balance.')
     expect((await users.findById('1'))?.assets.tokens[0]?.balance).toBe('2000000000000000000')
 
     await expect(
@@ -115,6 +128,48 @@ describe('SendingsService settlement', () => {
     expect((await users.findById('1'))?.assets.tokens[0]?.balance).toBe('2000000000000000000')
   })
 
+  it('rejects a sending for an asset the user does not hold', async () => {
+    const { service, users } = await setup()
+
+    await expect(
+      service.registerByAdmin({
+        userId: '1',
+        status: SENDING_STATUS.Pending,
+        recipientAddress: RECIPIENT,
+        amount: '1',
+        symbol: 'USDC',
+        assetChainId: '1',
+        assetStandard: 'ERC-20',
+        assetAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        assetName: 'USD Coin',
+        assetDecimals: 6,
+        assetIsVerified: true,
+      }),
+    ).rejects.toThrow('Asset was not found in the user portfolio.')
+    expect((await users.findById('1'))?.assets.tokens[0]?.balance).toBe('2000000000000000000')
+  })
+
+  it('rejects raising a pending sending above the holding', async () => {
+    const { service } = await setup()
+    const created = await service.registerByAdmin({
+      userId: '1',
+      status: SENDING_STATUS.Pending,
+      recipientAddress: RECIPIENT,
+      amount: '0.5',
+      symbol: 'ETH',
+    })
+
+    await expect(
+      service.update(created.id, {
+        status: SENDING_STATUS.Pending,
+        failureMessage: null,
+        recipientAddress: RECIPIENT,
+        amount: '3',
+        symbol: 'ETH',
+      }),
+    ).rejects.toThrow('Insufficient ETH balance.')
+  })
+
   it('accepts a non-EVM wallet address as the recipient', async () => {
     const { service } = await setup()
     const created = await service.registerByAdmin({
@@ -126,6 +181,50 @@ describe('SendingsService settlement', () => {
     })
 
     expect(created.recipientAddress).toBe('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
+  })
+
+  it('creates a sending when the settlement RPC hits a sendings.id collision', async () => {
+    const users = new MemoryUsersRepository()
+    await users.create({
+      email: 'owner@example.com',
+      balance: '0',
+      theP: 'secret',
+      assets: {
+        quoteCurrency: 'USD',
+        updatedAt: '2026-09-10T00:00:00.000Z',
+        tokens: [
+          {
+            chainId: '1',
+            standard: ASSET_STANDARD.Native,
+            address: null,
+            symbol: 'ETH',
+            name: 'Ether',
+            decimals: 18,
+            balance: '2000000000000000000',
+            isVerified: true,
+          },
+        ],
+      },
+    })
+    const sendings = new MemorySendingsRepository()
+    Object.assign(sendings, {
+      async createTransaction() {
+        throw new SendingsDatabaseError('create_sending_transaction', '23505')
+      },
+    })
+    const service = new SendingsService(sendings, users)
+
+    const created = await service.registerByAdmin({
+      userId: '1',
+      status: SENDING_STATUS.Pending,
+      recipientAddress: RECIPIENT,
+      amount: '0.01',
+      symbol: 'ETH',
+    })
+
+    expect(created.amount).toBe('0.01')
+    expect(created.userId).toBe('1')
+    expect(sendings.records).toHaveLength(1)
   })
 
   it('rejects a string that is not a crypto wallet address', async () => {

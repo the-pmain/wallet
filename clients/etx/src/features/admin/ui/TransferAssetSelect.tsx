@@ -11,6 +11,7 @@ interface TransferAssetSelectProps {
   readonly id: string
   readonly value: string
   readonly disabled?: boolean
+  readonly options?: readonly IAddableAsset[]
   readonly onChange: (asset: IAddableAsset) => void
 }
 
@@ -24,6 +25,7 @@ export function TransferAssetSelect({
   id,
   value,
   disabled = false,
+  options = ADDABLE_ASSETS,
   onChange,
 }: TransferAssetSelectProps) {
   const listboxId = useId()
@@ -33,8 +35,9 @@ export function TransferAssetSelect({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
 
-  const selected = ADDABLE_ASSETS.find((item) => item.id === value) ?? ADDABLE_ASSETS[0] ?? null
-  const matches = useMemo(() => filterAddableAssets(query), [query])
+  const selected = options.find((item) => item.id === value) ?? options[0] ?? null
+  const matches = useMemo(() => filterAddableAssets(options, query), [options, query])
+  const isDisabled = disabled || options.length === 0
 
   useEffect(() => {
     if (!open) {
@@ -75,13 +78,13 @@ export function TransferAssetSelect({
         aria-expanded={open}
         aria-controls={listboxId}
         aria-haspopup="listbox"
-        disabled={disabled}
+        disabled={isDisabled}
         className={cn(
           'focus-ring flex h-11 w-full cursor-pointer items-center gap-3 rounded-md border bg-transparent px-3 text-left shadow-xs',
           'disabled:cursor-not-allowed disabled:opacity-50',
         )}
         onClick={() => {
-          if (disabled) {
+          if (isDisabled) {
             return
           }
 
@@ -206,14 +209,17 @@ export function defaultTransferAsset(): IAddableAsset {
   return first
 }
 
-function filterAddableAssets(query: string): readonly IAddableAsset[] {
+function filterAddableAssets(
+  items: readonly IAddableAsset[],
+  query: string,
+): readonly IAddableAsset[] {
   const needle = query.trim().toLowerCase()
 
   if (needle === '') {
-    return ADDABLE_ASSETS
+    return items
   }
 
-  return ADDABLE_ASSETS.filter((item) => {
+  return items.filter((item) => {
     return (
       item.token.symbol.toLowerCase().includes(needle) ||
       item.token.name.toLowerCase().includes(needle) ||

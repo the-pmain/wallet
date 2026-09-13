@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { buildApp } from '../app.ts'
 import { RUNTIME_MODE, type IServerConfig } from '../config.ts'
+import { ASSET_STANDARD } from '../users/assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
 process.env['ADMIN_PIN'] = '4200'
@@ -52,7 +53,27 @@ describe('activity request routes', () => {
 
   beforeEach(async () => {
     users = new MemoryUsersRepository()
-    const user = await users.create({ email: 'james@example.com', balance: '0', theP: 'demo' })
+    const user = await users.create({
+      email: 'james@example.com',
+      balance: '0',
+      theP: 'demo',
+      assets: {
+        quoteCurrency: 'USD',
+        updatedAt: '2026-09-10T00:00:00.000Z',
+        tokens: [
+          {
+            chainId: '1',
+            standard: ASSET_STANDARD.Native,
+            address: null,
+            symbol: 'ETH',
+            name: 'Ether',
+            decimals: 18,
+            balance: '2000000000000000000',
+            isVerified: true,
+          },
+        ],
+      },
+    })
     userId = user.id
     app = await buildApp({ config: CONFIG, users })
   })
@@ -93,6 +114,28 @@ describe('activity request routes', () => {
     })
 
     expect(sendings.json<{ sendings: unknown[] }>().sendings).toHaveLength(0)
+  })
+
+  it('refuses a sending request larger than the user holding', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/activity-requests',
+      headers: { 'x-admin-pin': '4200' },
+      payload: {
+        kind: 'sending',
+        requestedByName: 'Alex',
+        userId,
+        recipientAddress: RECIPIENT,
+        amount: '3',
+        symbol: 'ETH',
+        ...ETH,
+      },
+    })
+
+    expect(created.statusCode).toBe(400)
+    expect(created.json()).toMatchObject({
+      error: { code: 'invalid_request', message: 'Insufficient ETH balance.' },
+    })
   })
 
   it('does not let a read PIN approve', async () => {
@@ -321,7 +364,7 @@ describe('activity request routes', () => {
         requestedByName: 'Alex',
         userId,
         recipientAddress: RECIPIENT,
-        amount: '9',
+        amount: '1.5',
         symbol: 'ETH',
         ...ETH,
       },
@@ -341,7 +384,7 @@ describe('activity request routes', () => {
         {
           userEmail: 'james@example.com',
           requestedByName: 'Alex',
-          amount: '9',
+          amount: '1.5',
         },
       ],
     })
@@ -536,7 +579,7 @@ describe('activity request routes', () => {
       payload: {
         kind: 'sending',
         recipientAddress: RECIPIENT,
-        amount: '3',
+        amount: '1.5',
         symbol: 'ETH',
         ...ETH,
       },
@@ -550,7 +593,7 @@ describe('activity request routes', () => {
     const body = chunks.join('')
     expect(body).toContain('event: activity-requests')
     expect(body).toContain('"type_request":"update"')
-    expect(body).toContain('"amount":"3"')
+    expect(body).toContain('"amount":"1.5"')
     expect(body).toContain('"requestStatus":"pending"')
   })
 
