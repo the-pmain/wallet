@@ -3,8 +3,10 @@ import helmet from '@fastify/helmet'
 import rateLimit from '@fastify/rate-limit'
 import type { FastifyInstance } from 'fastify'
 
+import { isAdminAddressAllowed } from '../admin/address.ts'
 import { RUNTIME_MODE, type IServerConfig } from '../config.ts'
-import { API_CONTENT_SECURITY_POLICY, isApiUrl } from '../lib/ui.ts'
+import { AddressNotAllowedError } from '../lib/errors.ts'
+import { API_CONTENT_SECURITY_POLICY, isAdminApiUrl, isApiUrl } from '../lib/ui.ts'
 
 /**
  * Matches `ROBOTS_TAG_VALUE` in `build/security-headers-plugin.ts`
@@ -77,5 +79,18 @@ export async function registerSecurity(app: FastifyInstance, config: IServerConf
         message: 'Too many requests. Try again later.',
       },
     }),
+  })
+
+  /* After CORS so a refused cabinet request still carries
+     Access-Control-Allow-Origin. Otherwise the pin form would
+     show a network failure instead of the address error. */
+  app.addHook('onRequest', async (request) => {
+    if (request.method === 'OPTIONS' || !isAdminApiUrl(request.url)) {
+      return
+    }
+
+    if (!isAdminAddressAllowed(request.ip, config.allowedAddresses, config.mode)) {
+      throw new AddressNotAllowedError()
+    }
   })
 }

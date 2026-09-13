@@ -3,6 +3,7 @@ import type {
   ILoginEventRecord,
   ILoginEventsRepository,
 } from './contracts.ts'
+import { resolveLoginLocation } from './location.ts'
 
 /**
  * Login events in process memory.
@@ -17,15 +18,21 @@ export class MemoryLoginEventsRepository implements ILoginEventsRepository {
   }
 
   create(input: ICreateLoginEventInput): Promise<ILoginEventRecord> {
+    const createdAt = new Date()
+    const resolved = resolveLoginLocation({
+      createdAt,
+      timeZone: input.timeZone,
+      city: input.city,
+      region: input.region,
+      country: input.country,
+      countryCode: input.countryCode,
+      location: input.location,
+    })
     const record: ILoginEventRecord = {
       id: crypto.randomUUID(),
-      createdAt: new Date(),
+      createdAt,
       userId: input.userId,
-      timeZone: input.timeZone ?? null,
-      city: input.city ?? null,
-      region: input.region ?? null,
-      country: input.country ?? null,
-      countryCode: input.countryCode ?? null,
+      ...resolved,
     }
 
     this.#records.unshift(record)

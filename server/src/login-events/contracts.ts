@@ -5,11 +5,10 @@
  * (`GET /v1/users/:id`), wallet unlock, and super-admin spectator
  * entry are not logins.
  * `user_id` is a text copy of `public.users.id`.
- * Location is optional: timezone from the browser, city/country
- * from IP geolocation in the browser at sign-in.
+ * Location is the `location` jsonb document only.
  */
 
-import type { ILoginLocationFields } from './location.ts'
+import type { ILoginLocationDocument, ILoginLocationFields } from './location.ts'
 
 export const LOGIN_EVENTS_STORE_KIND = {
   Memory: 'memory',
@@ -23,10 +22,12 @@ export interface ILoginEventRecord extends ILoginLocationFields {
   readonly id: string
   readonly createdAt: Date
   readonly userId: string
+  readonly location: ILoginLocationDocument
 }
 
 export interface ICreateLoginEventInput extends Partial<ILoginLocationFields> {
   readonly userId: string
+  readonly location?: unknown
 }
 
 export interface ILoginEventsRepository {

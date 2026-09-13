@@ -274,6 +274,11 @@ export function AdminPinForm({
                 <AlertDescription>That PIN is not accepted.</AlertDescription>
               </Alert>
             ) : null}
+            {error === 'address' ? (
+              <Alert variant="warning">
+                <AlertDescription>This IP address is not allowed.</AlertDescription>
+              </Alert>
+            ) : null}
             {error === 'unavailable' ? (
               <Alert variant="warning">
                 <AlertDescription>The admin service is unavailable.</AlertDescription>

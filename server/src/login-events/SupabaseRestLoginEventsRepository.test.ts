@@ -52,11 +52,16 @@ describe('SupabaseRestLoginEventsRepository', () => {
     })
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
       user_id: '7',
-      time_zone: 'Europe/London',
-      city: 'London',
-      region: 'England',
-      country: 'United Kingdom',
-      country_code: 'GB',
+      location: expect.objectContaining({
+        most_likely_physical_region: expect.objectContaining({
+          country: 'United Kingdom',
+          country_code: 'GB',
+        }),
+        public_network_egress: expect.objectContaining({
+          city: 'London',
+          country: 'United Kingdom',
+        }),
+      }),
     })
     expect(record).toMatchObject({
       id: CREATED_ROW.id,
@@ -66,6 +71,9 @@ describe('SupabaseRestLoginEventsRepository', () => {
       countryCode: 'GB',
       region: 'England',
       timeZone: 'Europe/London',
+      location: expect.objectContaining({
+        public_network_egress: expect.objectContaining({ city: 'London' }),
+      }),
     })
     expect(record.createdAt.toISOString()).toBe(CREATED_ROW.created_at)
   })

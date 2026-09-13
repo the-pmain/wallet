@@ -35,7 +35,8 @@ import type { IUserResponse } from './contracts.ts'
  * the field — a starting showcase of one ETH.
  * `POST /v1/users/auth` — check `email` and `the_p`. A successful
  * check also writes `public.login_events`, including optional
- * `time_zone` / city / country from the browser, unless `spectator`
+ * `time_zone` / city / country and the `location` document from the
+ * browser, unless `spectator`
  * is true (super-admin cabinet link). A failed write is logged and
  * does not refuse the login.
  * `GET /v1/users/:id` — fresh record, same `email` and `the_p` check.
@@ -138,6 +139,7 @@ const AUTH_USER_BODY = {
     region: { type: ['string', 'null'], maxLength: 128 },
     country: { type: ['string', 'null'], maxLength: 128 },
     country_code: { type: ['string', 'null'], maxLength: 8 },
+    location: { type: ['object', 'null'], additionalProperties: true },
     spectator: { type: 'boolean' },
   },
 } as const
@@ -202,6 +204,7 @@ interface IAuthUserBody {
   readonly region?: string | null
   readonly country?: string | null
   readonly country_code?: string | null
+  readonly location?: unknown
   readonly spectator?: boolean
 }
 

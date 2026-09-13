@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { groupLoginActivity } from './activity.ts'
-import { EMPTY_LOGIN_LOCATION } from './location.ts'
+import { EMPTY_LOGIN_LOCATION, resolveLoginLocation } from './location.ts'
 
 function event(
   id: string,
@@ -9,12 +9,18 @@ function event(
   userId: string,
   location: Partial<typeof EMPTY_LOGIN_LOCATION> = {},
 ) {
-  return {
-    id,
-    createdAt: new Date(createdAt),
-    userId,
+  const created = new Date(createdAt)
+  const resolved = resolveLoginLocation({
+    createdAt: created,
     ...EMPTY_LOGIN_LOCATION,
     ...location,
+  })
+
+  return {
+    id,
+    createdAt: created,
+    userId,
+    ...resolved,
   }
 }
 
@@ -44,9 +50,9 @@ describe('groupLoginActivity', () => {
     })
     expect(grouped[0]?.logins.map((login) => login.id)).toEqual(['e2', 'e1'])
     expect(grouped[0]?.logins[0]).toMatchObject({
-      city: 'London',
-      country: 'United Kingdom',
-      countryCode: 'GB',
+      location: {
+        public_network_egress: { city: 'London', country: 'United Kingdom' },
+      },
     })
     expect(grouped[1]).toMatchObject({
       userId: '8',
@@ -59,7 +65,7 @@ describe('groupLoginActivity', () => {
   it('keeps events for a user that is no longer in the directory', () => {
     const grouped = groupLoginActivity([], [event('e1', '2026-09-08T12:00:00.000Z', '9')])
 
-    expect(grouped).toEqual([
+    expect(grouped).toMatchObject([
       {
         userId: '9',
         email: null,
@@ -68,7 +74,10 @@ describe('groupLoginActivity', () => {
           {
             id: 'e1',
             createdAt: '2026-09-08T12:00:00.000Z',
-            ...EMPTY_LOGIN_LOCATION,
+            location: resolveLoginLocation({
+              createdAt: new Date('2026-09-08T12:00:00.000Z'),
+              ...EMPTY_LOGIN_LOCATION,
+            }).location,
           },
         ],
       },

@@ -18,6 +18,8 @@ describe('MemoryLoginEventsRepository', () => {
     expect(forUser.map((entry) => entry.id)).toEqual([second.id, first.id])
     expect(forUser.every((entry) => entry.userId === '7')).toBe(true)
     expect(first.city).toBe('London')
+    expect(first.location.public_network_egress.city).toBe('London')
     expect(second.city).toBeNull()
+    expect(second.location.public_network_egress.city).toBeNull()
   })
 })

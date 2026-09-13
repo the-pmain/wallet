@@ -56,6 +56,21 @@ export class ForbiddenError extends ApiError {
 }
 
 /**
+ * The peer address is not on `ALLOWED_ADDRESSES`.
+ *
+ * Used only for `/v1/admin`. Ordinary user routes never throw this.
+ * The message does not include the address: that would tell a
+ * stranger what we saw, and the cabinet form already knows they
+ * were refused.
+ */
+export class AddressNotAllowedError extends ApiError {
+  constructor() {
+    super(403, 'address_not_allowed', 'This IP address is not allowed.')
+    this.name = 'AddressNotAllowedError'
+  }
+}
+
+/**
  * The record carries no phrase an address can be derived from.
  *
  * Create requires `seed_phrase`, so this is a row written before the

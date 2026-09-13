@@ -9,6 +9,7 @@ const BASE_CONFIG: IServerConfig = {
   host: '127.0.0.1',
   port: 8080,
   allowedOrigins: [],
+  allowedAddresses: [],
   rateLimit: { max: 120, windowMs: 60_000 },
   maxBodyBytes: 65_536,
   catalogCacheSeconds: 300,

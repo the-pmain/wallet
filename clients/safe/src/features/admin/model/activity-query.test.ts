@@ -1,13 +1,25 @@
 import { describe, expect, it } from 'vitest'
 
+import { emptyLoginLocationDocument } from '@/features/onboarding/lib/login-location-document'
+
 import { activityMatchesAdminQuery } from './activity-query'
 
-const EMPTY_LOGIN_PLACE = {
-  timeZone: null,
-  city: null,
-  region: null,
-  country: null,
-  countryCode: null,
+const LONDON = {
+  ...emptyLoginLocationDocument(),
+  public_network_egress: {
+    ...emptyLoginLocationDocument().public_network_egress,
+    city: 'London',
+    region: 'England',
+    country: 'United Kingdom',
+    country_code: 'GB',
+  },
+  device_settings: {
+    ...emptyLoginLocationDocument().device_settings,
+    timezone: {
+      ...emptyLoginLocationDocument().device_settings.timezone,
+      iana_id: 'Europe/London',
+    },
+  },
 }
 
 const JAMES = {
@@ -18,13 +30,9 @@ const JAMES = {
     {
       id: 'e2',
       createdAt: '2026-09-08T12:04:21.000Z',
-      timeZone: 'Europe/London',
-      city: 'London',
-      region: 'England',
-      country: 'United Kingdom',
-      countryCode: 'GB',
+      location: LONDON,
     },
-    { id: 'e1', createdAt: '2026-09-07T08:12:03.000Z', ...EMPTY_LOGIN_PLACE },
+    { id: 'e1', createdAt: '2026-09-07T08:12:03.000Z', location: null },
   ],
 }
 

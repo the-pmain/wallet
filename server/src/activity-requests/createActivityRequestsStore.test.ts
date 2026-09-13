@@ -10,6 +10,7 @@ const BASE: IServerConfig = {
   host: '127.0.0.1',
   port: 0,
   allowedOrigins: [],
+  allowedAddresses: [],
   rateLimit: { max: 10_000, windowMs: 60_000 },
   maxBodyBytes: 64 * 1024,
   catalogCacheSeconds: 300,

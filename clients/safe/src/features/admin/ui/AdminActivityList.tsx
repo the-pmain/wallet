@@ -1,5 +1,5 @@
-import { History } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronDown, History } from 'lucide-react'
+import { useEffect, useId, useState } from 'react'
 import { Link } from 'react-router'
 
 import { cn } from '@/shared/lib/utils'
@@ -10,12 +10,14 @@ import { formatLoginLocation } from '../lib/format-login-location'
 import { AdminAuthError, type IAdminLogin, type IAdminUserActivity } from '../model/AdminClient'
 import { type IAdminPage } from '../model/admin-page'
 import { useAdminSession } from '../model/admin-context'
+import { loginHasRegisteredLocation } from '../model/activity-query'
 import {
   directoryListIsBusy,
   useAdminDirectoryQuery,
 } from '../model/use-admin-directory-query'
 import { AdminDirectoryListPending } from './AdminDirectoryListPending'
 import { AdminListPager } from './AdminListPager'
+import { LoginLocationDetails } from './LoginLocationDetails'
 import { UserAvatar } from './UserAvatar'
 
 export function AdminActivityList() {
@@ -178,18 +180,7 @@ function ActivityRow({ row }: { readonly row: IAdminUserActivity }) {
         </summary>
         <ol className="ml-10 flex flex-col gap-2 border-l px-4 pb-3">
           {row.logins.map((login, index) => (
-            <li
-              key={login.id}
-              className={cn('text-foreground', index === 0 ? 'text-base' : 'text-sm')}
-            >
-              <time dateTime={login.createdAt} className="tabular-nums">
-                {formatAdminTimestamp(login.createdAt)}
-              </time>
-              <LoginPlace login={login} className={index === 0 ? 'ml-2 text-sm' : 'ml-2 text-xs'} />
-              {index === 0 ? (
-                <span className="ml-2 text-xs text-muted-foreground">latest</span>
-              ) : null}
-            </li>
+            <LoginEventRow key={login.id} login={login} isLatest={index === 0} />
           ))}
         </ol>
       </details>
@@ -202,7 +193,7 @@ function LastLogin({ login }: { readonly login: IAdminLogin | undefined }) {
     return null
   }
 
-  const place = formatLoginLocation(login)
+  const place = formatLoginLocation(login.location)
 
   return (
     <span className="shrink-0 text-right">
@@ -221,18 +212,68 @@ function LastLogin({ login }: { readonly login: IAdminLogin | undefined }) {
   )
 }
 
-function LoginPlace({
+function LoginEventRow({
   login,
-  className,
+  isLatest,
 }: {
   readonly login: IAdminLogin
-  readonly className?: string
+  readonly isLatest: boolean
 }) {
-  const place = formatLoginLocation(login)
+  const [expanded, setExpanded] = useState(false)
+  const detailsId = useId()
+  const place = formatLoginLocation(login.location)
+  const registered = loginHasRegisteredLocation(login)
+  const summary = (
+    <>
+      <time dateTime={login.createdAt} className="tabular-nums">
+        {formatAdminTimestamp(login.createdAt)}
+      </time>
+      {place !== null ? (
+        <span className={cn('text-muted-foreground', isLatest ? 'ml-2 text-sm' : 'ml-2 text-xs')}>
+          {place}
+        </span>
+      ) : null}
+      {isLatest ? <span className="ml-2 text-xs text-muted-foreground">latest</span> : null}
+    </>
+  )
 
-  if (place === null) {
-    return null
+  if (!registered || login.location === null) {
+    return (
+      <li className={cn('text-foreground', isLatest ? 'text-base' : 'text-sm')}>{summary}</li>
+    )
   }
 
-  return <span className={cn('text-muted-foreground', className)}>{place}</span>
+  const label = [
+    formatAdminTimestamp(login.createdAt),
+    place,
+    isLatest ? 'latest' : null,
+    expanded ? 'hide location details' : 'show location details',
+  ]
+    .filter((part): part is string => part !== null)
+    .join(', ')
+
+  return (
+    <li className={cn('text-foreground', isLatest ? 'text-base' : 'text-sm')}>
+      <button
+        type="button"
+        className="focus-ring -mx-1 flex w-full cursor-pointer items-center gap-2 rounded-md px-1 py-0.5 text-left hover:bg-accent/70"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        aria-label={label}
+        onClick={() => {
+          setExpanded((current) => !current)
+        }}
+      >
+        <span className="min-w-0 flex-1">{summary}</span>
+        <ChevronDown
+          className={cn(
+            'size-3.5 shrink-0 text-muted-foreground transition-transform duration-200',
+            expanded && 'rotate-180',
+          )}
+          aria-hidden
+        />
+      </button>
+      {expanded ? <LoginLocationDetails detailsId={detailsId} location={login.location} /> : null}
+    </li>
+  )
 }

@@ -63,6 +63,54 @@ describe('AdminClient', () => {
                 region: 'England',
                 country: 'United Kingdom',
                 countryCode: 'GB',
+                location: {
+                  generated_at: '2026-09-08T12:04:21.000Z',
+                  confidence: 'region-level from browser at login',
+                  most_likely_physical_region: {
+                    country: 'United Kingdom',
+                    country_code: 'GB',
+                    windows_geo_id: null,
+                    windows_home_location: null,
+                    iana_timezone_equivalent: 'Europe/London',
+                    reason: 'Browser IANA timezone plus IP geolocation at login. Not GPS.',
+                  },
+                  device_settings: {
+                    timezone: {
+                      windows_id: null,
+                      display_name: null,
+                      base_utc_offset: null,
+                      supports_dst: null,
+                      observed_offset_in_this_session: null,
+                      iana_id: 'Europe/London',
+                    },
+                    locale: { culture: null, ui_culture: null, system_locale: null },
+                  },
+                  public_network_egress: {
+                    ip: '81.2.69.142',
+                    type: 'IPv4',
+                    city: 'London',
+                    region: 'England',
+                    region_code: null,
+                    country: 'United Kingdom',
+                    country_code: 'GB',
+                    continent: null,
+                    postal: null,
+                    latitude: null,
+                    longitude: null,
+                    timezone: { id: 'Europe/London', abbr: null, utc_offset: null },
+                    asn: null,
+                    org: null,
+                    isp: null,
+                    domain: null,
+                    interpretation: 'Browser IP geolocation at login.',
+                  },
+                  not_available: [
+                    'GPS / Wi-Fi / cell triangulation',
+                    'street address or postcode of the physical user',
+                    'indoor coordinates',
+                    'device location-services consent payload',
+                  ],
+                },
               },
               { id: 'e1', createdAt: '2026-09-07T08:12:03.000Z' },
             ],
@@ -87,13 +135,12 @@ describe('AdminClient', () => {
     })
     expect(activity[0]?.logins).toHaveLength(2)
     expect(activity[0]?.logins[0]).toMatchObject({
-      city: 'London',
-      country: 'United Kingdom',
-      countryCode: 'GB',
+      location: {
+        public_network_egress: { city: 'London', ip: '81.2.69.142' },
+      },
     })
     expect(activity[0]?.logins[1]).toMatchObject({
-      city: null,
-      country: null,
+      location: null,
     })
   })
 
@@ -549,6 +596,23 @@ describe('AdminClient', () => {
     })
 
     await expect(client.authenticate('0000')).rejects.toBeInstanceOf(AdminAuthError)
+  })
+
+  it('rejects an unallowed address', async () => {
+    const client = new AdminClient({
+      baseUrl: '',
+      fetch: vi.fn().mockResolvedValue(
+        jsonResponse(403, {
+          error: { code: 'address_not_allowed', message: 'This IP address is not allowed.' },
+        }),
+      ) as unknown as typeof fetch,
+    })
+
+    await expect(client.authenticate('9100')).rejects.toMatchObject({
+      name: 'AdminAuthError',
+      status: 403,
+      code: 'address_not_allowed',
+    })
   })
 
   it('changes a wallet value', async () => {

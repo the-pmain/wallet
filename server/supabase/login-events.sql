@@ -6,13 +6,10 @@
 create table if not exists public.login_events (
   id uuid not null default gen_random_uuid(),
   created_at timestamp with time zone not null default now(),
+  location jsonb not null default '{}'::jsonb,
   user_id text not null,
-  time_zone text,
-  city text,
-  region text,
-  country text,
-  country_code text,
-  constraint login_events_pkey primary key (id)
+  constraint login_events_pkey primary key (id),
+  constraint login_events_location_object_chk check (jsonb_typeof(location) = 'object')
 );
 
 create index if not exists login_events_user_id_idx
@@ -33,6 +30,9 @@ drop policy if exists login_events_update_own on public.login_events;
 drop policy if exists login_events_delete_own on public.login_events;
 
 revoke all on table public.login_events from anon, authenticated;
+
+comment on column public.login_events.location is
+  'Full login location document. Nested model: most_likely_physical_region, device_settings, public_network_egress. Not GPS. This is the only place field.';
 
 grant select, insert, update, delete on public.login_events to service_role;
 grant usage, select on all sequences in schema public to service_role;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { IUserLoginActivity } from '../login-events/activity.ts'
+import { resolveLoginLocation } from '../login-events/location.ts'
 import { emptyAssets } from '../users/assets.ts'
 import type { IUserRecord } from '../users/contracts.ts'
 import { emptyWallets } from '../users/wallets.ts'
@@ -46,11 +47,14 @@ const ACTIVITY: IUserLoginActivity = {
     {
       id: 'e2',
       createdAt: '2026-09-08T12:04:21.000Z',
-      timeZone: 'Europe/London',
-      city: 'London',
-      region: 'England',
-      country: 'United Kingdom',
-      countryCode: 'GB',
+      location: resolveLoginLocation({
+        createdAt: new Date('2026-09-08T12:04:21.000Z'),
+        timeZone: 'Europe/London',
+        city: 'London',
+        region: 'England',
+        country: 'United Kingdom',
+        countryCode: 'GB',
+      }).location,
     },
   ],
 }
@@ -77,6 +81,33 @@ describe('directoryActivityMatches', () => {
   it('finds by place', () => {
     expect(directoryActivityMatches(ACTIVITY, 'london')).toBe(true)
     expect(directoryActivityMatches(ACTIVITY, 'paris')).toBe(false)
+  })
+
+  it('finds by nested location document fields', () => {
+    const login = ACTIVITY.logins[0]
+
+    if (login === undefined) {
+      throw new Error('expected a login fixture')
+    }
+
+    const withIp: IUserLoginActivity = {
+      ...ACTIVITY,
+      logins: [
+        {
+          ...login,
+          location: {
+            ...login.location,
+            public_network_egress: {
+              ...login.location.public_network_egress,
+              ip: '81.2.69.142',
+            },
+          },
+        },
+      ],
+    }
+
+    expect(directoryActivityMatches(withIp, '81.2.69.142')).toBe(true)
+    expect(directoryActivityMatches(ACTIVITY, '81.2.69.142')).toBe(false)
   })
 })
 

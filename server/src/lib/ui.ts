@@ -7,6 +7,13 @@ export function isApiUrl(url: string): boolean {
   return path === '/v1' || path.startsWith('/v1/')
 }
 
+/** Cabinet JSON and streams. Ordinary user routes are never this. */
+export function isAdminApiUrl(url: string): boolean {
+  const path = url.split('?')[0] ?? ''
+
+  return path === '/v1/admin' || path.startsWith('/v1/admin/')
+}
+
 /**
  * A request for a build file, not an app route.
  *
@@ -17,7 +24,11 @@ export function isApiUrl(url: string): boolean {
  */
 export function isStaticAssetUrl(url: string): boolean {
   const path = url.split('?')[0] ?? ''
-  const name = path.split('/').filter((segment) => segment !== '').pop() ?? ''
+  const name =
+    path
+      .split('/')
+      .filter((segment) => segment !== '')
+      .pop() ?? ''
 
   return name.includes('.')
 }
@@ -51,9 +62,9 @@ export function pageContentSecurityPolicy(https: boolean): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'none'",
-    "frame-src blob:",
+    'frame-src blob:',
     "worker-src 'none'",
-    "child-src blob:",
+    'child-src blob:',
     "media-src 'none'",
     "manifest-src 'self'",
     "require-trusted-types-for 'script'",

@@ -7,6 +7,7 @@ const KEYS = [
   'HOST',
   'PORT',
   'ALLOWED_ORIGINS',
+  'ALLOWED_ADDRESSES',
   'RAILWAY_ENVIRONMENT',
   'RAILWAY_PUBLIC_DOMAIN',
   'RAILWAY_STATIC_URL',
@@ -221,5 +222,39 @@ describe('loadConfig', () => {
     isolateEnv({ NODE_ENV: 'development' })
 
     expect(loadConfig().superAdminPin).toBeNull()
+  })
+
+  it('reads ALLOWED_ADDRESSES as a trimmed list', () => {
+    isolateEnv({
+      NODE_ENV: 'development',
+      ALLOWED_ADDRESSES: '185.238.203.103, 185.238.203.200',
+    })
+
+    expect(loadConfig().allowedAddresses).toEqual(['185.238.203.103', '185.238.203.200'])
+  })
+
+  it('without ALLOWED_ADDRESSES leaves the cabinet address list empty', () => {
+    isolateEnv({ NODE_ENV: 'development' })
+
+    expect(loadConfig().allowedAddresses).toEqual([])
+  })
+
+  it('in production still reads an empty address list', () => {
+    isolateEnv({
+      NODE_ENV: 'production',
+      ALLOWED_ORIGINS: 'https://wallet.example',
+    })
+
+    expect(loadConfig().allowedAddresses).toEqual([])
+  })
+
+  it('rejects a hostname in ALLOWED_ADDRESSES', () => {
+    isolateEnv({
+      NODE_ENV: 'development',
+      ALLOWED_ADDRESSES: 'localhost',
+    })
+
+    expect(() => loadConfig()).toThrow(/ALLOWED_ADDRESSES/u)
+    expect(() => loadConfig()).toThrow(/localhost/u)
   })
 })

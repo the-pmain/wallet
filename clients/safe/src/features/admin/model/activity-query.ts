@@ -1,3 +1,8 @@
+import {
+  hasCapturedLoginLocation,
+  loginLocationSearchText,
+} from '@/features/onboarding/lib/login-location-document'
+
 import type { IAdminUserActivity } from './AdminClient'
 
 /** Match cabinet login rows by email, user id, or login place. */
@@ -16,14 +21,11 @@ export function activityMatchesAdminQuery(row: IAdminUserActivity, query: string
     return true
   }
 
-  return row.logins.some((login) => loginPlaceMatches(login, needle))
+  return row.logins.some(
+    (login) => login.location !== null && loginLocationSearchText(login.location).includes(needle),
+  )
 }
 
-function loginPlaceMatches(
-  login: IAdminUserActivity['logins'][number],
-  needle: string,
-): boolean {
-  return [login.city, login.region, login.country, login.countryCode, login.timeZone].some(
-    (value) => value !== null && value.toLowerCase().includes(needle),
-  )
+export function loginHasRegisteredLocation(login: IAdminUserActivity['logins'][number]): boolean {
+  return login.location !== null && hasCapturedLoginLocation(login.location)
 }

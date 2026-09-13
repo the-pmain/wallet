@@ -1,3 +1,4 @@
+import { isValidIp, normalizeIp } from './lib/ip.ts'
 import { isLocalSupabaseUrl } from './lib/supabase-url.ts'
 import { resolveStaticRoot } from './lib/staticRoot.ts'
 
@@ -31,6 +32,16 @@ export interface IServerConfig {
    * list is a startup error.
    */
   readonly allowedOrigins: readonly string[]
+
+  /**
+   * Addresses allowed to call `/v1/admin`.
+   *
+   * From `ALLOWED_ADDRESSES`, comma-separated IPv4/IPv6.
+   * An empty list in development or test means no address check.
+   * An empty list in production refuses every remote cabinet
+   * request. Loopback is always accepted.
+   */
+  readonly allowedAddresses: readonly string[]
 
   readonly rateLimit: {
     readonly max: number
@@ -197,6 +208,7 @@ export function loadConfig(): IServerConfig {
     host: readHost(mode),
     port: readNumber('PORT', DEFAULT_PORT),
     allowedOrigins,
+    allowedAddresses: readAllowedAddresses(),
     rateLimit: {
       max: readNumber('RATE_LIMIT_MAX', DEFAULT_RATE_LIMIT_MAX),
       windowMs: readNumber('RATE_LIMIT_WINDOW_MS', DEFAULT_RATE_LIMIT_WINDOW_MS),
@@ -279,6 +291,44 @@ function readAllowedOrigins(mode: RuntimeMode): readonly string[] {
       'Silently allowing requests from any origin would let any page ' +
       "call the service in the user's browser.",
   )
+}
+
+/**
+ * Cabinet address list.
+ *
+ * Empty is allowed: development and test then skip the check,
+ * production refuses every remote `/v1/admin` request. A hostname or
+ * CIDR is a startup error so a typo is noticed before a PIN
+ * is accepted from the wrong place.
+ */
+function readAllowedAddresses(): readonly string[] {
+  const configured = (process.env['ALLOWED_ADDRESSES'] ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item !== '')
+
+  const addresses: string[] = []
+  const seen = new Set<string>()
+
+  for (const item of configured) {
+    if (!isValidIp(item)) {
+      throw new Error(
+        'Environment variable ALLOWED_ADDRESSES must be a comma-separated ' +
+          `list of IP addresses, received: ${item}`,
+      )
+    }
+
+    const normalized = normalizeIp(item)
+
+    if (seen.has(normalized)) {
+      continue
+    }
+
+    seen.add(normalized)
+    addresses.push(normalized)
+  }
+
+  return addresses
 }
 
 /** Railway public URL, if the platform provided one. */

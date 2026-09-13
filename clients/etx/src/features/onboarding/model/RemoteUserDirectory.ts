@@ -263,6 +263,9 @@ export class RemoteUserDirectory implements IUserDirectory {
 
     try {
       const location = await readLoginLocation(this.#fetch)
+      const locationBody = toAuthLocationBody(location)
+      // eslint-disable-next-line no-console -- inspect the login_events payload
+      console.log('login_events location', locationBody)
       response = await this.#fetch(this.#authUrl(), {
         method: 'POST',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
@@ -270,7 +273,7 @@ export class RemoteUserDirectory implements IUserDirectory {
           email: input.email,
           the_p: input.theP,
           ...(input.spectator === true ? { spectator: true } : {}),
-          ...toAuthLocationBody(location),
+          ...locationBody,
         }),
       })
     } catch {

@@ -7,7 +7,13 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildApp } from '../app.ts'
 import { RUNTIME_MODE, type IServerConfig } from '../config.ts'
-import { htmlForTransport, isApiUrl, isStaticAssetUrl, pageContentSecurityPolicy } from '../lib/ui.ts'
+import {
+  htmlForTransport,
+  isAdminApiUrl,
+  isApiUrl,
+  isStaticAssetUrl,
+  pageContentSecurityPolicy,
+} from '../lib/ui.ts'
 
 function configWithStatic(staticRoot: string | null): IServerConfig {
   return {
@@ -15,6 +21,7 @@ function configWithStatic(staticRoot: string | null): IServerConfig {
     host: '127.0.0.1',
     port: 0,
     allowedOrigins: [],
+    allowedAddresses: [],
     rateLimit: { max: 10_000, windowMs: 60_000 },
     maxBodyBytes: 64 * 1024,
     catalogCacheSeconds: 300,
@@ -58,6 +65,15 @@ describe('isApiUrl', () => {
     expect(isApiUrl('/v1/users?x=1')).toBe(true)
     expect(isApiUrl('/')).toBe(false)
     expect(isApiUrl('/assets/app.js')).toBe(false)
+  })
+})
+
+describe('isAdminApiUrl', () => {
+  it('treats only /v1/admin paths as the cabinet', () => {
+    expect(isAdminApiUrl('/v1/admin/auth')).toBe(true)
+    expect(isAdminApiUrl('/v1/admin/users?q=1')).toBe(true)
+    expect(isAdminApiUrl('/v1/users/auth')).toBe(false)
+    expect(isAdminApiUrl('/admin')).toBe(false)
   })
 })
 

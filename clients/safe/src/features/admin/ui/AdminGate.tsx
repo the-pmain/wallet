@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet } from 'react-router'
 
-import { AdminAuthError, AdminClient } from '../model/AdminClient'
+import { AdminClient, adminUnlockError } from '../model/AdminClient'
 import { ADMIN_ROLE, type AdminRole } from '../model/admin-role'
 import { AdminSessionContext } from '../model/admin-context'
 import { readAdminName, writeAdminName } from '../model/admin-name'
@@ -102,9 +102,7 @@ export function AdminGate() {
         setRole(null)
         setOperatorName(null)
         setPin(null)
-        setError(
-          caught instanceof AdminAuthError && caught.status === 401 ? 'wrong' : 'unavailable',
-        )
+        setError(adminUnlockError(caught))
       })
       .finally(() => {
         if (!cancelled) {

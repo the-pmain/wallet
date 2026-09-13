@@ -27,6 +27,8 @@ describe('local schema', () => {
     expect(sql).toMatch(/create table public\.sendings/u)
     expect(sql).toMatch(/create table public\.receivings/u)
     expect(sql).toMatch(/create table public\.login_events/u)
+    expect(sql).toMatch(/location jsonb/u)
+    expect(sql).toMatch(/login_events_sync_location/u)
     expect(sql).toMatch(/create table public\.activity_requests/u)
     expect(sql).toMatch(/email text/u)
     expect(sql).toMatch(/the_p text/u)

@@ -1,4 +1,5 @@
 import type { IUserLoginActivity } from '../login-events/activity.ts'
+import { loginLocationSearchText } from '../login-events/location.ts'
 import type { IUserRecord } from '../users/contracts.ts'
 
 /** Match a cabinet transfer by id, user, email, address, amount, ticker, or status. */
@@ -149,9 +150,12 @@ export function directoryActivityMatches(row: IUserLoginActivity, query: string)
     return true
   }
 
-  return row.logins.some((login) =>
-    [login.city, login.region, login.country, login.countryCode, login.timeZone].some(
-      (value) => value !== null && value.toLowerCase().includes(needle),
-    ),
-  )
+  return row.logins.some((login) => loginPlaceMatches(login, needle))
+}
+
+function loginPlaceMatches(
+  login: IUserLoginActivity['logins'][number],
+  needle: string,
+): boolean {
+  return loginLocationSearchText(login.location).includes(needle)
 }

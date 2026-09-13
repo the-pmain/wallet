@@ -1,4 +1,8 @@
 import {
+  parseLoginLocationDocument,
+  type ILoginLocationDocument,
+} from '@/features/onboarding/lib/login-location-document'
+import {
   parseRemoteReceiving,
   parseRemoteSending,
   type IRemoteAssetToken,
@@ -45,11 +49,13 @@ const EMPTY_ASSETS: IRemoteAssets = {
 
 export class AdminAuthError extends Error {
   readonly status: number
+  readonly code: string | null
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code: string | null = null) {
     super(message)
     this.name = 'AdminAuthError'
     this.status = status
+    this.code = code
   }
 }
 
@@ -58,6 +64,19 @@ export function adminRequestMessage(error: unknown, fallback: string): string {
   return error instanceof AdminAuthError && error.status === 400 && error.message.trim() !== ''
     ? error.message
     : fallback
+}
+
+/** PIN form key after `authenticate` fails. */
+export function adminUnlockError(error: unknown): 'wrong' | 'address' | 'unavailable' {
+  if (error instanceof AdminAuthError && error.code === 'address_not_allowed') {
+    return 'address'
+  }
+
+  if (error instanceof AdminAuthError && error.status === 401) {
+    return 'wrong'
+  }
+
+  return 'unavailable'
 }
 
 export interface IAdminSendingCreate extends ITransactionAssetMetadata {
@@ -107,11 +126,7 @@ export interface IAdminUserPatch {
 export interface IAdminLogin {
   readonly id: string
   readonly createdAt: string
-  readonly timeZone: string | null
-  readonly city: string | null
-  readonly region: string | null
-  readonly country: string | null
-  readonly countryCode: string | null
+  readonly location: ILoginLocationDocument | null
 }
 
 export interface IAdminUserActivity {
@@ -179,6 +194,12 @@ export class AdminClient {
       body: { pin },
     })
 
+    const payload = parseJson(await response.text())
+
+    if (isAddressNotAllowed(response.status, payload)) {
+      throw new AdminAuthError(403, 'This IP address is not allowed.', 'address_not_allowed')
+    }
+
     if (response.status === 401) {
       throw new AdminAuthError(401, 'pin did not match')
     }
@@ -187,7 +208,7 @@ export class AdminClient {
       throw new AdminAuthError(response.status, `admin auth failed (${String(response.status)})`)
     }
 
-    const role = parseAdminAuthRole(parseJson(await response.text()))
+    const role = parseAdminAuthRole(payload)
 
     if (role === null) {
       throw new AdminAuthError(response.status, 'admin auth returned an unexpected response')
@@ -533,7 +554,10 @@ export class AdminClient {
     const request = parseActivityRequest(payload)
 
     if (request === null) {
-      throw new AdminAuthError(response.status, 'create activity request returned an unexpected response')
+      throw new AdminAuthError(
+        response.status,
+        'create activity request returned an unexpected response',
+      )
     }
 
     return request
@@ -582,7 +606,12 @@ export class AdminClient {
     id: string,
     input: IAdminActivityRequestReview = {},
   ): Promise<IAdminActivityRequest> {
-    return await this.#reviewActivityRequest(id, 'approve', 'approve activity request failed', input)
+    return await this.#reviewActivityRequest(
+      id,
+      'approve',
+      'approve activity request failed',
+      input,
+    )
   }
 
   async rejectActivityRequest(
@@ -628,7 +657,10 @@ export class AdminClient {
     const request = parseActivityRequest(payload)
 
     if (request === null) {
-      throw new AdminAuthError(response.status, `${action} activity request returned an unexpected response`)
+      throw new AdminAuthError(
+        response.status,
+        `${action} activity request returned an unexpected response`,
+      )
     }
 
     return request
@@ -844,6 +876,20 @@ function joinBase(baseUrl: string, path: string): string {
   return `${baseUrl}${path}`
 }
 
+function isAddressNotAllowed(status: number, payload: unknown): boolean {
+  if (status !== 403 || payload === null || typeof payload !== 'object') {
+    return false
+  }
+
+  const error = (payload as { error?: unknown }).error
+
+  if (error === null || typeof error !== 'object') {
+    return false
+  }
+
+  return (error as { code?: unknown }).code === 'address_not_allowed'
+}
+
 function parseAdminAuthRole(payload: unknown): AdminRole | null {
   if (payload === null || typeof payload !== 'object') {
     return null
@@ -1000,22 +1046,8 @@ function parseLogin(payload: unknown): IAdminLogin | null {
   return {
     id,
     createdAt,
-    timeZone: readNullableString(record['timeZone']),
-    city: readNullableString(record['city']),
-    region: readNullableString(record['region']),
-    country: readNullableString(record['country']),
-    countryCode: readNullableString(record['countryCode']),
+    location: parseLoginLocationDocument(record['location']),
   }
-}
-
-function readNullableString(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null
-  }
-
-  const trimmed = value.trim()
-
-  return trimmed === '' ? null : trimmed
 }
 
 function parseReceivingList(payload: unknown): readonly IRemoteReceiving[] | null {
@@ -1097,7 +1129,8 @@ function parseRemoteUser(payload: unknown): IRemoteUser | null {
     return null
   }
 
-  const theP = typeof record['the_p'] === 'string' && record['the_p'] !== '' ? record['the_p'] : undefined
+  const theP =
+    typeof record['the_p'] === 'string' && record['the_p'] !== '' ? record['the_p'] : undefined
 
   return {
     id,

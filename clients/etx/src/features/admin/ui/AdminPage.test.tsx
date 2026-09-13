@@ -67,11 +67,63 @@ const MARIA = {
 }
 
 const EMPTY_LOGIN_PLACE = {
-  timeZone: null,
-  city: null,
-  region: null,
-  country: null,
-  countryCode: null,
+  location: null,
+}
+
+const REGISTERED_LOGIN_LOCATION = {
+  generated_at: '2026-09-08T12:04:21.000Z',
+  confidence:
+    'region-level from browser at login; IANA timezone from Intl; city/region/country from IP geolocation; not GPS; IP may be VPN/datacenter',
+  most_likely_physical_region: {
+    country: 'United Kingdom',
+    country_code: 'GB',
+    windows_geo_id: 242,
+    windows_home_location: 'United Kingdom',
+    iana_timezone_equivalent: 'Europe/London',
+    reason:
+      'Windows home location is United Kingdom; timezone is GMT Standard Time (London); session offset is UTC+01:00, which matches BST on 8 Sep.',
+  },
+  device_settings: {
+    timezone: {
+      windows_id: 'GMT Standard Time',
+      display_name: '(UTC+00:00) Dublin, Edinburgh, Lisbon, London',
+      base_utc_offset: '+00:00',
+      supports_dst: true,
+      observed_offset_in_this_session: '+01:00',
+      iana_id: 'Europe/London',
+    },
+    locale: {
+      culture: 'en-US',
+      ui_culture: 'en-US',
+      system_locale: 'en-US',
+    },
+  },
+  public_network_egress: {
+    ip: '81.2.69.142',
+    type: 'IPv4',
+    city: 'London',
+    region: 'England',
+    region_code: 'ENG',
+    country: 'United Kingdom',
+    country_code: 'GB',
+    continent: 'Europe',
+    postal: null,
+    latitude: 51.5074,
+    longitude: -0.1278,
+    timezone: { id: 'Europe/London', abbr: 'BST', utc_offset: '+01:00' },
+    asn: 2856,
+    org: 'BT',
+    isp: 'BT',
+    domain: null,
+    interpretation:
+      'Browser IP geolocation at login. May be VPN/datacenter egress, not the physical home address.',
+  },
+  not_available: [
+    'GPS / Wi-Fi / cell triangulation',
+    'street address or postcode of the physical user',
+    'indoor coordinates',
+    'device location-services consent payload',
+  ],
 }
 
 const LOGIN_ACTIVITY = {
@@ -84,11 +136,7 @@ const LOGIN_ACTIVITY = {
         {
           id: 'e2',
           createdAt: '2026-09-08T12:04:21.000Z',
-          timeZone: 'Europe/London',
-          city: 'London',
-          region: 'England',
-          country: 'United Kingdom',
-          countryCode: 'GB',
+          location: REGISTERED_LOGIN_LOCATION,
         },
         { id: 'e1', createdAt: '2026-09-07T08:12:03.000Z', ...EMPTY_LOGIN_PLACE },
       ],
@@ -145,9 +193,7 @@ const PENDING_ACTIVITY_REQUEST = {
   assetIsVerified: true,
 } as const
 
-function activityRequestFrame(
-  overrides: Record<string, unknown> = {},
-): Record<string, unknown> {
+function activityRequestFrame(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const userId = String(overrides['userId'] ?? PENDING_ACTIVITY_REQUEST.userId)
 
   return {
@@ -265,9 +311,8 @@ function applyActivityRequestAction(
   action: 'approve' | 'reject' | 'cancel',
   body: Record<string, unknown>,
 ): Record<string, unknown> | undefined {
-  const current = listedActivityRequests.find(
-    (item) => (item as { id?: string }).id === id,
-  ) as Record<string, unknown> | undefined
+  const current = listedActivityRequests.find((item) => (item as { id?: string }).id === id) as
+    Record<string, unknown> | undefined
 
   if (current === undefined) {
     return undefined
@@ -301,9 +346,8 @@ function applyActivityRequestPatch(
   id: string,
   body: Record<string, unknown>,
 ): Record<string, unknown> | undefined {
-  const current = listedActivityRequests.find(
-    (item) => (item as { id?: string }).id === id,
-  ) as Record<string, unknown> | undefined
+  const current = listedActivityRequests.find((item) => (item as { id?: string }).id === id) as
+    Record<string, unknown> | undefined
 
   if (current === undefined) {
     return undefined
@@ -446,8 +490,7 @@ function serveDirectoryGet(url: string): Response | null {
       directoryPage(
         source.map((item) => withUserEmail(item as Record<string, unknown>)),
         url,
-        (item, query) =>
-          JSON.stringify(item).toLowerCase().includes(query.trim().toLowerCase()),
+        (item, query) => JSON.stringify(item).toLowerCase().includes(query.trim().toLowerCase()),
       ),
     )
   }
@@ -850,6 +893,31 @@ describe('Admin cabinet', () => {
     expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
   })
 
+  it('does not admit a PIN from an unallowed address', async () => {
+    fetchSpy.mockImplementation((input) => {
+      const url = requestUrl(input)
+
+      if (url.endsWith('/v1/admin/auth')) {
+        return Promise.resolve(
+          jsonResponse(403, {
+            error: { code: 'address_not_allowed', message: 'This IP address is not allowed.' },
+          }),
+        )
+      }
+
+      return Promise.resolve(jsonResponse(500, {}))
+    })
+
+    const user = userEvent.setup()
+    renderAdmin()
+
+    await user.click(await screen.findByRole('button', { name: 'Super Admin' }))
+    await user.type(screen.getByLabelText('PIN'), '9100')
+
+    expect(await screen.findByText('This IP address is not allowed.')).toBeInTheDocument()
+    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+  })
+
   it('does not accept an admin PIN until a name is entered', async () => {
     renderAdmin()
 
@@ -1036,6 +1104,32 @@ describe('Admin cabinet', () => {
     expect(document.querySelector('time[datetime="2026-09-08T12:04:21.000Z"]')).not.toBeNull()
     expect(document.querySelector('time[datetime="2026-09-07T08:12:03.000Z"]')).not.toBeNull()
     expect(screen.getAllByText('London, United Kingdom').length).toBeGreaterThan(0)
+
+    const locationToggle = screen.getByRole('button', { name: /show location details/i })
+    expect(locationToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('81.2.69.142')).not.toBeInTheDocument()
+
+    await user.click(locationToggle)
+    expect(locationToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('table', { name: 'Login location' })).toBeInTheDocument()
+    expect(screen.getByText('81.2.69.142')).toBeInTheDocument()
+    expect(screen.getAllByText('Europe/London').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('en-US').length).toBeGreaterThanOrEqual(3)
+    expect(
+      screen.getByRole('columnheader', { name: 'Most likely physical region' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Device timezone' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Device locale' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('columnheader', { name: 'Public network egress' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Not available' })).toBeInTheDocument()
+    expect(screen.getByText('GMT Standard Time')).toBeInTheDocument()
+    expect(screen.getByText('242')).toBeInTheDocument()
+    expect(screen.getByRole('rowheader', { name: 'Windows Geo ID' })).toBeInTheDocument()
+    expect(screen.getByRole('rowheader', { name: 'Postal' })).toBeInTheDocument()
+    expect(screen.getByText('GPS / Wi-Fi / cell triangulation')).toBeInTheDocument()
+    expect(screen.getByText('Yes')).toBeInTheDocument()
   })
 
   it('a read PIN opens Sendings as a view-only list', async () => {
@@ -1483,7 +1577,9 @@ describe('Admin cabinet', () => {
     await user.click(await screen.findByRole('button', { name: 'Add sending' }))
     await user.click(screen.getByLabelText('Sending asset'))
     expect(screen.getByRole('option', { name: 'Select ETH on Ethereum' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'Select USDC on Ethereum' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: 'Select USDC on Ethereum' }),
+    ).not.toBeInTheDocument()
     await user.keyboard('{Escape}')
 
     await user.type(screen.getByLabelText('Sending amount'), '3')
@@ -1553,7 +1649,9 @@ describe('Admin cabinet', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Submit request' }))
 
-    expect(await screen.findByText('Request submitted. Super Admin will review it.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Request submitted. Super Admin will review it.'),
+    ).toBeInTheDocument()
     expect(screen.getByText('No sendings yet')).toBeInTheDocument()
 
     const posts = fetchSpy.mock.calls
@@ -1609,7 +1707,9 @@ describe('Admin cabinet', () => {
     expect(
       fetchSpy.mock.calls.some((call) => {
         const url = requestUrl(call[0] as RequestInfo | URL)
-        return (call[1]?.method ?? 'GET') === 'PATCH' && url.endsWith('/v1/admin/activity-requests/ar-1')
+        return (
+          (call[1]?.method ?? 'GET') === 'PATCH' && url.endsWith('/v1/admin/activity-requests/ar-1')
+        )
       }),
     ).toBe(true)
   })
@@ -1629,7 +1729,9 @@ describe('Admin cabinet', () => {
     expect(screen.queryByRole('link', { name: 'Requests' })).not.toBeInTheDocument()
     expect(screen.getByRole('listitem')).toHaveTextContent('Alex')
     expect(screen.queryByText('Maria')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Change sending request from Alex' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Change sending request from Alex' }),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
 
     const user = userEvent.setup()
@@ -1637,7 +1739,7 @@ describe('Admin cabinet', () => {
     expect(await screen.findByRole('button', { name: 'Send for approval' })).toBeInTheDocument()
   })
 
-  it('lists this user\'s requests for the signed-in admin on the profile Requests tab', async () => {
+  it("lists this user's requests for the signed-in admin on the profile Requests tab", async () => {
     listedActivityRequests = [
       PENDING_ACTIVITY_REQUEST,
       { ...PENDING_ACTIVITY_REQUEST, id: 'ar-maria', requestedByName: 'Maria' },
@@ -1649,18 +1751,23 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'My requests' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'My requests' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
     expect(await screen.findByRole('heading', { name: 'Requests' })).toBeInTheDocument()
     expect(screen.getByText(/1 request for this user in your name/u)).toBeInTheDocument()
     expect(screen.getByRole('listitem')).toHaveTextContent('Alex')
     expect(screen.queryByText('Maria')).not.toBeInTheDocument()
     expect(screen.queryByText('maria@example.com')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Change sending request from Alex' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Change sending request from Alex' }),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
     expect(window.location.search).toContain('tab=requests')
   })
 
-  it('lists every admin\'s requests for this user when Super opens the profile Requests tab', async () => {
+  it("lists every admin's requests for this user when Super opens the profile Requests tab", async () => {
     listedActivityRequests = [
       PENDING_ACTIVITY_REQUEST,
       { ...PENDING_ACTIVITY_REQUEST, id: 'ar-maria', requestedByName: 'Maria' },
@@ -1677,8 +1784,12 @@ describe('Admin cabinet', () => {
     expect(screen.getByText('Alex')).toBeInTheDocument()
     expect(screen.getByText('Maria')).toBeInTheDocument()
     expect(screen.queryByText('maria@example.com')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Handle sending request from Alex' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Handle sending request from Maria' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Handle sending request from Alex' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Handle sending request from Maria' }),
+    ).toBeInTheDocument()
   })
 
   it('lets a regular admin change an approved request so Super Admin can review it', async () => {
@@ -1702,7 +1813,9 @@ describe('Admin cabinet', () => {
     openPath('/admin/requests')
     renderAdmin()
 
-    expect(await screen.findByRole('button', { name: 'Change receiving request from Alex' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Change receiving request from Alex' }),
+    ).toBeInTheDocument()
     expect(screen.getByText(/^approved$/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
 
@@ -1720,7 +1833,10 @@ describe('Admin cabinet', () => {
       expect(
         fetchSpy.mock.calls.some((call) => {
           const url = requestUrl(call[0] as RequestInfo | URL)
-          return (call[1]?.method ?? 'GET') === 'PATCH' && url.endsWith('/v1/admin/activity-requests/ar-approved')
+          return (
+            (call[1]?.method ?? 'GET') === 'PATCH' &&
+            url.endsWith('/v1/admin/activity-requests/ar-approved')
+          )
         }),
       ).toBe(true)
     })
@@ -1736,7 +1852,9 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: 'Requests' }))
-    expect(await screen.findByRole('button', { name: 'Handle sending request from Alex' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Handle sending request from Alex' }),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cancel request' })).not.toBeInTheDocument()
 
@@ -2460,7 +2578,9 @@ describe('Admin cabinet', () => {
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
     expect(await screen.findByRole('alert')).toHaveTextContent('Pending sending request')
     expect(screen.getByRole('alert')).toHaveTextContent('0.01 ETH')
-    expect(screen.getByRole('button', { name: 'Handle Pending sending request 0.01 ETH' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Handle Pending sending request 0.01 ETH' }),
+    ).toBeInTheDocument()
   })
 
   it('does not toast a pending sending as an activity request', async () => {
@@ -2561,7 +2681,9 @@ describe('Admin cabinet', () => {
     )
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Awaiting receiving request')
-    expect(screen.getByRole('button', { name: 'Handle Awaiting receiving request 0.01 ETH' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Handle Awaiting receiving request 0.01 ETH' }),
+    ).toBeInTheDocument()
 
     source.emit(
       'activity-requests',

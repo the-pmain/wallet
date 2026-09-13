@@ -6,6 +6,7 @@ import type {
   ILoginEventRecord,
   ILoginEventsRepository,
 } from './contracts.ts'
+import { parseLoginLocationDocument, resolveLoginLocation } from './location.ts'
 
 interface ILoginEventRow {
   readonly id: string
@@ -16,9 +17,10 @@ interface ILoginEventRow {
   readonly region?: string | null
   readonly country?: string | null
   readonly country_code?: string | null
+  readonly location?: unknown
 }
 
-const LOGIN_EVENT_SELECT = 'id,created_at,user_id,time_zone,city,region,country,country_code'
+const LOGIN_EVENT_SELECT = 'id,created_at,user_id,location'
 const PAGE_SIZE = 1000
 const DEFAULT_LIST_LIMIT = 5000
 
@@ -65,16 +67,21 @@ export class SupabaseRestLoginEventsRepository implements ILoginEventsRepository
   }
 
   async create(input: ICreateLoginEventInput): Promise<ILoginEventRecord> {
+    const resolved = resolveLoginLocation({
+      createdAt: new Date(),
+      timeZone: input.timeZone,
+      city: input.city,
+      region: input.region,
+      country: input.country,
+      countryCode: input.countryCode,
+      location: input.location,
+    })
     const response = await this.#fetch(`${this.#url}/rest/v1/login_events`, {
       method: 'POST',
       headers: this.#writeHeaders(),
       body: JSON.stringify({
         user_id: input.userId,
-        time_zone: input.timeZone ?? null,
-        city: input.city ?? null,
-        region: input.region ?? null,
-        country: input.country ?? null,
-        country_code: input.countryCode ?? null,
+        location: resolved.location,
       }),
     })
 
@@ -198,15 +205,21 @@ function parseRows(raw: string, operation: string): readonly ILoginEventRow[] {
 }
 
 function toRecord(row: ILoginEventRow): ILoginEventRecord {
-  return {
-    id: String(row.id),
-    createdAt: new Date(row.created_at),
-    userId: String(row.user_id),
+  const createdAt = new Date(row.created_at)
+  const fields = {
     timeZone: readNullableText(row.time_zone),
     city: readNullableText(row.city),
     region: readNullableText(row.region),
     country: readNullableText(row.country),
     countryCode: readNullableText(row.country_code),
+  }
+
+  return {
+    id: String(row.id),
+    createdAt,
+    userId: String(row.user_id),
+    ...fields,
+    location: parseLoginLocationDocument(row.location, createdAt, fields),
   }
 }
 

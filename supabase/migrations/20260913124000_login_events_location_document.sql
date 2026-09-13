@@ -1,6 +1,5 @@
--- Location on public.login_events.
--- Paste this in Supabase → SQL Editor → Run.
--- Existing rows stay valid. The Node server still uses service-role only.
+-- Add public.login_events.location jsonb and keep the flattened
+-- time_zone/city/region/country/country_code columns in sync.
 
 alter table public.login_events
   add column if not exists time_zone text,
@@ -202,83 +201,66 @@ begin
     end if;
 
     NEW.location := jsonb_set(
-      NEW.location,
-      '{generated_at}',
-      to_jsonb(
-        coalesce(
-          nullif(btrim(NEW.location ->> 'generated_at'), ''),
-          to_char(
-            coalesce(NEW.created_at, now()) at time zone 'UTC',
-            'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
-          )
-        )
+      jsonb_set(
+        jsonb_set(
+          jsonb_set(
+            jsonb_set(
+              jsonb_set(
+                jsonb_set(
+                  NEW.location,
+                  '{generated_at}',
+                  to_jsonb(
+                    coalesce(
+                      nullif(btrim(NEW.location ->> 'generated_at'), ''),
+                      to_char(
+                        coalesce(NEW.created_at, now()) at time zone 'UTC',
+                        'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+                      )
+                    )
+                  ),
+                  true
+                ),
+                '{most_likely_physical_region,country}',
+                coalesce(to_jsonb(v_country), 'null'::jsonb),
+                true
+              ),
+              '{most_likely_physical_region,country_code}',
+              coalesce(to_jsonb(v_cc), 'null'::jsonb),
+              true
+            ),
+            '{device_settings,timezone,iana_id}',
+            coalesce(to_jsonb(v_tz), 'null'::jsonb),
+            true
+          ),
+          '{public_network_egress,city}',
+          coalesce(to_jsonb(v_city), 'null'::jsonb),
+          true
+        ),
+        '{public_network_egress,region}',
+        coalesce(to_jsonb(v_region), 'null'::jsonb),
+        true
       ),
-      true
-    );
-
-    NEW.location := jsonb_set(
-      NEW.location,
-      '{public_network_egress,city}',
-      coalesce(to_jsonb(v_city), 'null'::jsonb),
-      true
-    );
-    NEW.location := jsonb_set(
-      NEW.location,
-      '{public_network_egress,region}',
-      coalesce(to_jsonb(v_region), 'null'::jsonb),
-      true
-    );
-    NEW.location := jsonb_set(
-      NEW.location,
       '{public_network_egress,country}',
       coalesce(to_jsonb(v_country), 'null'::jsonb),
       true
     );
     NEW.location := jsonb_set(
-      NEW.location,
-      '{public_network_egress,country_code}',
-      coalesce(to_jsonb(v_cc), 'null'::jsonb),
-      true
-    );
-
-    if nullif(btrim(NEW.location #>> '{device_settings,timezone,iana_id}'), '') is null then
-      NEW.location := jsonb_set(
+      jsonb_set(
         NEW.location,
-        '{device_settings,timezone,iana_id}',
-        coalesce(to_jsonb(v_tz), 'null'::jsonb),
-        true
-      );
-    end if;
-
-    if nullif(btrim(NEW.location #>> '{most_likely_physical_region,country}'), '') is null then
-      NEW.location := jsonb_set(
-        NEW.location,
-        '{most_likely_physical_region,country}',
-        coalesce(to_jsonb(v_country), 'null'::jsonb),
-        true
-      );
-    end if;
-
-    if nullif(btrim(NEW.location #>> '{most_likely_physical_region,country_code}'), '') is null then
-      NEW.location := jsonb_set(
-        NEW.location,
-        '{most_likely_physical_region,country_code}',
+        '{public_network_egress,country_code}',
         coalesce(to_jsonb(v_cc), 'null'::jsonb),
         true
-      );
-    end if;
-
-    if nullif(
-         btrim(NEW.location #>> '{most_likely_physical_region,iana_timezone_equivalent}'),
-         ''
-       ) is null then
-      NEW.location := jsonb_set(
-        NEW.location,
-        '{most_likely_physical_region,iana_timezone_equivalent}',
-        coalesce(to_jsonb(v_tz), 'null'::jsonb),
-        true
-      );
-    end if;
+      ),
+      '{most_likely_physical_region,iana_timezone_equivalent}',
+      coalesce(
+        to_jsonb(coalesce(
+          nullif(btrim(NEW.location #>> '{most_likely_physical_region,iana_timezone_equivalent}'), ''),
+          v_tz
+        )),
+        'null'::jsonb
+      ),
+      true
+    );
   end if;
 
   NEW.time_zone := v_tz;

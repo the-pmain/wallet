@@ -16,6 +16,7 @@ const CONFIG: IServerConfig = {
   host: '127.0.0.1',
   port: 0,
   allowedOrigins: [],
+  allowedAddresses: [],
   rateLimit: { max: 10_000, windowMs: 60_000 },
   maxBodyBytes: 64 * 1024,
   catalogCacheSeconds: 300,
@@ -33,8 +34,8 @@ const CONFIG: IServerConfig = {
   r2Endpoint: null,
   r2Bucket: null,
   emailWebhookSecret: 'webhook-secret',
-    adminPin: null,
-    superAdminPin: null,
+  adminPin: null,
+  superAdminPin: null,
 }
 
 const SYNC_ID = 'a'.repeat(64)
@@ -337,7 +338,12 @@ describe('Users', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', balance: '0', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: {
+        email: 'james@example.com',
+        balance: '0',
+        the_p: 'demo',
+        seed_phrase: SEED_PHRASE,
+      },
     })
 
     expect(response.statusCode).toBe(201)
@@ -486,7 +492,7 @@ describe('Users', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'maria@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'maria@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
 
     expect(response.statusCode).toBe(201)
@@ -521,7 +527,7 @@ describe('Users', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
 
     expect(response.headers['cache-control']).toBe('no-store')
@@ -537,7 +543,7 @@ describe('Users', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email, the_p: '123456', seed_phrase: SEED_PHRASE},
+      payload: { email, the_p: '123456', seed_phrase: SEED_PHRASE },
     })
 
     expect(response.statusCode).toBe(201)
@@ -602,7 +608,12 @@ describe('Users', () => {
     await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', balance: '12.5', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: {
+        email: 'james@example.com',
+        balance: '12.5',
+        the_p: 'demo',
+        seed_phrase: SEED_PHRASE,
+      },
     })
 
     const response = await app.inject({
@@ -628,7 +639,7 @@ describe('Users', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
@@ -664,7 +675,10 @@ describe('Users', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.headers['cache-control']).toBe('no-store')
-    expect(response.json<{ assets: { tokens: { balance: string; symbol: string }[] } }>().assets.tokens[0]).toMatchObject({
+    expect(
+      response.json<{ assets: { tokens: { balance: string; symbol: string }[] } }>().assets
+        .tokens[0],
+    ).toMatchObject({
       symbol: 'ETH',
       balance: '832117000000000000',
     })
@@ -675,7 +689,7 @@ describe('Users', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
@@ -696,7 +710,7 @@ describe('Users', () => {
     await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
 
     const response = await app.inject({
@@ -739,8 +753,9 @@ describe('Users', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    expect(response.json<{ wallets: Record<string, { key: string; value: string }> }>().wallets)
-      .toEqual({ 'address-receiving-funds': { key: PHRASE_ADDRESS_AT_0, value: '0' } })
+    expect(
+      response.json<{ wallets: Record<string, { key: string; value: string }> }>().wallets,
+    ).toEqual({ 'address-receiving-funds': { key: PHRASE_ADDRESS_AT_0, value: '0' } })
     expect(response.json<{ the_p?: unknown }>()).not.toHaveProperty('the_p')
   })
 
@@ -864,7 +879,7 @@ describe('Users', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
@@ -901,14 +916,14 @@ describe('Users', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
     const other = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'other@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'other@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const otherId = other.json<{ id: string }>().id
 
@@ -946,7 +961,9 @@ describe('Users', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.headers['cache-control']).toBe('no-store')
-    expect(response.json<{ sendings: { userId: string; amount: string; symbol: string }[] }>().sendings).toEqual([
+    expect(
+      response.json<{ sendings: { userId: string; amount: string; symbol: string }[] }>().sendings,
+    ).toEqual([
       expect.objectContaining({
         userId,
         amount: '1',
@@ -959,7 +976,7 @@ describe('Users', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
@@ -979,7 +996,7 @@ describe('Users', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
@@ -1005,7 +1022,7 @@ describe('Users', () => {
     await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
 
     const response = await app.inject({
@@ -1029,7 +1046,7 @@ describe('Users', () => {
     await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
 
     const response = await app.inject({
@@ -1054,7 +1071,7 @@ describe('Users', () => {
     await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
 
     const response = await app.inject({
@@ -1079,7 +1096,7 @@ describe('Users', () => {
     await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
 
     const response = await app.inject({
@@ -1104,7 +1121,7 @@ describe('Users', () => {
     await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
 
     const response = await app.inject({
@@ -1127,7 +1144,7 @@ describe('Users', () => {
     await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
 
     const response = await app.inject({
@@ -1149,7 +1166,7 @@ describe('Users', () => {
     await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
 
     const response = await app.inject({
@@ -1393,7 +1410,7 @@ describe('Admin cabinet', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
@@ -1417,7 +1434,9 @@ describe('Admin cabinet', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    expect(response.json<{ sendings: { symbol: string; amount: string }[] }>().sendings[0]).toMatchObject({
+    expect(
+      response.json<{ sendings: { symbol: string; amount: string }[] }>().sendings[0],
+    ).toMatchObject({
       amount: '4',
       symbol: 'ETH',
       recipientAddress: recipient,
@@ -1430,7 +1449,7 @@ describe('Admin cabinet', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
@@ -1499,7 +1518,7 @@ describe('Admin cabinet', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
@@ -1579,7 +1598,7 @@ describe('Admin cabinet', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
@@ -1799,7 +1818,7 @@ describe('Admin cabinet', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/users',
-      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE},
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
     })
     const userId = created.json<{ id: string }>().id
 
@@ -1934,11 +1953,9 @@ describe('Admin cabinet', () => {
     })
     expect(activity?.logins).toHaveLength(2)
     expect(activity?.logins[0]).toMatchObject({
-      city: null,
-      country: null,
-      countryCode: null,
-      region: null,
-      timeZone: null,
+      location: expect.objectContaining({
+        public_network_egress: expect.objectContaining({ city: null }),
+      }),
     })
     expect(asSuper.json()).toEqual(asAdmin.json())
     expect(asAdmin.headers['cache-control']).toBe('no-store')
@@ -2016,19 +2033,296 @@ describe('Admin cabinet', () => {
     expect(signedIn.statusCode).toBe(200)
     expect(
       asAdmin.json<{
-        users: { userId: string; logins: { city: string; country: string; countryCode: string }[] }[]
+        users: {
+          userId: string
+          logins: {
+            city: string
+            country: string
+            countryCode: string
+            location: { public_network_egress: { city: string; ip: string | null } }
+          }[]
+        }[]
       }>().users[0],
     ).toMatchObject({
       userId,
       logins: [
         {
-          city: 'London',
-          region: 'England',
-          country: 'United Kingdom',
-          countryCode: 'GB',
-          timeZone: 'Europe/London',
+          location: {
+            public_network_egress: {
+              city: 'London',
+              country: 'United Kingdom',
+              country_code: 'GB',
+            },
+          },
         },
       ],
+    })
+  })
+
+  it('stores a full location document on a successful login', async () => {
+    const userId = await seedUser()
+
+    const signedIn = await app.inject({
+      method: 'POST',
+      url: '/v1/users/auth',
+      payload: {
+        email: 'james@example.com',
+        the_p: 'demo',
+        time_zone: 'Europe/Brussels',
+        city: 'Roeselare',
+        region: 'West Flanders',
+        country: 'Belgium',
+        country_code: 'BE',
+        location: {
+          generated_at: '2026-09-13T08:43:35.000Z',
+          confidence: 'region-level from browser at login',
+          most_likely_physical_region: {
+            country: 'Belgium',
+            country_code: 'BE',
+            windows_geo_id: null,
+            windows_home_location: null,
+            iana_timezone_equivalent: 'Europe/Brussels',
+            reason: 'Browser IANA timezone plus IP geolocation at login. Not GPS.',
+          },
+          device_settings: {
+            timezone: {
+              windows_id: null,
+              display_name: null,
+              base_utc_offset: null,
+              supports_dst: null,
+              observed_offset_in_this_session: '+02:00',
+              iana_id: 'Europe/Brussels',
+            },
+            locale: { culture: 'en-US', ui_culture: 'en-US', system_locale: 'en-US' },
+          },
+          public_network_egress: {
+            ip: '81.2.69.142',
+            type: 'IPv4',
+            city: 'Roeselare',
+            region: 'West Flanders',
+            region_code: 'VWV',
+            country: 'Belgium',
+            country_code: 'BE',
+            continent: 'Europe',
+            postal: null,
+            latitude: 50.93,
+            longitude: 3.13,
+            timezone: { id: 'Europe/Brussels', abbr: 'CEST', utc_offset: '+02:00' },
+            asn: 5432,
+            org: 'Proximus',
+            isp: 'Proximus',
+            domain: 'proximus.be',
+            interpretation: 'Browser IP geolocation at login.',
+          },
+          not_available: [
+            'GPS / Wi-Fi / cell triangulation',
+            'street address or postcode of the physical user',
+            'indoor coordinates',
+            'device location-services consent payload',
+          ],
+        },
+      },
+    })
+    const asAdmin = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/login-events',
+      headers: { 'x-admin-pin': '4200' },
+    })
+
+    expect(signedIn.statusCode).toBe(200)
+    expect(
+      asAdmin.json<{
+        users: {
+          userId: string
+          logins: {
+            location: {
+              public_network_egress: { ip: string; city: string }
+              device_settings: { locale: { culture: string } }
+            }
+          }[]
+        }[]
+      }>().users[0],
+    ).toMatchObject({
+      userId,
+      logins: [
+        {
+          location: {
+            public_network_egress: {
+              ip: '81.2.69.142',
+              city: 'Roeselare',
+              latitude: 50.93,
+            },
+            device_settings: {
+              locale: { culture: 'en-US' },
+              timezone: { observed_offset_in_this_session: '+02:00' },
+            },
+          },
+        },
+      ],
+    })
+  })
+
+  describe('address allow-list', () => {
+    const allowed = '185.238.203.103'
+    let restricted: FastifyInstance
+    let restrictedUsers: MemoryUsersRepository
+
+    beforeEach(async () => {
+      restrictedUsers = new MemoryUsersRepository()
+      restricted = await buildApp({
+        config: { ...CONFIG, allowedAddresses: [allowed, '185.238.203.200'] },
+        settings,
+        users: restrictedUsers,
+        sendings,
+      })
+    })
+
+    afterEach(async () => {
+      await restricted.close()
+    })
+
+    it('refuses admin auth from an unallowed address with a specific error', async () => {
+      const response = await restricted.inject({
+        method: 'POST',
+        url: '/v1/admin/auth',
+        remoteAddress: '8.8.8.8',
+        payload: { pin: '9100' },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(response.json()).toEqual({
+        error: { code: 'address_not_allowed', message: 'This IP address is not allowed.' },
+      })
+    })
+
+    it('accepts admin auth from loopback', async () => {
+      const response = await restricted.inject({
+        method: 'POST',
+        url: '/v1/admin/auth',
+        remoteAddress: '127.0.0.1',
+        payload: { pin: '9100' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ ok: true, role: 'super' })
+    })
+
+    it('accepts admin auth from an allowed address', async () => {
+      const response = await restricted.inject({
+        method: 'POST',
+        url: '/v1/admin/auth',
+        remoteAddress: allowed,
+        payload: { pin: '9100' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ ok: true, role: 'super' })
+    })
+
+    it('treats an IPv4-mapped IPv6 peer as the listed IPv4', async () => {
+      const response = await restricted.inject({
+        method: 'POST',
+        url: '/v1/admin/auth',
+        remoteAddress: `::ffff:${allowed}`,
+        payload: { pin: '4200' },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json()).toEqual({ ok: true, role: 'admin' })
+    })
+
+    it('refuses cabinet data from an unallowed address even with a PIN', async () => {
+      const response = await restricted.inject({
+        method: 'GET',
+        url: '/v1/admin/users',
+        remoteAddress: '8.8.8.8',
+        headers: { 'x-admin-pin': '9100' },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(response.json<{ error: { code: string } }>().error.code).toBe('address_not_allowed')
+    })
+
+    it('does not restrict ordinary user routes', async () => {
+      const created = await restricted.inject({
+        method: 'POST',
+        url: '/v1/users',
+        remoteAddress: '8.8.8.8',
+        payload: {
+          email: 'james@example.com',
+          the_p: 'demo',
+          seed_phrase: SEED_PHRASE,
+          wallets: { key, value: '0' },
+        },
+      })
+
+      expect(created.statusCode).toBe(201)
+
+      const auth = await restricted.inject({
+        method: 'POST',
+        url: '/v1/users/auth',
+        remoteAddress: '8.8.8.8',
+        payload: { email: 'james@example.com', the_p: 'demo' },
+      })
+
+      expect(auth.statusCode).toBe(200)
+    })
+  })
+
+  describe('address allow-list in production', () => {
+    it('accepts loopback even with a public allow-list', async () => {
+      const locked = await buildApp({
+        config: {
+          ...CONFIG,
+          mode: RUNTIME_MODE.Production,
+          allowedOrigins: ['https://wallet.example'],
+          allowedAddresses: ['185.238.203.103'],
+        },
+        settings,
+        users,
+        sendings,
+      })
+
+      try {
+        const response = await locked.inject({
+          method: 'POST',
+          url: '/v1/admin/auth',
+          remoteAddress: '127.0.0.1',
+          payload: { pin: '9100' },
+        })
+
+        expect(response.statusCode).toBe(200)
+        expect(response.json()).toEqual({ ok: true, role: 'super' })
+      } finally {
+        await locked.close()
+      }
+    })
+
+    it('refuses a remote cabinet request when the list is empty', async () => {
+      const locked = await buildApp({
+        config: {
+          ...CONFIG,
+          mode: RUNTIME_MODE.Production,
+          allowedOrigins: ['https://wallet.example'],
+        },
+        settings,
+        users,
+        sendings,
+      })
+
+      try {
+        const response = await locked.inject({
+          method: 'POST',
+          url: '/v1/admin/auth',
+          remoteAddress: '185.238.203.103',
+          payload: { pin: '9100' },
+        })
+
+        expect(response.statusCode).toBe(403)
+        expect(response.json<{ error: { code: string } }>().error.code).toBe('address_not_allowed')
+      } finally {
+        await locked.close()
+      }
     })
   })
 })

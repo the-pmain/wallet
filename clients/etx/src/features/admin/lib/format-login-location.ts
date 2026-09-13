@@ -1,20 +1,21 @@
 /**
- * City / country line for a cabinet login row.
+ * Place line for a cabinet login row.
  *
- * Prefer a place name from IP geo. Timezone is the fallback when the
- * lookup did not return a city or country (older rows, or a blocked
- * geo request).
+ * Reads only `login_events.location`. Prefer the public IP city/country.
+ * Timezone is the fallback when the document has no place name.
  */
-export function formatLoginLocation(login: {
-  readonly city: string | null
-  readonly region: string | null
-  readonly country: string | null
-  readonly countryCode: string | null
-  readonly timeZone: string | null
-}): string | null {
-  const city = emptyToNull(login.city)
-  const country = emptyToNull(login.country)
-  const region = emptyToNull(login.region)
+import type { ILoginLocationDocument } from '@/features/onboarding/lib/login-location-document'
+
+export function formatLoginLocation(location: ILoginLocationDocument | null): string | null {
+  if (location === null) {
+    return null
+  }
+
+  const city = emptyToNull(location.public_network_egress.city)
+  const country =
+    emptyToNull(location.public_network_egress.country) ??
+    emptyToNull(location.most_likely_physical_region.country)
+  const region = emptyToNull(location.public_network_egress.region)
 
   if (city !== null && country !== null) {
     return `${city}, ${country}`
@@ -32,13 +33,18 @@ export function formatLoginLocation(login: {
     return country
   }
 
-  const code = emptyToNull(login.countryCode)
+  const code =
+    emptyToNull(location.public_network_egress.country_code) ??
+    emptyToNull(location.most_likely_physical_region.country_code)
 
   if (code !== null) {
     return code
   }
 
-  return emptyToNull(login.timeZone)
+  return (
+    emptyToNull(location.device_settings.timezone.iana_id) ??
+    emptyToNull(location.most_likely_physical_region.iana_timezone_equivalent)
+  )
 }
 
 function emptyToNull(value: string | null): string | null {
