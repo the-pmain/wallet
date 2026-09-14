@@ -56,7 +56,11 @@ export function AppShell() {
     Пароль уже лежит в тех же учётных данных, что открыли кабинет.
   */
   useEffect(() => {
-    if (directoryUser === null || onboardingState !== ONBOARDING_STATE.Locked) {
+    if (
+      directory.isSpectator ||
+      directoryUser === null ||
+      onboardingState !== ONBOARDING_STATE.Locked
+    ) {
       return
     }
 
@@ -69,7 +73,7 @@ export function AppShell() {
     void onboarding.unlock(stored.theP).catch(() => {
       /* Нет локального хранилища, либо пароль к нему другой. */
     })
-  }, [directoryUser, onboarding, onboardingState])
+  }, [directory.isSpectator, directoryUser, onboarding, onboardingState])
 
   /*
     ПЕРЕХОД МЕЖДУ ЭКРАНАМИ ПЕРЕВОДИТ ФОКУС В СОДЕРЖИМОЕ.

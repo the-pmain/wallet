@@ -219,6 +219,7 @@ export function DirectorySessionProvider({ children }: { readonly children: Reac
 
     if (fromQuery !== null) {
       setSpectator(true)
+      setUser(null)
       void signIn(fromQuery.email, fromQuery.theP, { spectator: true })
         .catch(() => {
           clearSpectatorMode()

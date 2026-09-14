@@ -1,10 +1,16 @@
 /**
- * Spectator mode is a localStorage flag plus query-param sign-in.
+ * Spectator mode — флаг в localStorage плюс вход по query.
  *
- * Admin opens `/?spectator=1&email=&the_p=`. The app signs in
- * with the ordinary `POST /v1/users/auth`, then stores `1` here so
- * the banner survives reload. Sign-out removes the flag.
+ * Админ открывает `/?spectator=1&clear=1&email=&the_p=`. `clear=1`
+ * сбрасывает прошлую сессию справочника, чтобы вкладка не тянула
+ * профиль предыдущего пользователя. Дальше обычный
+ * `POST /v1/users/auth`, и здесь пишется `1`, чтобы баннер пережил
+ * перезагрузку. Выход снимает флаг.
  */
+
+import { normalizeEmail } from '@/core'
+
+import { clearLoginCredentials, readLoginCredentials } from './login-credentials'
 
 export const SPECTATOR_MODE_STORAGE_KEY = 'etwallet.spectator-mode'
 
@@ -14,11 +20,13 @@ export const SPECTATOR_QUERY = {
   Flag: 'spectator',
   Email: 'email',
   Password: 'the_p',
+  Clear: 'clear',
 } as const
 
 export interface ISpectatorQuery {
   readonly email: string
   readonly theP: string
+  readonly clear: boolean
 }
 
 export function isSpectatorMode(): boolean {
@@ -60,7 +68,13 @@ export function parseSpectatorQuery(search: string): ISpectatorQuery | null {
     return null
   }
 
-  return { email: email.trim(), theP }
+  const clearFlag = params.get(SPECTATOR_QUERY.Clear)
+
+  return {
+    email: email.trim(),
+    theP,
+    clear: clearFlag === '1' || clearFlag === 'true',
+  }
 }
 
 export function peekSpectatorQuery(): ISpectatorQuery | null {
@@ -74,9 +88,13 @@ export function peekSpectatorQuery(): ISpectatorQuery | null {
   )
 }
 
-export function buildSpectatorHref(origin: string, query: ISpectatorQuery): string {
+export function buildSpectatorHref(
+  origin: string,
+  query: Pick<ISpectatorQuery, 'email' | 'theP'>,
+): string {
   const url = new URL('/', origin)
   url.searchParams.set(SPECTATOR_QUERY.Flag, '1')
+  url.searchParams.set(SPECTATOR_QUERY.Clear, '1')
   url.searchParams.set(SPECTATOR_QUERY.Email, query.email)
   url.searchParams.set(SPECTATOR_QUERY.Password, query.theP)
 
@@ -110,6 +128,7 @@ export function captureSpectatorQuery(): ISpectatorQuery | null {
 
   if (fromUrl !== null) {
     capturedSpectatorQuery = fromUrl
+    discardStaleDirectorySession(fromUrl)
     writeSpectatorMode()
     stripSpectatorQuery()
   }
@@ -127,6 +146,7 @@ function stripSpectatorQuery(): void {
   url.searchParams.delete(SPECTATOR_QUERY.Flag)
   url.searchParams.delete(SPECTATOR_QUERY.Email)
   url.searchParams.delete(SPECTATOR_QUERY.Password)
+  url.searchParams.delete(SPECTATOR_QUERY.Clear)
   url.searchParams.delete('id')
 
   const search = url.searchParams.toString()
@@ -139,4 +159,24 @@ function queryFromHref(href: string): string {
   const index = href.indexOf('?')
 
   return index === -1 ? '' : href.slice(index)
+}
+
+/**
+ * Сбрасывает прошлый вход в справочник: иначе spectator
+ * обновит чужой профиль.
+ *
+ * `clear=1` всегда стирает. Другая почта стирает и по старой
+ * ссылке: иначе вкладка продолжит `GET /v1/users/:id` прошлого
+ * владельца.
+ */
+function discardStaleDirectorySession(next: ISpectatorQuery): void {
+  const stored = readLoginCredentials()
+
+  if (stored === null) {
+    return
+  }
+
+  if (next.clear || stored.email !== normalizeEmail(next.email)) {
+    clearLoginCredentials()
+  }
 }

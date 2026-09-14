@@ -371,6 +371,41 @@ describe('Spectator mode', () => {
     expect(readLoginCredentials()).toBeNull()
     expect(localStorage.getItem(SPECTATOR_MODE_STORAGE_KEY)).toBeNull()
   })
+
+  it('clear=1 drops the previous user before spectator auth', async () => {
+    writeLoginCredentials({
+      id: '8',
+      email: 'maria@example.com',
+      theP: 'old',
+    })
+    globalThis.fetch = mockDirectoryAndPriceFetch({
+      id: '7',
+      email: 'james@example.com',
+      balance: '12.5',
+      createdAt: '2026-08-19T12:00:00.000Z',
+    })
+
+    openPath('/?spectator=1&clear=1&email=james@example.com&the_p=demo')
+    renderApp()
+
+    expect(await screen.findByRole('status')).toHaveTextContent('You are in spectator mode')
+    expect(await screen.findByText(/james@example.com/i)).toBeInTheDocument()
+    expect(screen.queryByText(/maria@example.com/i)).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(readLoginCredentials()).toEqual({
+        id: '7',
+        email: 'james@example.com',
+        theP: 'demo',
+      })
+    })
+
+    expect(
+      vi
+        .mocked(globalThis.fetch)
+        .mock.calls.some(([url]) => String(url).includes('/v1/users/8')),
+    ).toBe(false)
+  })
 })
 
 /** Заполняет первый шаг создания кошелька: почту и пароль. */

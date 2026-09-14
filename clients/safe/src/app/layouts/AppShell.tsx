@@ -89,7 +89,11 @@ export function AppShell() {
     in the same credentials that opened the cabinet.
   */
   useEffect(() => {
-    if (directoryUser === null || onboardingState !== ONBOARDING_STATE.Locked) {
+    if (
+      directory.isSpectator ||
+      directoryUser === null ||
+      onboardingState !== ONBOARDING_STATE.Locked
+    ) {
       return
     }
 
@@ -102,7 +106,7 @@ export function AppShell() {
     void onboarding.unlock(stored.theP).catch(() => {
       /* No local store, or the password for it is different. */
     })
-  }, [directoryUser, onboarding, onboardingState])
+  }, [directory.isSpectator, directoryUser, onboarding, onboardingState])
 
   /*
     NAVIGATION MOVES FOCUS INTO THE CONTENT.

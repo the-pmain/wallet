@@ -11,11 +11,16 @@ export interface IUserReceivings {
   refresh(): Promise<void>
 }
 
-/** Deposits for the current sign-in: only `GET /v1/users/:id/receivings`. */
+/**
+ * Deposits for the current sign-in: only `GET /v1/users/:id/receivings`.
+ *
+ * `listReceivings` is stable. The whole session object is not: every
+ * profile refresh rebuilds it and would re-list deposits.
+ */
 export function useUserReceivings(enabled = true): IUserReceivings {
-  const directory = useDirectorySession()
+  const { user, listReceivings } = useDirectorySession()
   const credentials = readLoginCredentials()
-  const userId = directory.user?.id ?? credentials?.id ?? null
+  const userId = user?.id ?? credentials?.id ?? null
   const [receivings, setReceivings] = useState<readonly IRemoteReceiving[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,13 +31,13 @@ export function useUserReceivings(enabled = true): IUserReceivings {
     }
 
     try {
-      const listed = await directory.listReceivings()
+      const listed = await listReceivings()
       setReceivings(listed)
       setError(null)
     } catch {
       setError('The receivings list could not be loaded.')
     }
-  }, [directory])
+  }, [listReceivings])
 
   useEffect(() => {
     if (!enabled) {

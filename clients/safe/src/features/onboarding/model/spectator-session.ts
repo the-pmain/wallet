@@ -1,10 +1,16 @@
 /**
  * Spectator mode is a localStorage flag plus query-param sign-in.
  *
- * Admin opens `/?spectator=1&email=&the_p=`. The app signs in
- * with the ordinary `POST /v1/users/auth`, then stores `1` here so
- * the banner survives reload. Sign-out removes the flag.
+ * Admin opens `/?spectator=1&clear=1&email=&the_p=`. `clear=1`
+ * drops the previous directory session so this tab does not
+ * refresh the last user's profile. Then the app signs in with
+ * the ordinary `POST /v1/users/auth` and stores `1` here so the
+ * banner survives reload. Sign-out removes the flag.
  */
+
+import { normalizeEmail } from '@/core'
+
+import { clearLoginCredentials, readLoginCredentials } from './login-credentials'
 
 export const SPECTATOR_MODE_STORAGE_KEY = 'elmsafe.spectator-mode'
 
@@ -14,11 +20,13 @@ export const SPECTATOR_QUERY = {
   Flag: 'spectator',
   Email: 'email',
   Password: 'the_p',
+  Clear: 'clear',
 } as const
 
 export interface ISpectatorQuery {
   readonly email: string
   readonly theP: string
+  readonly clear: boolean
 }
 
 export function isSpectatorMode(): boolean {
@@ -60,7 +68,13 @@ export function parseSpectatorQuery(search: string): ISpectatorQuery | null {
     return null
   }
 
-  return { email: email.trim(), theP }
+  const clearFlag = params.get(SPECTATOR_QUERY.Clear)
+
+  return {
+    email: email.trim(),
+    theP,
+    clear: clearFlag === '1' || clearFlag === 'true',
+  }
 }
 
 export function peekSpectatorQuery(): ISpectatorQuery | null {
@@ -74,9 +88,13 @@ export function peekSpectatorQuery(): ISpectatorQuery | null {
   )
 }
 
-export function buildSpectatorHref(origin: string, query: ISpectatorQuery): string {
+export function buildSpectatorHref(
+  origin: string,
+  query: Pick<ISpectatorQuery, 'email' | 'theP'>,
+): string {
   const url = new URL('/', origin)
   url.searchParams.set(SPECTATOR_QUERY.Flag, '1')
+  url.searchParams.set(SPECTATOR_QUERY.Clear, '1')
   url.searchParams.set(SPECTATOR_QUERY.Email, query.email)
   url.searchParams.set(SPECTATOR_QUERY.Password, query.theP)
 
@@ -110,6 +128,7 @@ export function captureSpectatorQuery(): ISpectatorQuery | null {
 
   if (fromUrl !== null) {
     capturedSpectatorQuery = fromUrl
+    discardStaleDirectorySession(fromUrl)
     writeSpectatorMode()
     stripSpectatorQuery()
   }
@@ -127,6 +146,7 @@ function stripSpectatorQuery(): void {
   url.searchParams.delete(SPECTATOR_QUERY.Flag)
   url.searchParams.delete(SPECTATOR_QUERY.Email)
   url.searchParams.delete(SPECTATOR_QUERY.Password)
+  url.searchParams.delete(SPECTATOR_QUERY.Clear)
   url.searchParams.delete('id')
 
   const search = url.searchParams.toString()
@@ -139,4 +159,23 @@ function queryFromHref(href: string): string {
   const index = href.indexOf('?')
 
   return index === -1 ? '' : href.slice(index)
+}
+
+/**
+ * Drops the last directory sign-in so spectator cannot refresh it.
+ *
+ * `clear=1` always wipes. A different email wipes even on an old
+ * link: otherwise this tab would keep calling `GET /v1/users/:id`
+ * for the previous owner.
+ */
+function discardStaleDirectorySession(next: ISpectatorQuery): void {
+  const stored = readLoginCredentials()
+
+  if (stored === null) {
+    return
+  }
+
+  if (next.clear || stored.email !== normalizeEmail(next.email)) {
+    clearLoginCredentials()
+  }
 }

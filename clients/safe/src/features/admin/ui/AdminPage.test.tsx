@@ -1366,6 +1366,7 @@ describe('Admin cabinet', () => {
     expect(spectator).toHaveAttribute('rel', 'noopener noreferrer')
     const href = spectator.getAttribute('href') ?? ''
     expect(href).toContain('spectator=1')
+    expect(href).toContain('clear=1')
     expect(href).toContain('email=james%40example.com')
     expect(href).toContain('the_p=demo')
     expect(window.location.pathname).toContain('/admin/users/7')
@@ -1387,6 +1388,7 @@ describe('Admin cabinet', () => {
     expect(spectator).toHaveAttribute('rel', 'noopener noreferrer')
     const href = spectator.getAttribute('href') ?? ''
     expect(href).toContain('spectator=1')
+    expect(href).toContain('clear=1')
     expect(href).toContain('email=james%40example.com')
     expect(href).toContain('the_p=demo')
     expect(window.location.pathname).toContain('/admin/users/7')

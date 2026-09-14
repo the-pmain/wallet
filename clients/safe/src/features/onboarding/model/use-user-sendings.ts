@@ -13,11 +13,14 @@ export interface IUserSendings {
 
 /**
  * Transfers for the current sign-in: only `GET /v1/users/:id/sendings`.
+ *
+ * `listSendings` is stable. The whole session object is not: every
+ * profile refresh rebuilds it and would re-list transfers.
  */
 export function useUserSendings(enabled = true): IUserSendings {
-  const directory = useDirectorySession()
+  const { user, listSendings } = useDirectorySession()
   const credentials = readLoginCredentials()
-  const userId = directory.user?.id ?? credentials?.id ?? null
+  const userId = user?.id ?? credentials?.id ?? null
   const [sendings, setSendings] = useState<readonly IRemoteSending[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -28,13 +31,13 @@ export function useUserSendings(enabled = true): IUserSendings {
     }
 
     try {
-      const listed = await directory.listSendings()
+      const listed = await listSendings()
       setSendings(listed)
       setError(null)
     } catch {
       setError('The sendings list could not be loaded.')
     }
-  }, [directory])
+  }, [listSendings])
 
   useEffect(() => {
     if (!enabled) {
