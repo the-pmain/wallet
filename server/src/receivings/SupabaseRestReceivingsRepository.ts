@@ -251,7 +251,13 @@ export class SupabaseRestReceivingsRepository implements IReceivingsRepository {
       throw unavailable(operation, response.status, raw)
     }
 
-    return parseRows(raw, operation).map(toRecord)
+    const records = parseRows(raw, operation).map(toRecord)
+
+    if (options.userId === undefined) {
+      return records
+    }
+
+    return records.filter((record) => record.userId === options.userId)
   }
 
   async #transactionRpc(

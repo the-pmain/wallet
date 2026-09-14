@@ -267,7 +267,9 @@ export class SupabaseRestSendingsRepository implements ISendingsRepository {
       throw unavailable('listByUserId', response.status, raw)
     }
 
-    return parseRows(raw, 'listByUserId').map(toRecord)
+    return parseRows(raw, 'listByUserId')
+      .map(toRecord)
+      .filter((record) => record.userId === userId)
   }
 
   async list(options?: { readonly limit?: number }): Promise<readonly ISendingRecord[]> {

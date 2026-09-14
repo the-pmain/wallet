@@ -180,6 +180,10 @@ interface IListUserSendingsQuery {
 /**
  * Transfers in `public.sendings`.
  *
+ * `GET /v1/users/:id/sendings` returns only rows in that table whose
+ * `user_id` is this owner. It does not mix in activity-request drafts
+ * or transfers that reused `sendings.id` as another user's id.
+ *
  * `POST /v1/users/sendings` and `GET /v1/users/:id/sendings` are trusted
  * server: identity is `email`+`the_p`, `user_id` must match.
  * `GET /v1/admin/users/:id/sendings` and `GET /v1/admin/sendings`

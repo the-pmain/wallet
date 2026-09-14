@@ -260,6 +260,41 @@ describe('SupabaseRestSendingsRepository', () => {
     expect(fetchMock).toHaveBeenCalledOnce()
   })
 
+  it('listByUserId keeps only rows whose user_id is the owner', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify([
+            {
+              ...CREATED_ROW,
+              id: 85,
+              user_id: '100',
+              amount: '9',
+            },
+            {
+              ...CREATED_ROW,
+              id: 12,
+              user_id: '85',
+              amount: '0.01',
+            },
+          ]),
+        ),
+    })
+    const sendings = new SupabaseRestSendingsRepository({
+      supabaseUrl: 'https://example.supabase.co',
+      serviceRoleKey: 'service-role',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const listed = await sendings.listByUserId('85')
+
+    expect(listed).toEqual([expect.objectContaining({ id: '12', userId: '85', amount: '0.01' })])
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('user_id=eq.85')
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toMatch(/[?&]id=eq\./u)
+  })
+
   it('treats sendings_pkey collisions as the broken id=user_id schema', () => {
     expect(
       isBrokenSendingsIdFkError(

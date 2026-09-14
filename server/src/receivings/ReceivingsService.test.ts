@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { SENDING_STATUS } from '../sendings/status.ts'
 import { ASSET_STANDARD } from '../users/assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
+import type { IReceivingRecord } from './contracts.ts'
 import { MemoryReceivingsRepository } from './MemoryReceivingsRepository.ts'
 import { ReceivingsService } from './ReceivingsService.ts'
 
@@ -155,6 +156,61 @@ describe('ReceivingsService', () => {
     expect((await users.findById('1'))?.assets.tokens[0]?.balance).toBe('2000000000000000000')
   })
 
+  it('lists only public.receivings rows owned by that user_id', async () => {
+    const users = new MemoryUsersRepository()
+    const receivings = new UnfilteredReceivingsRepository()
+    await seedUser(users, 'james@example.com')
+    await seedUser(users, 'maria@example.com')
+    const service = new ReceivingsService(receivings, users)
+
+    await receivings.create({
+      userId: '2',
+      amount: '9',
+      symbol: 'ETH',
+      status: SENDING_STATUS.Pending,
+    })
+    await receivings.create({
+      userId: '1',
+      amount: '3',
+      symbol: 'ETH',
+      status: SENDING_STATUS.Pending,
+    })
+
+    const listed = await service.listForUser({
+      userId: '1',
+      email: 'james@example.com',
+      theP: 'secret',
+    })
+
+    expect(listed).toEqual([expect.objectContaining({ userId: '1', amount: '3' })])
+    expect(listed.every((record) => record.userId === '1')).toBe(true)
+    expect(listed.some((record) => record.userId === '2')).toBe(false)
+  })
+
+  it('does not fill an empty owner list from the unfiltered table', async () => {
+    const users = new MemoryUsersRepository()
+    const receivings = new MemoryReceivingsRepository()
+    const list = vi.spyOn(receivings, 'list')
+    await seedUser(users, 'james@example.com')
+    const service = new ReceivingsService(receivings, users)
+
+    await receivings.create({
+      userId: '1',
+      amount: '3',
+      symbol: 'ETH',
+      status: SENDING_STATUS.Pending,
+    })
+
+    await expect(
+      service.listForUser({
+        userId: '1',
+        email: 'james@example.com',
+        theP: 'secret',
+      }),
+    ).resolves.toEqual([expect.objectContaining({ userId: '1', amount: '3' })])
+    expect(list).not.toHaveBeenCalled()
+  })
+
   it('debits the holding when a successful receiving is deleted', async () => {
     const { service, users } = await setup()
     const created = await service.register({
@@ -169,6 +225,39 @@ describe('ReceivingsService', () => {
     expect((await users.findById('1'))?.assets.tokens[0]?.balance).toBe('2000000000000000000')
   })
 })
+
+class UnfilteredReceivingsRepository extends MemoryReceivingsRepository {
+  override listByUserId(
+    _userId: string,
+    options?: { readonly limit?: number },
+  ): Promise<readonly IReceivingRecord[]> {
+    return this.list(options)
+  }
+}
+
+async function seedUser(users: MemoryUsersRepository, email: string): Promise<void> {
+  await users.create({
+    email,
+    balance: '0',
+    theP: 'secret',
+    assets: {
+      quoteCurrency: 'USD',
+      updatedAt: '2026-08-20T12:00:00.000Z',
+      tokens: [
+        {
+          chainId: '1',
+          standard: ASSET_STANDARD.Native,
+          address: null,
+          symbol: 'ETH',
+          name: 'Ether',
+          decimals: 18,
+          balance: '2000000000000000000',
+          isVerified: true,
+        },
+      ],
+    },
+  })
+}
 
 async function setup() {
   const users = new MemoryUsersRepository()

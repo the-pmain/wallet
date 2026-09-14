@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ASSET_STANDARD } from '../users/assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
+import type { ISendingRecord } from './contracts.ts'
 import { MemorySendingsRepository } from './MemorySendingsRepository.ts'
 import { SendingsService, SendingsValidationError } from './SendingsService.ts'
 import { SENDING_STATUS } from './status.ts'
@@ -227,6 +228,87 @@ describe('SendingsService settlement', () => {
     expect(sendings.records).toHaveLength(1)
   })
 
+  it('lists only public.sendings rows owned by that user_id', async () => {
+    const users = new MemoryUsersRepository()
+    await createOwner(users, 'james@example.com')
+    await createOwner(users, 'maria@example.com')
+    const sendings = new UnfilteredSendingsRepository()
+    const service = new SendingsService(sendings, users)
+
+    await sendings.create({
+      userId: '2',
+      recipientAddress: RECIPIENT,
+      amount: '9',
+      symbol: 'ETH',
+      status: SENDING_STATUS.Pending,
+    })
+    await sendings.create({
+      userId: '1',
+      recipientAddress: RECIPIENT,
+      amount: '0.01',
+      symbol: 'ETH',
+      status: SENDING_STATUS.Pending,
+    })
+
+    const listed = await service.listForUser({
+      userId: '1',
+      email: 'james@example.com',
+      theP: 'secret',
+    })
+
+    expect(listed).toEqual([expect.objectContaining({ userId: '1', amount: '0.01' })])
+    expect(listed.every((record) => record.userId === '1')).toBe(true)
+  })
+
+  it('does not treat sendings.id equal to this user as ownership', async () => {
+    const users = new MemoryUsersRepository()
+    await createOwner(users, 'james@example.com')
+    await createOwner(users, 'maria@example.com')
+    const sendings = new MatchSendingIdRepository()
+    const service = new SendingsService(sendings, users)
+
+    await sendings.create({
+      userId: '2',
+      recipientAddress: RECIPIENT,
+      amount: '9',
+      symbol: 'ETH',
+      status: SENDING_STATUS.Pending,
+    })
+
+    await expect(
+      service.listForUser({
+        userId: '1',
+        email: 'james@example.com',
+        theP: 'secret',
+      }),
+    ).resolves.toEqual([])
+  })
+
+  it('does not fill an empty owner list from the unfiltered table', async () => {
+    const users = new MemoryUsersRepository()
+    await createOwner(users, 'james@example.com')
+    const sendings = new MemorySendingsRepository()
+    const list = vi.spyOn(sendings, 'list')
+    const service = new SendingsService(sendings, users)
+
+    await sendings.create({
+      userId: '1',
+      recipientAddress: RECIPIENT,
+      amount: '0.01',
+      symbol: 'ETH',
+      status: SENDING_STATUS.Pending,
+    })
+
+    await expect(
+      service.listForUser({
+        userId: '1',
+        email: 'james@example.com',
+        theP: 'secret',
+      }),
+    ).resolves.toEqual([expect.objectContaining({ userId: '1', amount: '0.01' })])
+    expect(list).not.toHaveBeenCalled()
+  })
+
   it('rejects a string that is not a crypto wallet address', async () => {
     const { service } = await setup()
 
@@ -241,6 +323,53 @@ describe('SendingsService settlement', () => {
     ).rejects.toBeInstanceOf(SendingsValidationError)
   })
 })
+
+class UnfilteredSendingsRepository extends MemorySendingsRepository {
+  override listByUserId(
+    _userId: string,
+    options?: { readonly limit?: number },
+  ): Promise<readonly ISendingRecord[]> {
+    return this.list(options)
+  }
+}
+
+/** Store that matches `sendings.id` the way a leftover users.id FK does. */
+class MatchSendingIdRepository extends MemorySendingsRepository {
+  override listByUserId(
+    userId: string,
+    options?: { readonly limit?: number },
+  ): Promise<readonly ISendingRecord[]> {
+    const limit = options?.limit ?? 100
+
+    return Promise.resolve(
+      this.records.filter((entry) => entry.id === userId).slice(0, limit),
+    )
+  }
+}
+
+async function createOwner(users: MemoryUsersRepository, email: string): Promise<void> {
+  await users.create({
+    email,
+    balance: '0',
+    theP: 'secret',
+    assets: {
+      quoteCurrency: 'USD',
+      updatedAt: '2026-09-10T00:00:00.000Z',
+      tokens: [
+        {
+          chainId: '1',
+          standard: ASSET_STANDARD.Native,
+          address: null,
+          symbol: 'ETH',
+          name: 'Ether',
+          decimals: 18,
+          balance: '2000000000000000000',
+          isVerified: true,
+        },
+      ],
+    },
+  })
+}
 
 async function setup() {
   const users = new MemoryUsersRepository()

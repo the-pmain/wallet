@@ -79,7 +79,9 @@ export class ReceivingsService {
   }
 
   async listByUserId(userId: string): Promise<readonly IReceivingRecord[]> {
-    return await this.#receivings.listByUserId(userId.trim())
+    const id = userId.trim()
+
+    return ownedByUser(await this.#receivings.listByUserId(id), id)
   }
 
   async listForUser(input: {
@@ -96,15 +98,8 @@ export class ReceivingsService {
       throw new ReceivingsAuthError('Invalid credentials.')
     }
 
-    const owned = await this.#receivings.listByUserId(user.id)
-
-    if (owned.length > 0) {
-      return owned
-    }
-
-    const listed = await this.#receivings.list({ limit: 200 })
-
-    return listed.filter((record) => record.userId !== null && record.userId === user.id)
+    /* Only `public.receivings` rows whose `user_id` is this owner. */
+    return await this.listByUserId(user.id)
   }
 
   async update(id: string, patch: IUpdateReceivingFields): Promise<IReceivingRecord | null> {
@@ -407,6 +402,13 @@ function fromAssetFields(fields: ITransferAssetFields): IAssetMetadata {
     decimals: fields.assetDecimals,
     isVerified: fields.assetIsVerified,
   }
+}
+
+function ownedByUser(
+  records: readonly IReceivingRecord[],
+  userId: string,
+): readonly IReceivingRecord[] {
+  return records.filter((record) => record.userId === userId)
 }
 
 function settlementValidation(error: unknown): ReceivingsValidationError {

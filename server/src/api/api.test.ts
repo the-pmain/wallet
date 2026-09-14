@@ -972,6 +972,46 @@ describe('Users', () => {
     ])
   })
 
+  it('returns no sendings when this owner has none in public.sendings', async () => {
+    const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/users',
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
+    })
+    const userId = created.json<{ id: string }>().id
+
+    const other = await app.inject({
+      method: 'POST',
+      url: '/v1/users',
+      payload: { email: 'other@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
+    })
+    const otherId = other.json<{ id: string }>().id
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/users/sendings',
+      payload: {
+        user_id: otherId,
+        email: 'other@example.com',
+        the_p: 'demo',
+        recipient_address: recipient,
+        amount: '9',
+        symbol: 'USDT',
+      },
+    })
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/users/${userId}/sendings`,
+      query: { email: 'james@example.com', the_p: 'demo' },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json<{ sendings: unknown[] }>().sendings).toEqual([])
+  })
+
   it('does not serve GET /v1/users/:id/sendings without email and the_p', async () => {
     const created = await app.inject({
       method: 'POST',

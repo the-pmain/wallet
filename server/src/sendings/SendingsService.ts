@@ -159,7 +159,9 @@ export class SendingsService {
   }
 
   async listByUserId(userId: string): Promise<readonly ISendingRecord[]> {
-    return await this.#sendings.listByUserId(userId.trim())
+    const id = userId.trim()
+
+    return ownedByUser(await this.#sendings.listByUserId(id), id)
   }
 
   async listForUser(input: {
@@ -176,19 +178,10 @@ export class SendingsService {
       throw new SendingsAuthError('Invalid credentials.')
     }
 
-    const owned = await this.#sendings.listByUserId(user.id)
-
-    if (owned.length > 0) {
-      return owned
-    }
-
-    /* If the table `user_id` filter is empty but a record still
-       exists (another column type, an old row), do not show the
-       owner an empty list while live transfers appear in the
-       unfiltered listing. */
-    const listed = await this.#sendings.list({ limit: 200 })
-
-    return listed.filter((record) => record.userId !== null && record.userId === user.id)
+    /* Only `public.sendings` rows whose `user_id` is this owner.
+       Do not scan the unfiltered table: a leftover `sendings.id`
+       equal to this user id is someone else's transfer. */
+    return await this.listByUserId(user.id)
   }
 
   async update(id: string, patch: IUpdateSendingFields): Promise<ISendingRecord | null> {
@@ -520,6 +513,13 @@ function fromAssetFields(fields: ITransferAssetFields): IAssetMetadata {
 function optionalAssetFields(input: IAssetMetadataInput): Partial<ITransferAssetFields> {
   const metadata = suppliedMetadata(input)
   return metadata === null ? {} : toAssetFields(metadata)
+}
+
+function ownedByUser(
+  records: readonly ISendingRecord[],
+  userId: string,
+): readonly ISendingRecord[] {
+  return records.filter((record) => record.userId === userId)
 }
 
 function settlementValidation(error: unknown): SendingsValidationError {
