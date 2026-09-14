@@ -4,6 +4,7 @@ import type { IRemoteReceiving } from '@/features/onboarding'
 import {
   SENDING_STATUS,
   SENDING_STATUSES,
+  sendingStatusSelectTone,
   type SendingStatus,
 } from '@/features/onboarding'
 import { Button, Dialog, Input, Label, Select, Textarea } from '@/shared/ui'
@@ -168,13 +169,7 @@ export function ReceivingEditDialog({
               value={draft.status}
               disabled={isBusy}
               menuPlacement="top"
-              tone={
-                isFailure
-                  ? 'danger'
-                  : draft.status === SENDING_STATUS.Success
-                    ? 'success'
-                    : 'default'
-              }
+              tone={sendingStatusSelectTone(draft.status)}
               options={SENDING_STATUSES.map((status) => ({
                 value: status,
                 label: status,

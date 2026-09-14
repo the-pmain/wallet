@@ -31,8 +31,6 @@ import {
   PrivacyPage,
   TermsPage,
   AdminUsersPage,
-  AdminSendingsPage,
-  AdminReceivingsPage,
   AdminActivityPage,
   AdminRequestsPage,
   AdminUserPage,
@@ -216,8 +214,6 @@ export function AppRouter() {
             <Route index element={<AdminUsersPage />} />
             <Route path="activity" element={<AdminActivityPage />} />
             <Route path="requests" element={<AdminRequestsPage />} />
-            <Route path="sendings" element={<AdminSendingsPage />} />
-            <Route path="receivings" element={<AdminReceivingsPage />} />
             <Route path="users/:userId" element={<AdminUserPage />} />
           </Route>
         </Route>

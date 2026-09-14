@@ -146,6 +146,7 @@ export interface IAdminActivityRequestCreate extends ITransactionAssetMetadata {
   readonly failureMessage?: string | null
   readonly recipientAddress?: string | null
   readonly usdAmount?: string | null
+  readonly createdSendingId?: string | null
 }
 
 export interface IAdminActivityRequestReview {
@@ -542,6 +543,9 @@ export class AdminClient {
         failureMessage: input.failureMessage ?? null,
         recipientAddress: input.recipientAddress ?? null,
         usdAmount: input.usdAmount ?? null,
+        ...(input.createdSendingId === undefined || input.createdSendingId === null
+          ? {}
+          : { createdSendingId: input.createdSendingId }),
         ...assetMetadataBody(input),
       },
     })
@@ -557,6 +561,35 @@ export class AdminClient {
       throw new AdminAuthError(
         response.status,
         'create activity request returned an unexpected response',
+      )
+    }
+
+    return request
+  }
+
+  async ensureSendingActivityRequest(input: {
+    readonly sendingId: string
+    readonly requestedByName: string
+  }): Promise<IAdminActivityRequest> {
+    const response = await this.#request('/v1/admin/activity-requests/for-sending', {
+      method: 'POST',
+      body: {
+        sendingId: input.sendingId,
+        requestedByName: input.requestedByName,
+      },
+    })
+    const payload = parseJson(await response.text())
+
+    if (!response.ok) {
+      throw this.#failure(response.status, 'open sending request failed', payload)
+    }
+
+    const request = parseActivityRequest(payload)
+
+    if (request === null) {
+      throw new AdminAuthError(
+        response.status,
+        'open sending request returned an unexpected response',
       )
     }
 

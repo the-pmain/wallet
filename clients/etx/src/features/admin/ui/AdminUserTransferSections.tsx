@@ -1,10 +1,11 @@
-import { ArrowDownToLine, Pencil, Plus, Send } from 'lucide-react'
+import { ArrowDownToLine, Loader2, Pencil, Plus, Send } from 'lucide-react'
 import { useEffect, useId, useMemo, useState } from 'react'
 
 import { isValidCryptoWalletAddress, normalizeCryptoWalletInput } from '@/core'
 import {
   SENDING_STATUS,
   SENDING_STATUSES,
+  sendingStatusSelectTone,
   type IRemoteReceiving,
   type IRemoteSending,
   type IRemoteUser,
@@ -38,6 +39,7 @@ import {
 import {
   AdminAuthError,
   adminRequestMessage,
+  type IAdminActivityRequestPatch,
   type IAdminReceivingPatch,
   type IAdminSendingPatch,
 } from '../model/AdminClient'
@@ -48,16 +50,18 @@ import {
 } from '../model/addable-assets'
 import { useAdminSession } from '../model/admin-context'
 import { ADMIN_ROLE } from '../model/admin-role'
-import { ADMIN_PAGE_SIZE } from '../model/admin-page'
+import { ADMIN_PAGE_SIZE, type IAdminDirectoryActivityRequest } from '../model/admin-page'
 import { directoryUserLabel } from '../model/admin-user-emails'
 import { listenForAdminUserRefresh, requestAdminUserRefresh, settlementChanged } from '../model/admin-user-refresh'
 import { sendingMatchesAdminQuery } from '../model/sending-query'
 import { directoryListIsBusy, useAdminDirectoryQuery } from '../model/use-admin-directory-query'
 
+import { ActivityRequestReviewDialog } from './ActivityRequestReviewDialog'
 import { MOCK_WALLET_ADDRESS, MOCK_WALLET_CODENAME } from './admin-wallets'
 import { AdminDirectoryListPending } from './AdminDirectoryListPending'
 import { AdminUserPendingRequests } from './AdminUserPendingRequests'
 import { AdminListPager } from './AdminListPager'
+import { FailureReasonFields } from './FailureReasonFields'
 import { ReceivingEditDialog } from './ReceivingEditDialog'
 import { SendingEditDialog } from './SendingEditDialog'
 import { SendingStatusBadge } from './SendingStatusBadge'
@@ -82,6 +86,9 @@ export function AdminUserSendingsTab({
   const [editing, setEditing] = useState<IRemoteSending | null>(null)
   const [isSaving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
+  const [requesting, setRequesting] = useState<IAdminDirectoryActivityRequest | null>(null)
+  const [requestingId, setRequestingId] = useState<string | null>(null)
+  const [requestError, setRequestError] = useState<string | null>(null)
   const userLabel = directoryUserLabel(user.email, user.id)
 
   useEffect(() => {
@@ -183,6 +190,58 @@ export function AdminUserSendingsTab({
     }
   }
 
+  async function openSendingRequest(sending: IRemoteSending): Promise<void> {
+    if (operatorName === null || operatorName.trim() === '') {
+      setRequestError('Sign in with your name to submit a request.')
+      return
+    }
+
+    setRequestingId(sending.id)
+    setRequestError(null)
+
+    try {
+      const request = await client.ensureSendingActivityRequest({
+        sendingId: sending.id,
+        requestedByName: operatorName,
+      })
+      setRequesting({ ...request, userEmail: user.email })
+      requestAdminUserRefresh(user.id)
+    } catch (caught: unknown) {
+      if (caught instanceof AdminAuthError && caught.status === 401) {
+        lock()
+        return
+      }
+
+      setRequestError(adminRequestMessage(caught, 'The sending request could not be opened.'))
+    } finally {
+      setRequestingId(null)
+    }
+  }
+
+  async function saveSendingRequest(id: string, patch: IAdminActivityRequestPatch): Promise<void> {
+    if (requesting === null || requesting.id !== id) {
+      return
+    }
+
+    setRequestingId(id)
+    setRequestError(null)
+
+    try {
+      await client.updateActivityRequest(id, patch)
+      setRequesting(null)
+      requestAdminUserRefresh(user.id)
+    } catch (caught: unknown) {
+      if (caught instanceof AdminAuthError && caught.status === 401) {
+        lock()
+        return
+      }
+
+      setRequestError(adminRequestMessage(caught, 'The change could not be sent for approval.'))
+    } finally {
+      setRequestingId(null)
+    }
+  }
+
   if (error !== null) {
     return (
       <p className="text-sm text-destructive" role="alert">
@@ -246,6 +305,11 @@ export function AdminUserSendingsTab({
         />
       ) : null}
       <AdminUserPendingRequests userId={user.id} kind="sending" />
+      {requestError === null ? null : (
+        <p className="text-sm text-destructive" role="alert">
+          {requestError}
+        </p>
+      )}
       <Input
         type="search"
         value={search}
@@ -282,6 +346,14 @@ export function AdminUserSendingsTab({
                     },
                   }
                 : {})}
+              {...(canRequest
+                ? {
+                    onRequest: () => {
+                      void openSendingRequest(sending)
+                    },
+                    requestBusy: requestingId === sending.id,
+                  }
+                : {})}
             />
           ))}
         </ul>
@@ -311,6 +383,25 @@ export function AdminUserSendingsTab({
           }}
           onDelete={(id) => {
             void deleteSending(id)
+          }}
+        />
+      ) : null}
+      {canRequest ? (
+        <ActivityRequestReviewDialog
+          key={requesting?.id ?? 'sending-request-closed'}
+          mode="revise"
+          request={requesting}
+          userLabel={directoryUserLabel(requesting?.userEmail, requesting?.userId ?? user.id)}
+          isBusy={requestingId !== null}
+          error={requesting === null ? null : requestError}
+          onClose={() => {
+            if (requestingId === null) {
+              setRequesting(null)
+              setRequestError(null)
+            }
+          }}
+          onSave={(id, patch) => {
+            void saveSendingRequest(id, patch)
           }}
         />
       ) : null}
@@ -602,10 +693,14 @@ function UserSendingsSection({
   const priceUsd = asset === null ? null : quotePriceUsd(asset.token, quotes)
   const usdEquivalent = usdEquivalentFromCryptoAmount(amount, priceUsd)
   const [status, setStatus] = useState<SendingStatus>(SENDING_STATUS.Pending)
+  const [failureMessage, setFailureMessage] = useState<string | null>(null)
+  const [usesCustomMessage, setUsesCustomMessage] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const hasSendableAsset = asset !== null
+  const isFailure = status === SENDING_STATUS.Failure
+  const hasFailureReason = (failureMessage ?? '').trim() !== ''
   const holdingError = asset === null ? null : sendingAmountHoldingError(amount, asset.token)
   const availableAmount =
     asset === null ? null : cryptoInputFromStoredBalance(asset.token.balance, asset.token.decimals)
@@ -643,6 +738,14 @@ function UserSendingsSection({
       return
     }
 
+    if (isFailure && !hasFailureReason) {
+      setError('Choose a failure reason.')
+      setMessage(null)
+      return
+    }
+
+    const submittedFailureMessage = isFailure ? (failureMessage?.trim() ?? null) : null
+
     setBusy(true)
     setError(null)
     setMessage(null)
@@ -658,11 +761,13 @@ function UserSendingsSection({
           symbol: asset.token.symbol,
           ...transactionAssetMetadata(asset.token),
           transferStatus: status,
-          failureMessage: status === SENDING_STATUS.Failure ? 'Rejected by admin' : null,
+          failureMessage: submittedFailureMessage,
         })
         setAmount('')
         setRecipient('')
         setStatus(SENDING_STATUS.Pending)
+        setFailureMessage(null)
+        setUsesCustomMessage(false)
         setMessage('Request submitted. Super Admin will review it.')
         requestAdminUserRefresh(user.id)
         return
@@ -675,11 +780,13 @@ function UserSendingsSection({
         symbol: asset.token.symbol,
         ...transactionAssetMetadata(asset.token),
         status,
-        failureMessage: status === SENDING_STATUS.Failure ? 'Rejected by admin' : null,
+        failureMessage: submittedFailureMessage,
       })
       setAmount('')
       setRecipient('')
       setStatus(SENDING_STATUS.Pending)
+      setFailureMessage(null)
+      setUsesCustomMessage(false)
       setMessage(`Sending created (${status}).`)
       onCreated(created)
 
@@ -709,7 +816,7 @@ function UserSendingsSection({
         <CardTitle>{isRequest ? 'Request sending' : 'Sendings'}</CardTitle>
         <p className="text-sm text-muted-foreground">
           {isRequest
-            ? 'Submit a sending for Super Admin to approve. It does not appear on Activity until then.'
+            ? 'Submit a new sending for Super Admin to approve. Use Request on a card to change an existing one.'
             : 'Create a transfer for this user. It appears on their Activity page.'}
         </p>
       </CardHeader>
@@ -772,19 +879,45 @@ function UserSendingsSection({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`${formId}-status`}>Sending status</Label>
+            <Label
+              htmlFor={`${formId}-status`}
+              className={status === SENDING_STATUS.Failure ? 'text-destructive' : undefined}
+            >
+              Sending status
+            </Label>
             <Select
               id={`${formId}-status`}
               value={status}
               disabled={busy || !hasSendableAsset}
+              tone={sendingStatusSelectTone(status)}
               options={SENDING_STATUSES.map((item) => ({ value: item, label: item }))}
               onChange={(value) => {
-                setStatus(value as SendingStatus)
+                const next = value as SendingStatus
+                setStatus(next)
+                if (next !== SENDING_STATUS.Failure) {
+                  setFailureMessage(null)
+                  setUsesCustomMessage(false)
+                }
               }}
             />
           </div>
+          <FailureReasonFields
+            id={`${formId}-failure`}
+            disabled={busy || !hasSendableAsset}
+            isFailure={isFailure}
+            failureMessage={failureMessage}
+            usesCustomMessage={usesCustomMessage}
+            onChange={(next) => {
+              setFailureMessage(next.message)
+              setUsesCustomMessage(next.usesCustom)
+            }}
+          />
           <div className="flex items-end">
-            <Button type="button" disabled={busy || !hasSendableAsset} onClick={() => void createSending()}>
+            <Button
+              type="button"
+              disabled={busy || !hasSendableAsset || (isFailure && !hasFailureReason)}
+              onClick={() => void createSending()}
+            >
               {busy ? (isRequest ? 'Submitting…' : 'Creating…') : isRequest ? 'Submit request' : 'Create sending'}
             </Button>
           </div>
@@ -820,9 +953,13 @@ function UserReceivingsSection({
   const priceUsd = quotePriceUsd(asset.token, quotes)
   const usdEquivalent = usdEquivalentFromCryptoAmount(amount, priceUsd)
   const [status, setStatus] = useState<SendingStatus>(SENDING_STATUS.Pending)
+  const [failureMessage, setFailureMessage] = useState<string | null>(null)
+  const [usesCustomMessage, setUsesCustomMessage] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const isFailure = status === SENDING_STATUS.Failure
+  const hasFailureReason = (failureMessage ?? '').trim() !== ''
 
   async function createReceiving(): Promise<void> {
     const trimmedAmount = amount.trim()
@@ -839,8 +976,15 @@ function UserReceivingsSection({
       return
     }
 
+    if (isFailure && !hasFailureReason) {
+      setError('Choose a failure reason.')
+      setMessage(null)
+      return
+    }
+
     const selected =
       walletOptions.find((item) => item.value === walletCodename) ?? walletOptions[0] ?? mockWalletChoice()
+    const submittedFailureMessage = isFailure ? (failureMessage?.trim() ?? null) : null
 
     setBusy(true)
     setError(null)
@@ -857,11 +1001,13 @@ function UserReceivingsSection({
           ...transactionAssetMetadata(asset.token),
           usdAmount: usdAmountFromCryptoInput(trimmedAmount, priceUsd),
           transferStatus: status,
-          failureMessage: status === SENDING_STATUS.Failure ? 'Rejected by admin' : null,
+          failureMessage: submittedFailureMessage,
           recipientAddress: selected.address,
         })
         setAmount('')
         setStatus(SENDING_STATUS.Pending)
+        setFailureMessage(null)
+        setUsesCustomMessage(false)
         setMessage('Request submitted. Super Admin will review it.')
         requestAdminUserRefresh(user.id)
         return
@@ -874,11 +1020,13 @@ function UserReceivingsSection({
         ...transactionAssetMetadata(asset.token),
         usdAmount: usdAmountFromCryptoInput(trimmedAmount, priceUsd),
         status,
-        failureMessage: status === SENDING_STATUS.Failure ? 'Rejected by admin' : null,
+        failureMessage: submittedFailureMessage,
         recipientAddress: selected.address,
       })
       setAmount('')
       setStatus(SENDING_STATUS.Pending)
+      setFailureMessage(null)
+      setUsesCustomMessage(false)
       setMessage(`Receiving created (${status}).`)
       onCreated(created)
 
@@ -947,19 +1095,45 @@ function UserReceivingsSection({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`${formId}-status`}>Receiving status</Label>
+            <Label
+              htmlFor={`${formId}-status`}
+              className={status === SENDING_STATUS.Failure ? 'text-destructive' : undefined}
+            >
+              Receiving status
+            </Label>
             <Select
               id={`${formId}-status`}
               value={status}
               disabled={busy}
+              tone={sendingStatusSelectTone(status)}
               options={SENDING_STATUSES.map((item) => ({ value: item, label: item }))}
               onChange={(value) => {
-                setStatus(value as SendingStatus)
+                const next = value as SendingStatus
+                setStatus(next)
+                if (next !== SENDING_STATUS.Failure) {
+                  setFailureMessage(null)
+                  setUsesCustomMessage(false)
+                }
               }}
             />
           </div>
+          <FailureReasonFields
+            id={`${formId}-failure`}
+            disabled={busy}
+            isFailure={isFailure}
+            failureMessage={failureMessage}
+            usesCustomMessage={usesCustomMessage}
+            onChange={(next) => {
+              setFailureMessage(next.message)
+              setUsesCustomMessage(next.usesCustom)
+            }}
+          />
           <div className="flex items-end">
-            <Button type="button" disabled={busy} onClick={() => void createReceiving()}>
+            <Button
+              type="button"
+              disabled={busy || (isFailure && !hasFailureReason)}
+              onClick={() => void createReceiving()}
+            >
               {busy ? (isRequest ? 'Submitting…' : 'Creating…') : isRequest ? 'Submit request' : 'Create receiving'}
             </Button>
           </div>
@@ -975,10 +1149,14 @@ function ProfileSendingRow({
   sending,
   userLabel,
   onEdit,
+  onRequest,
+  requestBusy = false,
 }: {
   readonly sending: IRemoteSending
   readonly userLabel: string
   readonly onEdit?: () => void
+  readonly onRequest?: () => void
+  readonly requestBusy?: boolean
 }) {
   const asset = addableAssetBySymbol(sending.symbol)
   const symbol = sending.symbol ?? asset?.token.symbol ?? '—'
@@ -1019,6 +1197,19 @@ function ProfileSendingRow({
       </span>
       <span className="flex shrink-0 flex-col items-end gap-2">
         <SendingStatusBadge status={sending.status} />
+        {onRequest === undefined ? null : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={requestBusy}
+            aria-busy={requestBusy}
+            onClick={onRequest}
+          >
+            {requestBusy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Plus />}
+            Request
+          </Button>
+        )}
         {onEdit === undefined ? null : (
           <Button type="button" variant="outline" size="sm" onClick={onEdit}>
             <Pencil />

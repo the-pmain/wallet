@@ -156,4 +156,21 @@ describe('SupabaseRestActivityRequestsRepository', () => {
     expect(record?.amount).toBe('2')
     expect(record?.transferStatus).toBe('success')
   })
+
+  it('lists requests by created sending id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify([{ ...ROW, created_sending_id: '100' }])),
+    })
+    const store = new SupabaseRestActivityRequestsRepository({
+      supabaseUrl: 'https://example.supabase.co',
+      serviceRoleKey: 'service-role',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const listed = await store.listByCreatedSendingId('100')
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('created_sending_id=eq.100')
+    expect(listed).toEqual([expect.objectContaining({ createdSendingId: '100' })])
+  })
 })

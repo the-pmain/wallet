@@ -69,4 +69,20 @@ describe('Select', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(trigger).toHaveTextContent('failure')
   })
+
+  it('paints pending with the warning tone', () => {
+    render(
+      <Select
+        id="status"
+        value="pending"
+        tone="warning"
+        options={OPTIONS}
+        onChange={() => {
+          return
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('combobox').className).toContain('text-risk-medium')
+  })
 })

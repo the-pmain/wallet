@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react'
+import { Loader2, Pencil, Plus } from 'lucide-react'
 
 import type { RemoteSendingStatus } from '@/features/onboarding'
 import { shortenAddress } from '@/features/wallet'
@@ -22,6 +22,8 @@ interface AdminTransferRowProps {
   readonly recipientAddress?: string | null
   readonly usdLabel?: string | null
   readonly onEdit?: () => void
+  readonly onRequest?: () => void
+  readonly requestBusy?: boolean
 }
 
 /**
@@ -42,6 +44,8 @@ export function AdminTransferRow({
   recipientAddress = null,
   usdLabel = null,
   onEdit,
+  onRequest,
+  requestBusy = false,
 }: AdminTransferRowProps) {
   const asset = addableAssetBySymbol(rawSymbol)
   const symbol = rawSymbol ?? asset?.token.symbol ?? '—'
@@ -111,6 +115,23 @@ export function AdminTransferRow({
             </p>
             <div className="flex shrink-0 items-center gap-2">
               <SendingStatusBadge status={status} />
+              {onRequest === undefined ? null : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={requestBusy}
+                  aria-busy={requestBusy}
+                  onClick={onRequest}
+                >
+                  {requestBusy ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                  ) : (
+                    <Plus />
+                  )}
+                  Request
+                </Button>
+              )}
               {onEdit === undefined ? null : (
                 <Button type="button" variant="outline" size="sm" onClick={onEdit}>
                   <Pencil />

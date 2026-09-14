@@ -12,8 +12,6 @@ export const ROUTE = {
   Unlock: '/unlock',
   ForgotPassword: '/forgot-password',
   Admin: '/admin',
-  AdminSendings: '/admin/sendings',
-  AdminReceivings: '/admin/receivings',
   AdminActivity: '/admin/activity',
   AdminRequests: '/admin/requests',
 

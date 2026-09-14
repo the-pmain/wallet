@@ -82,6 +82,120 @@ describe('ActivityRequestsService', () => {
     expect(sendings.records[0]?.amount).toBe('0.01')
   })
 
+  it('approves a request linked to an existing sending without creating another', async () => {
+    const { service, sendings, sendingsService, userId } = await setup()
+    const existing = await sendingsService.registerByAdmin({
+      userId,
+      recipientAddress: RECIPIENT,
+      amount: '0.5',
+      symbol: 'ETH',
+      status: 'pending',
+      ...ETH,
+    })
+
+    const request = await service.submit({
+      kind: ACTIVITY_REQUEST_KIND.Sending,
+      requestedByName: 'Alex',
+      userId,
+      recipientAddress: RECIPIENT,
+      amount: '0.4',
+      symbol: 'ETH',
+      transferStatus: 'success',
+      createdSendingId: existing.id,
+      ...ETH,
+    })
+
+    expect(request.createdSendingId).toBe(existing.id)
+    expect(sendings.records).toHaveLength(1)
+
+    const approved = await service.approve(request.id, { reviewedByName: null })
+
+    expect(approved.createdSendingId).toBe(existing.id)
+    expect(sendings.records).toHaveLength(1)
+    expect(sendings.records[0]?.id).toBe(existing.id)
+    expect(sendings.records[0]?.amount).toBe('0.4')
+    expect(sendings.records[0]?.status).toBe('success')
+  })
+
+  it('ensures one request per sending and reuses it', async () => {
+    const { service, sendings, sendingsService, userId } = await setup()
+    const existing = await sendingsService.registerByAdmin({
+      userId,
+      recipientAddress: RECIPIENT,
+      amount: '0.5',
+      symbol: 'ETH',
+      status: 'pending',
+      ...ETH,
+    })
+
+    const first = await service.ensureForSending({
+      sendingId: existing.id,
+      requestedByName: 'Alex',
+    })
+    const second = await service.ensureForSending({
+      sendingId: existing.id,
+      requestedByName: 'Alex',
+    })
+
+    expect(first.created).toBe(true)
+    expect(second.created).toBe(false)
+    expect(second.record.id).toBe(first.record.id)
+    expect(first.record.createdSendingId).toBe(existing.id)
+    expect(sendings.records).toHaveLength(1)
+  })
+
+  it('does not copy a token contract into the linked request recipient', async () => {
+    const { service, sendings, userId } = await setup()
+    const token = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
+    const existing = await sendings.create({
+      userId,
+      recipientAddress: token,
+      amount: '10',
+      symbol: 'USDT',
+      status: 'success',
+      assetChainId: '1',
+      assetStandard: 'ERC-20',
+      assetAddress: token,
+      assetName: 'Tether USD',
+      assetDecimals: 6,
+      assetIsVerified: true,
+    })
+
+    const ensured = await service.ensureForSending({
+      sendingId: existing.id,
+      requestedByName: 'Alex',
+    })
+
+    expect(ensured.record.recipientAddress).toBeNull()
+    expect(ensured.record.createdSendingId).toBe(existing.id)
+  })
+
+  it('rejects a linked sending that does not belong to the user', async () => {
+    const { service, sendingsService, userId } = await setup()
+    const existing = await sendingsService.registerByAdmin({
+      userId,
+      recipientAddress: RECIPIENT,
+      amount: '0.5',
+      symbol: 'ETH',
+      ...ETH,
+    })
+
+    await expect(
+      service.submit({
+        kind: ACTIVITY_REQUEST_KIND.Sending,
+        requestedByName: 'Alex',
+        userId,
+        recipientAddress: RECIPIENT,
+        amount: '0.4',
+        symbol: 'ETH',
+        createdSendingId: '999',
+        ...ETH,
+      }),
+    ).rejects.toBeInstanceOf(ActivityRequestsValidationError)
+
+    expect(existing.id).not.toBe('999')
+  })
+
   it('rejects without creating a transfer', async () => {
     const { service, sendings, userId } = await setup()
     const request = await service.submit({
@@ -290,12 +404,14 @@ describe('ActivityRequestsService', () => {
 async function setup(): Promise<{
   readonly service: ActivityRequestsService
   readonly sendings: MemorySendingsRepository
+  readonly sendingsService: SendingsService
   readonly userId: string
 }> {
   const users = new MemoryUsersRepository()
   const sendings = new MemorySendingsRepository()
   const receivings = new MemoryReceivingsRepository()
   const requests = new MemoryActivityRequestsRepository()
+  const sendingsService = new SendingsService(sendings, users)
   const user = await users.create({
     email: 'james@example.com',
     balance: '0',
@@ -322,10 +438,11 @@ async function setup(): Promise<{
     service: new ActivityRequestsService(
       requests,
       users,
-      new SendingsService(sendings, users),
+      sendingsService,
       new ReceivingsService(receivings, users),
     ),
     sendings,
+    sendingsService,
     userId: user.id,
   }
 }

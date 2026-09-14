@@ -96,6 +96,12 @@ export class SupabaseRestActivityRequestsRepository implements IActivityRequests
         kind: input.kind,
         requested_by_name: input.requestedByName,
         user_id: input.userId,
+        ...(input.createdSendingId === undefined || input.createdSendingId === null
+          ? {}
+          : { created_sending_id: input.createdSendingId }),
+        ...(input.createdReceivingId === undefined || input.createdReceivingId === null
+          ? {}
+          : { created_receiving_id: input.createdReceivingId }),
         transfer_status: input.transferStatus,
         failure_message: input.failureMessage,
         recipient_address: input.recipientAddress,
@@ -168,6 +174,27 @@ export class SupabaseRestActivityRequestsRepository implements IActivityRequests
     }
 
     return parseRows(raw, 'list').map(toRecord)
+  }
+
+  async listByCreatedSendingId(sendingId: string): Promise<readonly IActivityRequestRecord[]> {
+    const endpoint = new URL(`${this.#url}/rest/v1/activity_requests`)
+    endpoint.searchParams.set('select', ACTIVITY_REQUEST_SELECT)
+    endpoint.searchParams.set('created_sending_id', `eq.${sendingId}`)
+    endpoint.searchParams.set('order', 'created_at.desc')
+    endpoint.searchParams.set('limit', '50')
+
+    const response = await this.#fetch(endpoint.toString(), {
+      method: 'GET',
+      headers: this.#readHeaders(),
+    })
+
+    const raw = await response.text()
+
+    if (!response.ok) {
+      throw unavailable('listByCreatedSendingId', response.status, raw)
+    }
+
+    return parseRows(raw, 'listByCreatedSendingId').map(toRecord)
   }
 
   async updateIfPending(

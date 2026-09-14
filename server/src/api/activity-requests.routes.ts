@@ -72,7 +72,18 @@ const CREATE_BODY = {
       pattern: SENDING_SYMBOL_JSON_PATTERN,
     },
     usdAmount: { type: ['string', 'null'], maxLength: 32 },
+    createdSendingId: { type: ['string', 'null'], minLength: 1, maxLength: 20, pattern: '^\\d+$' },
     ...ASSET_METADATA_PROPERTIES,
+  },
+} as const
+
+const FOR_SENDING_BODY = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['sendingId', 'requestedByName'],
+  properties: {
+    sendingId: { type: 'string', minLength: 1, maxLength: 20, pattern: '^\\d+$' },
+    requestedByName: { type: 'string', minLength: 1, maxLength: REQUESTED_BY_NAME_MAX_LENGTH },
   },
 } as const
 
@@ -145,6 +156,7 @@ interface ICreateBody extends IAssetMetadataBody {
   readonly amount: string
   readonly symbol: string
   readonly usdAmount?: string | null
+  readonly createdSendingId?: string | null
 }
 
 interface IUpdateBody extends IAssetMetadataBody {
@@ -155,6 +167,11 @@ interface IUpdateBody extends IAssetMetadataBody {
   readonly amount: string
   readonly symbol: string
   readonly usdAmount?: string | null
+}
+
+interface IForSendingBody {
+  readonly sendingId: string
+  readonly requestedByName: string
 }
 
 interface IReviewBody {
@@ -232,6 +249,7 @@ export function registerActivityRequestRoutes(
           failureMessage: request.body.failureMessage ?? null,
           recipientAddress: request.body.recipientAddress ?? null,
           usdAmount: request.body.usdAmount ?? null,
+          createdSendingId: request.body.createdSendingId ?? null,
           ...readAssetMetadata(request.body),
         }),
       )
@@ -245,6 +263,41 @@ export function registerActivityRequestRoutes(
         ),
       )
       void reply.status(201).header('cache-control', 'no-store')
+
+      return toActivityRequestResponse(record)
+    },
+  )
+
+  app.post<{ Body: IForSendingBody }>(
+    '/v1/admin/activity-requests/for-sending',
+    { schema: { body: FOR_SENDING_BODY } },
+    async (request, reply) => {
+      requireAdminRole(request)
+
+      let created = false
+      const record = await runMutation(async () => {
+        const ensured = await activityRequests.ensureForSending({
+          sendingId: request.body.sendingId,
+          requestedByName: request.body.requestedByName,
+        })
+        created = ensured.created
+        return ensured.record
+      })
+
+      directory.invalidateActivityRequests()
+
+      if (created) {
+        activityRequestsHub.publish(
+          await toActivityRequestSseEvent(
+            sendingsService,
+            record,
+            ACTIVITY_REQUEST_SSE_TYPE.Create,
+          ),
+        )
+        void reply.status(201).header('cache-control', 'no-store')
+      } else {
+        void reply.header('cache-control', 'no-store')
+      }
 
       return toActivityRequestResponse(record)
     },

@@ -18,10 +18,10 @@ export interface SelectProps<TValue extends string = string> {
   readonly className?: string
 
   /**
-   * Dangerous field — refuse a transfer. Same color as the other
-   * destructive controls, not a separate palette.
+   * Status color. Pending uses warning, the same amber as the
+   * status badge. Failure is danger. Success is the low-risk green.
    */
-  readonly tone?: 'default' | 'danger' | 'success'
+  readonly tone?: 'default' | 'danger' | 'success' | 'warning'
 
   /**
    * Where the list opens. Fields at the bottom of a dialog open
@@ -157,7 +157,9 @@ export function Select<TValue extends string>({
       ? 'border-destructive/50 bg-destructive/10 text-destructive'
       : tone === 'success'
         ? 'border-risk-low/50 bg-risk-low/10 text-risk-low'
-        : 'bg-transparent'
+        : tone === 'warning'
+          ? 'border-risk-medium/50 bg-risk-medium/10 text-risk-medium'
+          : 'bg-transparent'
 
   return (
     <div ref={rootRef} className={cn('relative', className)}>

@@ -316,6 +316,47 @@ describe('AdminClient', () => {
     expect(created.requestStatus).toBe('pending')
   })
 
+  it('opens or creates a request for a sending', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(201, {
+        id: 'ar-1',
+        createdAt: '2026-09-12T12:00:00.000Z',
+        kind: 'sending',
+        requestStatus: 'pending',
+        requestedByName: 'Alex',
+        reviewedAt: null,
+        reviewedByName: null,
+        reviewMessage: null,
+        createdSendingId: '61',
+        createdReceivingId: null,
+        userId: '7',
+        transferStatus: 'success',
+        failureMessage: null,
+        recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+        amount: '1.992567',
+        symbol: 'ETH',
+        usdAmount: null,
+      }),
+    )
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '4200',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const request = await client.ensureSendingActivityRequest({
+      sendingId: '61',
+      requestedByName: 'Alex',
+    })
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/activity-requests/for-sending')
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      sendingId: '61',
+      requestedByName: 'Alex',
+    })
+    expect(request.createdSendingId).toBe('61')
+  })
+
   it('patches an activity request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse(200, {

@@ -57,6 +57,8 @@ export interface IActivityRequestDraftFields {
 export interface ICreateActivityRequestInput extends IActivityRequestDraftFields {
   readonly requestedByName: string
   readonly userId: string
+  readonly createdSendingId?: string | null
+  readonly createdReceivingId?: string | null
 }
 
 export interface IReviewActivityRequestInput {
@@ -72,6 +74,7 @@ export interface IActivityRequestsRepository {
   create(input: ICreateActivityRequestInput): Promise<IActivityRequestRecord>
   findById(id: string): Promise<IActivityRequestRecord | null>
   list(options?: { readonly limit?: number }): Promise<readonly IActivityRequestRecord[]>
+  listByCreatedSendingId(sendingId: string): Promise<readonly IActivityRequestRecord[]>
   /** Pending stays pending. Approved reopens as pending for Super review. */
   updateIfPending(
     id: string,

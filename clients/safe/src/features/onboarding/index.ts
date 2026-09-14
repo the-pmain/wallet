@@ -15,7 +15,9 @@ export {
 export {
   SENDING_STATUS,
   SENDING_STATUSES,
+  sendingStatusSelectTone,
   type SendingStatus,
+  type SendingStatusSelectTone,
 } from './model/sending-status'
 export {
   TOKEN_SYMBOL,

@@ -38,18 +38,6 @@ const TABS = [
     superOnly: false,
     isActive: (pathname: string) => pathname === '/admin/requests',
   },
-  {
-    to: '/admin/sendings',
-    label: 'Sendings',
-    superOnly: false,
-    isActive: (pathname: string) => pathname === '/admin/sendings',
-  },
-  {
-    to: '/admin/receivings',
-    label: 'Receivings',
-    superOnly: false,
-    isActive: (pathname: string) => pathname === '/admin/receivings',
-  },
 ] as const
 
 /**

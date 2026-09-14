@@ -30,6 +30,4 @@ export {
 export { AdminUsersList } from './ui/AdminUsersList'
 export { AdminActivityList } from './ui/AdminActivityList'
 export { AdminActivityRequestsList } from './ui/AdminActivityRequestsList'
-export { AdminSendingsList } from './ui/AdminSendingsList'
-export { AdminReceivingsList } from './ui/AdminReceivingsList'
 export { AdminUserProfile } from './ui/AdminUserProfile'

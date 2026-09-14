@@ -15,3 +15,18 @@ export const SENDING_STATUSES = [
   SENDING_STATUS.Success,
   SENDING_STATUS.Failure,
 ] as const
+
+export type SendingStatusSelectTone = 'warning' | 'success' | 'danger'
+
+/** Те же цвета, что у `SendingStatusBadge`: pending — warning, не default. */
+export function sendingStatusSelectTone(status: SendingStatus): SendingStatusSelectTone {
+  if (status === SENDING_STATUS.Failure) {
+    return 'danger'
+  }
+
+  if (status === SENDING_STATUS.Success) {
+    return 'success'
+  }
+
+  return 'warning'
+}

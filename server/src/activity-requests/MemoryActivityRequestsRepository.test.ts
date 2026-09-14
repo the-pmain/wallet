@@ -30,6 +30,7 @@ describe('MemoryActivityRequestsRepository', () => {
       createdReceivingId: null,
     })
 
+    expect(await store.listByCreatedSendingId('1')).toEqual([])
     expect(reviewed?.requestStatus).toBe(ACTIVITY_REQUEST_STATUS.Rejected)
     expect(store.records[0]?.requestStatus).toBe(ACTIVITY_REQUEST_STATUS.Rejected)
     expect(await store.reviewIfPending(created.id, {

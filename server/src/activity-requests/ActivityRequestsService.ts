@@ -2,6 +2,7 @@ import { isValidCryptoWalletAddress } from '../lib/crypto-wallet.ts'
 import type { ReceivingsService } from '../receivings/ReceivingsService.ts'
 import { ReceivingsValidationError } from '../receivings/ReceivingsService.ts'
 import { readSendingAmount } from '../sendings/amount.ts'
+import type { ISendingRecord } from '../sendings/contracts.ts'
 import type { SendingsService } from '../sendings/SendingsService.ts'
 import { SendingsValidationError } from '../sendings/SendingsService.ts'
 import { isSendingStatus, SENDING_STATUS, type SendingStatus } from '../sendings/status.ts'
@@ -42,6 +43,7 @@ export interface IActivityRequestDraftInput {
 export interface ISubmitActivityRequestInput extends IActivityRequestDraftInput {
   readonly requestedByName: string
   readonly userId: string
+  readonly createdSendingId?: string | null
 }
 
 export interface IReviewDecisionInput {
@@ -75,9 +77,78 @@ export class ActivityRequestsService {
       throw new ActivityRequestsValidationError('User for this request was not found.')
     }
 
-    assertSendingCovered(user, fields)
+    const createdSendingId = await this.#linkedSendingId(
+      fields.kind,
+      fields.userId,
+      input.createdSendingId,
+    )
 
-    return await this.#requests.create(fields)
+    if (createdSendingId === null) {
+      assertSendingCovered(user, fields)
+    }
+
+    return await this.#requests.create({
+      ...fields,
+      createdSendingId,
+    })
+  }
+
+  async ensureForSending(input: {
+    readonly sendingId: string
+    readonly requestedByName: string
+  }): Promise<{ readonly record: IActivityRequestRecord; readonly created: boolean }> {
+    const sendingId = emptyToNull(input.sendingId)
+
+    if (sendingId === null || !/^\d+$/u.test(sendingId)) {
+      throw new ActivityRequestsValidationError('Sending for this request was not found.')
+    }
+
+    const sending = await this.#sendings.findById(sendingId)
+
+    if (sending === null || sending.userId === null) {
+      throw new ActivityRequestsValidationError('Sending for this request was not found.')
+    }
+
+    const existing = pickReusableSendingRequest(
+      await this.#requests.listByCreatedSendingId(sending.id),
+    )
+
+    if (existing !== null) {
+      return { record: existing, created: false }
+    }
+
+    const amount = readSendingAmount(sending.amount ?? '')
+    const symbol = readSendingSymbol(sending.symbol ?? '')
+
+    if (amount === null) {
+      throw new ActivityRequestsValidationError('Amount must be a decimal string.')
+    }
+
+    if (symbol === null) {
+      throw new ActivityRequestsValidationError('Asset symbol is required.')
+    }
+
+    const record = await this.submit({
+      kind: ACTIVITY_REQUEST_KIND.Sending,
+      requestedByName: input.requestedByName,
+      userId: sending.userId,
+      amount,
+      symbol,
+      transferStatus: isSendingStatus(sending.status) ? sending.status : SENDING_STATUS.Pending,
+      failureMessage: sending.failureMessage,
+      recipientAddress: recipientForLinkedSending(sending),
+      createdSendingId: sending.id,
+      ...(sending.assetChainId === null ? {} : { assetChainId: sending.assetChainId }),
+      ...(sending.assetStandard === null ? {} : { assetStandard: sending.assetStandard }),
+      ...(sending.assetAddress === undefined
+        ? {}
+        : { assetAddress: sending.assetAddress }),
+      ...(sending.assetName === null ? {} : { assetName: sending.assetName }),
+      ...(sending.assetDecimals === null ? {} : { assetDecimals: sending.assetDecimals }),
+      ...(sending.assetIsVerified === null ? {} : { assetIsVerified: sending.assetIsVerified }),
+    })
+
+    return { record, created: true }
   }
 
   async list(options?: { readonly limit?: number }): Promise<readonly IActivityRequestRecord[]> {
@@ -268,6 +339,34 @@ export class ActivityRequestsService {
     return reviewed
   }
 
+  async #linkedSendingId(
+    kind: string,
+    userId: string,
+    rawId: string | null | undefined,
+  ): Promise<string | null> {
+    const createdSendingId = emptyToNull(rawId ?? null)
+
+    if (createdSendingId === null) {
+      return null
+    }
+
+    if (kind !== ACTIVITY_REQUEST_KIND.Sending) {
+      throw new ActivityRequestsValidationError('A receiving request cannot link a sending.')
+    }
+
+    if (!/^\d+$/u.test(createdSendingId)) {
+      throw new ActivityRequestsValidationError('Sending for this request was not found.')
+    }
+
+    const sending = await this.#sendings.findById(createdSendingId)
+
+    if (sending === null || sending.userId !== userId) {
+      throw new ActivityRequestsValidationError('Sending for this request was not found.')
+    }
+
+    return sending.id
+  }
+
   async requirePending(id: string): Promise<IActivityRequestRecord> {
     const current = await this.#requests.findById(id)
 
@@ -325,7 +424,9 @@ function readSubmitFields(input: ISubmitActivityRequestInput): ICreateActivityRe
   }
 
   return {
-    ...readDraftFields(input),
+    ...readDraftFields(input, {
+      allowEmptySendingRecipient: emptyToNull(input.createdSendingId ?? null) !== null,
+    }),
     requestedByName,
     userId,
   }
@@ -333,6 +434,7 @@ function readSubmitFields(input: ISubmitActivityRequestInput): ICreateActivityRe
 
 function readDraftFields(
   input: IActivityRequestDraftInput,
+  options: { readonly allowEmptySendingRecipient?: boolean } = {},
 ): Omit<ICreateActivityRequestInput, 'requestedByName' | 'userId'> {
   if (!isActivityRequestKind(input.kind)) {
     throw new ActivityRequestsValidationError('Kind must be sending or receiving.')
@@ -359,7 +461,11 @@ function readDraftFields(
   const recipientAddress = emptyToNull(input.recipientAddress ?? null)
 
   if (input.kind === ACTIVITY_REQUEST_KIND.Sending) {
-    if (recipientAddress === null || !isValidCryptoWalletAddress(recipientAddress)) {
+    if (recipientAddress === null) {
+      if (options.allowEmptySendingRecipient !== true) {
+        throw new ActivityRequestsValidationError('Recipient must be a valid crypto wallet address.')
+      }
+    } else if (!isValidCryptoWalletAddress(recipientAddress)) {
       throw new ActivityRequestsValidationError('Recipient must be a valid crypto wallet address.')
     }
   } else if (recipientAddress !== null && !isValidCryptoWalletAddress(recipientAddress)) {
@@ -400,6 +506,32 @@ function optionalOperatorName(value: string | null | undefined): string | null {
   }
 
   return name
+}
+
+function pickReusableSendingRequest(
+  records: readonly IActivityRequestRecord[],
+): IActivityRequestRecord | null {
+  return (
+    records.find((record) => record.requestStatus === ACTIVITY_REQUEST_STATUS.Pending) ??
+    records.find((record) => record.requestStatus === ACTIVITY_REQUEST_STATUS.Approved) ??
+    null
+  )
+}
+
+function recipientForLinkedSending(sending: ISendingRecord): string | null {
+  const recipient = emptyToNull(sending.recipientAddress)
+
+  if (recipient === null || !isValidCryptoWalletAddress(recipient)) {
+    return null
+  }
+
+  const assetAddress = emptyToNull(sending.assetAddress)
+
+  if (assetAddress !== null && recipient.toLowerCase() === assetAddress.toLowerCase()) {
+    return null
+  }
+
+  return recipient
 }
 
 function emptyToNull(value: string | null): string | null {

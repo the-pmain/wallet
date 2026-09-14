@@ -2,7 +2,12 @@ import { useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 
 import { isValidCryptoWalletAddress, normalizeCryptoWalletInput } from '@/core'
-import { SENDING_STATUS, SENDING_STATUSES, type SendingStatus } from '@/features/onboarding'
+import {
+  SENDING_STATUS,
+  SENDING_STATUSES,
+  sendingStatusSelectTone,
+  type SendingStatus,
+} from '@/features/onboarding'
 import { TokenAvatar } from '@/features/wallet/ui/TokenAvatar'
 import { Badge, Button, Dialog, Input, Label, Select, Textarea } from '@/shared/ui'
 
@@ -227,13 +232,7 @@ export function ActivityRequestReviewDialog({
                 value={draft.transferStatus}
                 disabled={isBusy}
                 menuPlacement="top"
-                tone={
-                  isFailure
-                    ? 'danger'
-                    : draft.transferStatus === SENDING_STATUS.Success
-                      ? 'success'
-                      : 'default'
-                }
+                tone={sendingStatusSelectTone(draft.transferStatus)}
                 options={SENDING_STATUSES.map((status) => ({
                   value: status,
                   label: status,

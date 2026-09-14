@@ -24,8 +24,8 @@ export class MemoryActivityRequestsRepository implements IActivityRequestsReposi
       reviewedAt: null,
       reviewedByName: null,
       reviewMessage: null,
-      createdSendingId: null,
-      createdReceivingId: null,
+      createdSendingId: input.createdSendingId ?? null,
+      createdReceivingId: input.createdReceivingId ?? null,
       userId: input.userId,
       transferStatus: input.transferStatus,
       failureMessage: input.failureMessage,
@@ -48,6 +48,14 @@ export class MemoryActivityRequestsRepository implements IActivityRequestsReposi
 
   findById(id: string): Promise<IActivityRequestRecord | null> {
     return Promise.resolve(this.#records.find((entry) => entry.id === id) ?? null)
+  }
+
+  listByCreatedSendingId(sendingId: string): Promise<readonly IActivityRequestRecord[]> {
+    return Promise.resolve(
+      this.#records
+        .filter((entry) => entry.createdSendingId === sendingId)
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime()),
+    )
   }
 
   list(options?: { readonly limit?: number }): Promise<readonly IActivityRequestRecord[]> {

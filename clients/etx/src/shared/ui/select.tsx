@@ -18,10 +18,10 @@ export interface SelectProps<TValue extends string = string> {
   readonly className?: string
 
   /**
-   * Опасное поле — отказ перевода. Цвет тот же, что у остальных
-   * разрушающих контролов, а не отдельная палитра.
+   * Цвет статуса. Pending — warning, тот же янтарь, что у бейджа.
+   * Failure — danger. Success — зелёный низкого риска.
    */
-  readonly tone?: 'default' | 'danger' | 'success'
+  readonly tone?: 'default' | 'danger' | 'success' | 'warning'
 
   /**
    * Куда раскрывается список. У нижних полей окна список вверх:
@@ -157,7 +157,9 @@ export function Select<TValue extends string>({
       ? 'border-destructive/50 bg-destructive/10 text-destructive'
       : tone === 'success'
         ? 'border-risk-low/50 bg-risk-low/10 text-risk-low'
-        : 'bg-transparent'
+        : tone === 'warning'
+          ? 'border-risk-medium/50 bg-risk-medium/10 text-risk-medium'
+          : 'bg-transparent'
 
   return (
     <div ref={rootRef} className={cn('relative', className)}>

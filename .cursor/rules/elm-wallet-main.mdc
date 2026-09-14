@@ -14,6 +14,7 @@ alwaysApply: true
 - Preserve storage identities: Safe uses `elmsafe`; ETX uses `etwallet`.
 - Shared behavior must be extracted through a neutral package with contract tests, not by cross-client imports.
 - Run focused tests for every changed client and `npm run test:themes` for all-theme or shared-infrastructure changes.
+- After every user prompt that changes the running app, rebuild the Safe production bundle (`THEME=safe`) and restart the process on port 8080.
 
 # Commit and push confirmation
 

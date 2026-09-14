@@ -117,6 +117,117 @@ describe('activity request routes', () => {
     expect(sendings.json<{ sendings: unknown[] }>().sendings).toHaveLength(0)
   })
 
+  it('links a sending request to an existing sending and updates it on approve', async () => {
+    const sending = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/sendings',
+      headers: { 'x-admin-pin': '9100' },
+      payload: {
+        userId,
+        recipientAddress: RECIPIENT,
+        amount: '0.5',
+        symbol: 'ETH',
+        status: 'pending',
+        ...ETH,
+      },
+    })
+
+    expect(sending.statusCode).toBe(201)
+    const sendingId = sending.json<{ id: string }>().id
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/activity-requests',
+      headers: { 'x-admin-pin': '4200' },
+      payload: {
+        kind: 'sending',
+        requestedByName: 'Alex',
+        userId,
+        recipientAddress: RECIPIENT,
+        amount: '0.4',
+        symbol: 'ETH',
+        transferStatus: 'success',
+        createdSendingId: sendingId,
+        ...ETH,
+      },
+    })
+
+    expect(created.statusCode).toBe(201)
+    expect(created.json()).toMatchObject({ createdSendingId: sendingId })
+
+    const approved = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/activity-requests/${created.json<{ id: string }>().id}/approve`,
+      headers: { 'x-admin-pin': '9100' },
+      payload: {},
+    })
+
+    expect(approved.statusCode).toBe(200)
+    expect(approved.json()).toMatchObject({ createdSendingId: sendingId })
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/sendings',
+      headers: { 'x-admin-pin': '4200' },
+    })
+
+    expect(listed.json<{ sendings: { id: string; amount: string }[] }>().sendings).toEqual([
+      expect.objectContaining({ id: sendingId, amount: '0.4' }),
+    ])
+  })
+
+  it('opens or creates a request for a sending id', async () => {
+    const sending = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/sendings',
+      headers: { 'x-admin-pin': '9100' },
+      payload: {
+        userId,
+        recipientAddress: RECIPIENT,
+        amount: '0.5',
+        symbol: 'ETH',
+        status: 'pending',
+        ...ETH,
+      },
+    })
+
+    expect(sending.statusCode).toBe(201)
+    const sendingId = sending.json<{ id: string }>().id
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/activity-requests/for-sending',
+      headers: { 'x-admin-pin': '4200' },
+      payload: {
+        sendingId,
+        requestedByName: 'Alex',
+      },
+    })
+
+    expect(created.statusCode).toBe(201)
+    expect(created.json()).toMatchObject({
+      createdSendingId: sendingId,
+      requestedByName: 'Alex',
+      amount: '0.5',
+    })
+
+    const reused = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/activity-requests/for-sending',
+      headers: { 'x-admin-pin': '4200' },
+      payload: {
+        sendingId,
+        requestedByName: 'Alex',
+      },
+    })
+
+    expect(reused.statusCode).toBe(200)
+    expect(reused.json()).toMatchObject({
+      id: created.json<{ id: string }>().id,
+      createdSendingId: sendingId,
+    })
+  })
+
   it('refuses a sending request larger than the user holding', async () => {
     const created = await app.inject({
       method: 'POST',
