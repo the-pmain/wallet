@@ -14,7 +14,16 @@ alwaysApply: true
 - Preserve storage identities: Safe uses `elmsafe`; ETX uses `etwallet`.
 - Shared behavior must be extracted through a neutral package with contract tests, not by cross-client imports.
 - Run focused tests for every changed client and `npm run test:themes` for all-theme or shared-infrastructure changes.
-- After every user prompt that changes the running app, rebuild the Safe production bundle (`THEME=safe`) and restart the process on port 8080.
+
+# Dev stack after every prompt
+
+- Run the app in development, not production-only fullstack:
+  - Client: `npm run dev` starts every registered theme in registry order: first on http://localhost:3000, next on 3001, and so on. Production `build` / `start` / `fullstack` still resolve a single client from `THEME`.
+  - API: `npm run server:dev` on http://127.0.0.1:8080. If `.env` points at hosted Supabase, start the API with `NODE_ENV=production` so startup does not refuse the URL; keep Vite in development.
+- After every user prompt, actualize both versions before finishing:
+  1. Rebuild the client the server serves (`THEME` matching Vite, `npm run build`), then restart the API so `:8080` has the new `dist`.
+  2. Restart Vite so every theme port (`:3000`, `:3001`, …) is the current client.
+- Do not leave a stale theme on `:8080` while Vite is serving a different one. Production `THEME` still selects the single `dist` the API serves.
 
 # Commit and push confirmation
 

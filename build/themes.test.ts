@@ -19,6 +19,30 @@ describe('theme registry', () => {
     }
   })
 
+  it('assigns local-dev ports in registry order from 3000', () => {
+    const launcher = readFileSync(resolve(repositoryRoot, 'scripts/theme-dev-servers.mjs'), 'utf8')
+    const dev = readFileSync(resolve(repositoryRoot, 'scripts/dev-themes.mjs'), 'utf8')
+    const local = readFileSync(resolve(repositoryRoot, 'scripts/dev-local.mjs'), 'utf8')
+
+    expect(THEME_IDS.length).toBeGreaterThan(1)
+    expect(launcher).toMatch(/const FIRST_PORT = 3000/u)
+    expect(launcher).toMatch(/build\/themes\.json/u)
+    expect(dev).toMatch(/listThemeDevServers/u)
+    expect(local).toMatch(/listThemeDevServers/u)
+  })
+
+  it('keeps production build on a single THEME and starts every theme in dev', () => {
+    const scripts = JSON.parse(
+      readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'),
+    ).scripts
+
+    expect(scripts.build).toBe('tsc -b && vite build')
+    expect(scripts.start).toBe('node server/src/index.ts')
+    expect(scripts.fullstack).toBe('npm run build && node server/src/index.ts')
+    expect(scripts.dev).toBe('node scripts/dev-themes.mjs')
+    expect(scripts.local).toBe('node scripts/dev-local.mjs')
+  })
+
   it('does not reuse a browser-storage namespace', () => {
     const namespaces = THEME_IDS.map((theme) => THEMES[theme].storageNamespace)
 

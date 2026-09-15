@@ -2,13 +2,18 @@ import { spawn, spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 
 import { isLocalSupabaseUrl } from './local-supabase-url.mjs'
+import {
+  listThemeDevServers,
+  openBrowser,
+  spawnThemeDevServer,
+  waitFor,
+} from './theme-dev-servers.mjs'
 
 const ROOT = resolve('.')
 const SUPABASE_CLI = resolve(ROOT, 'node_modules/supabase/dist/supabase.js')
-const WALLET_URL = 'http://localhost:3000'
-const WALLET_PROBES = ['http://127.0.0.1:3000', 'http://localhost:3000', 'http://[::1]:3000']
 const API_HEALTH = 'http://127.0.0.1:8080/v1/health'
 const dbOnly = process.argv.includes('--db-only')
+const themeServers = listThemeDevServers()
 
 const children = []
 
@@ -32,12 +37,14 @@ if (dbOnly) {
 
 if (!(await isUp(API_HEALTH))) {
   console.log('Starting the local Node API on http://127.0.0.1:8080')
-  children.push(spawnNpm('server:dev'))
+  children.push(trackChild(spawnNpm('server:dev', withThemeOrigins(process.env, themeServers))))
 }
 
-if (!(await isUp(WALLET_PROBES))) {
-  console.log('Starting the wallet UI on http://localhost:3000')
-  children.push(spawnNpm('dev'))
+for (const server of themeServers) {
+  if (!(await isUp(server.probes))) {
+    console.log(`Starting ${server.theme} on ${server.url}`)
+    children.push(trackChild(spawnThemeDevServer(server.theme, server.port)))
+  }
 }
 
 if (!(await waitFor(API_HEALTH, 60_000))) {
@@ -45,18 +52,23 @@ if (!(await waitFor(API_HEALTH, 60_000))) {
   process.exit(1)
 }
 
-if (!(await waitFor(WALLET_PROBES, 60_000))) {
-  console.error('The wallet UI did not start on http://localhost:3000')
-  process.exit(1)
+for (const server of themeServers) {
+  if (!(await waitFor(server.probes, 60_000))) {
+    console.error(`${server.theme} did not start on ${server.url}`)
+    process.exit(1)
+  }
 }
 
 await assertApiUsesLocalSupabase()
-openBrowser(WALLET_URL)
+
+for (const server of themeServers) {
+  openBrowser(server.url)
+}
 
 console.log(
   [
     'Local stack is up:',
-    `  Wallet  ${WALLET_URL}`,
+    ...themeServers.map((server) => `  Wallet  ${server.theme}  ${server.url}`),
     '  API     http://127.0.0.1:8080',
     '  Studio  http://127.0.0.1:55323',
   ].join('\n'),
@@ -91,25 +103,44 @@ async function ensureLocalDatabase() {
 }
 
 function writeLocalEnv() {
-  const written = spawnSync(process.execPath, [resolve(ROOT, 'scripts/write-local-supabase-env.mjs')], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    stdio: 'inherit',
-  })
+  const written = spawnSync(
+    process.execPath,
+    [resolve(ROOT, 'scripts/write-local-supabase-env.mjs')],
+    {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: 'inherit',
+    },
+  )
 
   if (written.status !== 0) {
     process.exit(written.status ?? 1)
   }
 }
 
-function spawnNpm(script) {
-  const child = spawn('npm', ['run', script], {
+function spawnNpm(script, env = process.env) {
+  return spawn('npm', ['run', script], {
     cwd: ROOT,
     stdio: 'inherit',
     shell: true,
-    env: process.env,
+    env,
   })
+}
 
+function withThemeOrigins(env, servers) {
+  const existing = (env.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin !== '')
+  const extra = servers.flatMap((server) => [
+    `http://127.0.0.1:${server.port}`,
+    `http://localhost:${server.port}`,
+  ])
+
+  return { ...env, ALLOWED_ORIGINS: [...new Set([...existing, ...extra])].join(',') }
+}
+
+function trackChild(child) {
   child.on('exit', (code) => {
     if (code && code !== 0) {
       process.exitCode = code
@@ -123,28 +154,6 @@ async function isUp(urlOrUrls) {
   return waitFor(urlOrUrls, 1_200)
 }
 
-async function waitFor(urlOrUrls, timeoutMs) {
-  const urls = Array.isArray(urlOrUrls) ? urlOrUrls : [urlOrUrls]
-  const deadline = Date.now() + timeoutMs
-
-  while (Date.now() < deadline) {
-    for (const url of urls) {
-      try {
-        const response = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(800) })
-        if (response.ok || response.status === 304) {
-          return true
-        }
-      } catch {
-        /* try the next address */
-      }
-    }
-
-    await sleep(400)
-  }
-
-  return false
-}
-
 async function assertApiUsesLocalSupabase() {
   const response = await fetch(API_HEALTH)
   const body = await response.json().catch(() => null)
@@ -156,15 +165,6 @@ async function assertApiUsesLocalSupabase() {
     )
     process.exit(1)
   }
-}
-
-function openBrowser(url) {
-  const command =
-    process.platform === 'win32'
-      ? spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' })
-      : spawn('open', [url], { detached: true, stdio: 'ignore' })
-
-  command.unref()
 }
 
 function readStatusValue(raw, key) {
@@ -199,10 +199,4 @@ function parseEnv(raw) {
   }
 
   return values
-}
-
-function sleep(ms) {
-  return new Promise((resolveSleep) => {
-    setTimeout(resolveSleep, ms)
-  })
 }

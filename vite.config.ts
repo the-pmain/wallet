@@ -13,8 +13,16 @@ import packageJson from './package.json' with { type: 'json' }
 
 const REPOSITORY_ROOT = fileURLToPath(new URL('.', import.meta.url))
 
-/** Dev-server port. Fixed so the app URL is predictable. */
-const DEV_SERVER_PORT = 3000
+/**
+ * Dev-server port for a single Vite process.
+ *
+ * `npm run dev` / `npm run local` start every registered theme on
+ * sequential ports (3000, 3001, …) and set `DEV_CLIENT_PORT` per
+ * process. A direct `vite` / `vite preview` / production `vite build`
+ * still resolves one client from `THEME` and, for a lone dev server,
+ * stays on 3000.
+ */
+const DEV_SERVER_PORT = readDevClientPort()
 
 /**
  * Preview port for the built app.
@@ -34,6 +42,20 @@ const PREVIEW_PORT =
   process.env.PORT === undefined || process.env.PORT === ''
     ? null
     : Number.parseInt(process.env.PORT, 10)
+
+function readDevClientPort(): number {
+  const raw = process.env.DEV_CLIENT_PORT
+  if (raw === undefined || raw === '') {
+    return 3000
+  }
+
+  const port = Number.parseInt(raw, 10)
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error(`DEV_CLIENT_PORT must be a TCP port. Received: ${JSON.stringify(raw)}.`)
+  }
+
+  return port
+}
 
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, REPOSITORY_ROOT, '')

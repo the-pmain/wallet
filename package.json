@@ -11,7 +11,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev-themes.mjs",
     "build": "tsc -b && vite build",
     "build:themes": "node scripts/run-for-themes.mjs build",
     "preview": "vite preview",

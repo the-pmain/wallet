@@ -30,7 +30,7 @@ Pieces:
 | `npm run local:stop` | Stop the local Docker stack |
 | `npm run supabase:reset` | Reset the **local** database (`--local` only) |
 
-- Wallet UI: `http://localhost:3000`
+- Wallet UI: one origin per theme (`http://localhost:3000`, `http://localhost:3001`, …)
 - Node API: `http://127.0.0.1:8080`
 - Local Supabase API: `http://127.0.0.1:55321`
 - Studio: `http://127.0.0.1:55323`

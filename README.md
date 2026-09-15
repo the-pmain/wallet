@@ -132,7 +132,7 @@ npm install
 npm run dev
 ```
 
-The app will open at `http://localhost:3000`.
+Every registered theme opens: the first at `http://localhost:3000`, the next at `http://localhost:3001`, and so on. Production build still uses `THEME` from the environment.
 
 ---
 
@@ -140,7 +140,7 @@ The app will open at `http://localhost:3000`.
 
 | Command                 | Purpose                                                         |
 | ----------------------- | --------------------------------------------------------------- |
-| `npm run dev`           | Dev server with hot reload                                      |
+| `npm run dev`           | Dev servers for every theme (3000, 3001, …)                     |
 | `npm run build`         | Type check and production build into `dist/`                    |
 | `npm run preview`       | Local preview of the built app                                  |
 | `npm run typecheck`     | Type check only                                                 |
