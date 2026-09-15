@@ -2,7 +2,6 @@ import { isValidCryptoWalletAddress } from '../lib/crypto-wallet.ts'
 import type { ReceivingsService } from '../receivings/ReceivingsService.ts'
 import { ReceivingsValidationError } from '../receivings/ReceivingsService.ts'
 import { readSendingAmount } from '../sendings/amount.ts'
-import type { ISendingRecord } from '../sendings/contracts.ts'
 import type { SendingsService } from '../sendings/SendingsService.ts'
 import { SendingsValidationError } from '../sendings/SendingsService.ts'
 import { isSendingStatus, SENDING_STATUS, type SendingStatus } from '../sendings/status.ts'
@@ -44,6 +43,7 @@ export interface ISubmitActivityRequestInput extends IActivityRequestDraftInput 
   readonly requestedByName: string
   readonly userId: string
   readonly createdSendingId?: string | null
+  readonly createdReceivingId?: string | null
 }
 
 export interface IReviewDecisionInput {
@@ -82,6 +82,11 @@ export class ActivityRequestsService {
       fields.userId,
       input.createdSendingId,
     )
+    const createdReceivingId = await this.#linkedReceivingId(
+      fields.kind,
+      fields.userId,
+      input.createdReceivingId,
+    )
 
     if (createdSendingId === null) {
       assertSendingCovered(user, fields)
@@ -90,6 +95,7 @@ export class ActivityRequestsService {
     return await this.#requests.create({
       ...fields,
       createdSendingId,
+      createdReceivingId,
     })
   }
 
@@ -109,7 +115,7 @@ export class ActivityRequestsService {
       throw new ActivityRequestsValidationError('Sending for this request was not found.')
     }
 
-    const existing = pickReusableSendingRequest(
+    const existing = pickReusableLinkedRequest(
       await this.#requests.listByCreatedSendingId(sending.id),
     )
 
@@ -136,7 +142,7 @@ export class ActivityRequestsService {
       symbol,
       transferStatus: isSendingStatus(sending.status) ? sending.status : SENDING_STATUS.Pending,
       failureMessage: sending.failureMessage,
-      recipientAddress: recipientForLinkedSending(sending),
+      recipientAddress: recipientForLinkedTransfer(sending),
       createdSendingId: sending.id,
       ...(sending.assetChainId === null ? {} : { assetChainId: sending.assetChainId }),
       ...(sending.assetStandard === null ? {} : { assetStandard: sending.assetStandard }),
@@ -146,6 +152,63 @@ export class ActivityRequestsService {
       ...(sending.assetName === null ? {} : { assetName: sending.assetName }),
       ...(sending.assetDecimals === null ? {} : { assetDecimals: sending.assetDecimals }),
       ...(sending.assetIsVerified === null ? {} : { assetIsVerified: sending.assetIsVerified }),
+    })
+
+    return { record, created: true }
+  }
+
+  async ensureForReceiving(input: {
+    readonly receivingId: string
+    readonly requestedByName: string
+  }): Promise<{ readonly record: IActivityRequestRecord; readonly created: boolean }> {
+    const receivingId = emptyToNull(input.receivingId)
+
+    if (receivingId === null) {
+      throw new ActivityRequestsValidationError('Receiving for this request was not found.')
+    }
+
+    const receiving = await this.#receivings.findById(receivingId)
+
+    if (receiving === null || receiving.userId === null) {
+      throw new ActivityRequestsValidationError('Receiving for this request was not found.')
+    }
+
+    const existing = pickReusableLinkedRequest(
+      await this.#requests.listByCreatedReceivingId(receiving.id),
+    )
+
+    if (existing !== null) {
+      return { record: existing, created: false }
+    }
+
+    const amount = readSendingAmount(receiving.amount ?? '')
+    const symbol = readSendingSymbol(receiving.symbol ?? '')
+
+    if (amount === null) {
+      throw new ActivityRequestsValidationError('Amount must be a decimal string.')
+    }
+
+    if (symbol === null) {
+      throw new ActivityRequestsValidationError('Asset symbol is required.')
+    }
+
+    const record = await this.submit({
+      kind: ACTIVITY_REQUEST_KIND.Receiving,
+      requestedByName: input.requestedByName,
+      userId: receiving.userId,
+      amount,
+      symbol,
+      transferStatus: isSendingStatus(receiving.status) ? receiving.status : SENDING_STATUS.Pending,
+      failureMessage: receiving.failureMessage,
+      recipientAddress: recipientForLinkedTransfer(receiving),
+      usdAmount: receiving.usdAmount,
+      createdReceivingId: receiving.id,
+      ...(receiving.assetChainId === null ? {} : { assetChainId: receiving.assetChainId }),
+      ...(receiving.assetStandard === null ? {} : { assetStandard: receiving.assetStandard }),
+      ...(receiving.assetAddress === undefined ? {} : { assetAddress: receiving.assetAddress }),
+      ...(receiving.assetName === null ? {} : { assetName: receiving.assetName }),
+      ...(receiving.assetDecimals === null ? {} : { assetDecimals: receiving.assetDecimals }),
+      ...(receiving.assetIsVerified === null ? {} : { assetIsVerified: receiving.assetIsVerified }),
     })
 
     return { record, created: true }
@@ -367,6 +430,30 @@ export class ActivityRequestsService {
     return sending.id
   }
 
+  async #linkedReceivingId(
+    kind: string,
+    userId: string,
+    rawId: string | null | undefined,
+  ): Promise<string | null> {
+    const createdReceivingId = emptyToNull(rawId ?? null)
+
+    if (createdReceivingId === null) {
+      return null
+    }
+
+    if (kind !== ACTIVITY_REQUEST_KIND.Receiving) {
+      throw new ActivityRequestsValidationError('A sending request cannot link a receiving.')
+    }
+
+    const receiving = await this.#receivings.findById(createdReceivingId)
+
+    if (receiving === null || receiving.userId !== userId) {
+      throw new ActivityRequestsValidationError('Receiving for this request was not found.')
+    }
+
+    return receiving.id
+  }
+
   async requirePending(id: string): Promise<IActivityRequestRecord> {
     const current = await this.#requests.findById(id)
 
@@ -508,7 +595,7 @@ function optionalOperatorName(value: string | null | undefined): string | null {
   return name
 }
 
-function pickReusableSendingRequest(
+function pickReusableLinkedRequest(
   records: readonly IActivityRequestRecord[],
 ): IActivityRequestRecord | null {
   return (
@@ -518,14 +605,17 @@ function pickReusableSendingRequest(
   )
 }
 
-function recipientForLinkedSending(sending: ISendingRecord): string | null {
-  const recipient = emptyToNull(sending.recipientAddress)
+function recipientForLinkedTransfer(record: {
+  readonly recipientAddress: string | null
+  readonly assetAddress: string | null
+}): string | null {
+  const recipient = emptyToNull(record.recipientAddress)
 
   if (recipient === null || !isValidCryptoWalletAddress(recipient)) {
     return null
   }
 
-  const assetAddress = emptyToNull(sending.assetAddress)
+  const assetAddress = emptyToNull(record.assetAddress)
 
   if (assetAddress !== null && recipient.toLowerCase() === assetAddress.toLowerCase()) {
     return null

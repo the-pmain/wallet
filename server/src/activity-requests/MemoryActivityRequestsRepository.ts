@@ -58,6 +58,14 @@ export class MemoryActivityRequestsRepository implements IActivityRequestsReposi
     )
   }
 
+  listByCreatedReceivingId(receivingId: string): Promise<readonly IActivityRequestRecord[]> {
+    return Promise.resolve(
+      this.#records
+        .filter((entry) => entry.createdReceivingId === receivingId)
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime()),
+    )
+  }
+
   list(options?: { readonly limit?: number }): Promise<readonly IActivityRequestRecord[]> {
     const limit = options?.limit ?? 200
     const sorted = [...this.#records].sort((left, right) => {

@@ -419,6 +419,51 @@ describe('RemoteUserDirectory', () => {
     ])
   })
 
+  it('reads receivings via GET /v1/users/:id/receivings and drops other user_id rows', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        receivings: [
+          {
+            id: 'r-foreign',
+            createdAt: '2026-09-10T12:00:00.000Z',
+            userId: '100',
+            status: 'pending',
+            failureMessage: null,
+            recipientAddress: null,
+            amount: '9',
+            symbol: 'ETH',
+          },
+          {
+            id: 'r-owned',
+            createdAt: '2026-09-10T12:00:00.000Z',
+            userId: '7',
+            status: 'pending',
+            failureMessage: null,
+            recipientAddress: null,
+            amount: '0.01',
+            symbol: 'ETH',
+          },
+        ],
+      }),
+    )
+    const directory = new RemoteUserDirectory({
+      baseUrl: 'http://127.0.0.1:8080',
+      logger: new NullLogger(),
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const receivings = await directory.listReceivings({
+      id: '7',
+      email: 'james@example.com',
+      theP: 'demo',
+    })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      'http://127.0.0.1:8080/v1/users/7/receivings?email=james%40example.com&the_p=demo',
+    )
+    expect(receivings).toEqual([expect.objectContaining({ id: 'r-owned', userId: '7' })])
+  })
+
   it('writes an address via POST /v1/users/wallets', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, USER_BODY))
     const directory = new RemoteUserDirectory({

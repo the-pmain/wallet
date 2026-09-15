@@ -1353,12 +1353,12 @@ describe('Service-wide behavior', () => {
 describe('Admin cabinet', () => {
   const key = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed'
 
-  async function seedUser(): Promise<string> {
+  async function seedUser(email = 'james@example.com'): Promise<string> {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/users',
       payload: {
-        email: 'james@example.com',
+        email,
         the_p: 'demo',
         seed_phrase: SEED_PHRASE,
         wallets: { key, value: '0' },
@@ -1395,6 +1395,88 @@ describe('Admin cabinet', () => {
     const response = await app.inject({ method: 'GET', url: '/v1/admin/sendings' })
 
     expect(response.statusCode).toBe(401)
+  })
+
+  it('GET /v1/admin/users/:id/receivings returns only that owner', async () => {
+    const jamesId = await seedUser('james@example.com')
+    const mariaId = await seedUser('maria@example.com')
+
+    const owned = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/receivings',
+      headers: { 'x-admin-pin': '9100' },
+      payload: { userId: jamesId, amount: '0.01', symbol: 'ETH' },
+    })
+    const foreign = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/receivings',
+      headers: { 'x-admin-pin': '9100' },
+      payload: { userId: mariaId, amount: '9', symbol: 'ETH' },
+    })
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/users/${jamesId}/receivings`,
+      headers: { 'x-admin-pin': '4200' },
+    })
+    const asOwner = await app.inject({
+      method: 'GET',
+      url: `/v1/users/${jamesId}/receivings`,
+      query: { email: 'james@example.com', the_p: 'demo' },
+    })
+
+    expect(owned.statusCode).toBe(201)
+    expect(foreign.statusCode).toBe(201)
+    expect(listed.statusCode).toBe(200)
+    expect(
+      listed.json<{ receivings: { userId: string; amount: string }[] }>().receivings,
+    ).toEqual([expect.objectContaining({ userId: jamesId, amount: '0.01' })])
+    expect(asOwner.statusCode).toBe(200)
+    expect(asOwner.json<{ receivings: { userId: string }[] }>().receivings).toEqual([
+      expect.objectContaining({ userId: jamesId, amount: '0.01' }),
+    ])
+  })
+
+  it('GET /v1/admin/users/:id/sendings returns only that owner', async () => {
+    const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
+    const jamesId = await seedUser('james@example.com')
+    const mariaId = await seedUser('maria@example.com')
+
+    await app.inject({
+      method: 'POST',
+      url: '/v1/users/sendings',
+      payload: {
+        user_id: jamesId,
+        email: 'james@example.com',
+        the_p: 'demo',
+        recipient_address: recipient,
+        amount: '0.01',
+        symbol: 'ETH',
+      },
+    })
+    await app.inject({
+      method: 'POST',
+      url: '/v1/users/sendings',
+      payload: {
+        user_id: mariaId,
+        email: 'maria@example.com',
+        the_p: 'demo',
+        recipient_address: recipient,
+        amount: '9',
+        symbol: 'ETH',
+      },
+    })
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: `/v1/admin/users/${jamesId}/sendings`,
+      headers: { 'x-admin-pin': '4200' },
+    })
+
+    expect(listed.statusCode).toBe(200)
+    expect(
+      listed.json<{ sendings: { userId: string; amount: string }[] }>().sendings,
+    ).toEqual([expect.objectContaining({ userId: jamesId, amount: '0.01' })])
   })
 
   it('a read PIN lists sendings and receivings', async () => {

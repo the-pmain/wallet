@@ -538,7 +538,7 @@ export class RemoteUserDirectory implements IUserDirectory {
       throw new RemoteAuthError(response.status, 'list sendings returned an unexpected response')
     }
 
-    return sendings
+    return sendings.filter((item) => item.userId === input.id)
   }
 
   /**
@@ -578,7 +578,7 @@ export class RemoteUserDirectory implements IUserDirectory {
       throw new RemoteAuthError(response.status, 'list receivings returned an unexpected response')
     }
 
-    return receivings
+    return receivings.filter((item) => item.userId === input.id)
   }
 
   #usersUrl(): string {

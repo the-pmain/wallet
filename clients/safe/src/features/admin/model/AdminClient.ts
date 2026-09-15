@@ -320,7 +320,7 @@ export class AdminClient {
       )
     }
 
-    return sendings
+    return sendings.filter((item) => item.userId === userId)
   }
 
   async createSending(input: IAdminSendingCreate): Promise<IRemoteSending> {
@@ -435,7 +435,7 @@ export class AdminClient {
       )
     }
 
-    return receivings
+    return receivings.filter((item) => item.userId === userId)
   }
 
   async listReceivings(): Promise<readonly IRemoteReceiving[]> {
@@ -590,6 +590,35 @@ export class AdminClient {
       throw new AdminAuthError(
         response.status,
         'open sending request returned an unexpected response',
+      )
+    }
+
+    return request
+  }
+
+  async ensureReceivingActivityRequest(input: {
+    readonly receivingId: string
+    readonly requestedByName: string
+  }): Promise<IAdminActivityRequest> {
+    const response = await this.#request('/v1/admin/activity-requests/for-receiving', {
+      method: 'POST',
+      body: {
+        receivingId: input.receivingId,
+        requestedByName: input.requestedByName,
+      },
+    })
+    const payload = parseJson(await response.text())
+
+    if (!response.ok) {
+      throw this.#failure(response.status, 'open receiving request failed', payload)
+    }
+
+    const request = parseActivityRequest(payload)
+
+    if (request === null) {
+      throw new AdminAuthError(
+        response.status,
+        'open receiving request returned an unexpected response',
       )
     }
 

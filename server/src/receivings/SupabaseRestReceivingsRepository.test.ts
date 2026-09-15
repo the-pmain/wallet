@@ -59,4 +59,55 @@ describe('SupabaseRestReceivingsRepository', () => {
     expect(result.transaction.assetDecimals).toBe(6)
     expect(result.assetsRevision).toBe(2)
   })
+
+  it('listByUserId keeps only rows whose user_id is the owner', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify([
+            {
+              id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+              created_at: '2026-09-10T12:00:00.000Z',
+              user_id: '100',
+              status: 'pending',
+              failure_message: null,
+              recipient_address: null,
+              amount: '9',
+              asset_symbol: 'ETH',
+              usd_amount: null,
+            },
+            {
+              id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+              created_at: '2026-09-10T12:00:00.000Z',
+              user_id: '86',
+              status: 'pending',
+              failure_message: null,
+              recipient_address: null,
+              amount: '0.01',
+              asset_symbol: 'ETH',
+              usd_amount: null,
+            },
+          ]),
+        ),
+    })
+    const receivings = new SupabaseRestReceivingsRepository({
+      supabaseUrl: 'https://example.supabase.co',
+      serviceRoleKey: 'service-role',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const listed = await receivings.listByUserId('86')
+
+    expect(listed).toEqual([
+      expect.objectContaining({
+        id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        userId: '86',
+        amount: '0.01',
+      }),
+    ])
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('user_id=eq.86')
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toMatch(/[?&]id=eq\./u)
+  })
 })

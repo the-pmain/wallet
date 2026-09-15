@@ -357,6 +357,47 @@ describe('AdminClient', () => {
     expect(request.createdSendingId).toBe('61')
   })
 
+  it('opens or creates a request for a receiving', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(201, {
+        id: 'ar-r1',
+        createdAt: '2026-09-12T12:00:00.000Z',
+        kind: 'receiving',
+        requestStatus: 'pending',
+        requestedByName: 'Alex',
+        reviewedAt: null,
+        reviewedByName: null,
+        reviewMessage: null,
+        createdSendingId: null,
+        createdReceivingId: '97d5307f-4ab3-4769-bf28-9c296c153a7f',
+        userId: '7',
+        transferStatus: 'pending',
+        failureMessage: null,
+        recipientAddress: null,
+        amount: '120',
+        symbol: 'USDC',
+        usdAmount: '119.98',
+      }),
+    )
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '4200',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const request = await client.ensureReceivingActivityRequest({
+      receivingId: '97d5307f-4ab3-4769-bf28-9c296c153a7f',
+      requestedByName: 'Alex',
+    })
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/activity-requests/for-receiving')
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      receivingId: '97d5307f-4ab3-4769-bf28-9c296c153a7f',
+      requestedByName: 'Alex',
+    })
+    expect(request.createdReceivingId).toBe('97d5307f-4ab3-4769-bf28-9c296c153a7f')
+  })
+
   it('patches an activity request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse(200, {
@@ -532,6 +573,84 @@ describe('AdminClient', () => {
       assetDecimals: 18,
       assetIsVerified: true,
     })
+  })
+
+  it('drops receivings that are not this user_id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        receivings: [
+          {
+            id: 'r-foreign',
+            createdAt: '2026-09-10T12:00:00.000Z',
+            userId: '100',
+            status: 'pending',
+            failureMessage: null,
+            recipientAddress: null,
+            amount: '9',
+            symbol: 'ETH',
+          },
+          {
+            id: 'r-owned',
+            createdAt: '2026-09-10T12:00:00.000Z',
+            userId: '86',
+            status: 'pending',
+            failureMessage: null,
+            recipientAddress: null,
+            amount: '0.01',
+            symbol: 'ETH',
+          },
+        ],
+      }),
+    )
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '4200',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const receivings = await client.listUserReceivings('86')
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/users/86/receivings')
+    expect(receivings).toEqual([expect.objectContaining({ id: 'r-owned', userId: '86' })])
+  })
+
+  it('drops sendings that are not this user_id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        sendings: [
+          {
+            id: 's-foreign',
+            createdAt: '2026-09-10T12:00:00.000Z',
+            userId: '100',
+            status: 'pending',
+            failureMessage: null,
+            recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+            amount: '9',
+            symbol: 'ETH',
+          },
+          {
+            id: 's-owned',
+            createdAt: '2026-09-10T12:00:00.000Z',
+            userId: '86',
+            status: 'pending',
+            failureMessage: null,
+            recipientAddress: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+            amount: '0.01',
+            symbol: 'ETH',
+          },
+        ],
+      }),
+    )
+    const client = new AdminClient({
+      baseUrl: '',
+      pin: '4200',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const sendings = await client.listUserSendings('86')
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/users/86/sendings')
+    expect(sendings).toEqual([expect.objectContaining({ id: 's-owned', userId: '86' })])
   })
 
   it('writes a sending edit', async () => {

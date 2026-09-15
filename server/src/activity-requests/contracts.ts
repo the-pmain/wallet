@@ -75,6 +75,7 @@ export interface IActivityRequestsRepository {
   findById(id: string): Promise<IActivityRequestRecord | null>
   list(options?: { readonly limit?: number }): Promise<readonly IActivityRequestRecord[]>
   listByCreatedSendingId(sendingId: string): Promise<readonly IActivityRequestRecord[]>
+  listByCreatedReceivingId(receivingId: string): Promise<readonly IActivityRequestRecord[]>
   /** Pending stays pending. Approved reopens as pending for Super review. */
   updateIfPending(
     id: string,

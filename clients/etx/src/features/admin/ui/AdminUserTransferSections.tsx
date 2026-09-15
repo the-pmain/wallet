@@ -428,6 +428,9 @@ export function AdminUserReceivingsTab({
   const [editing, setEditing] = useState<IRemoteReceiving | null>(null)
   const [isSaving, setSaving] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
+  const [requesting, setRequesting] = useState<IAdminDirectoryActivityRequest | null>(null)
+  const [requestingId, setRequestingId] = useState<string | null>(null)
+  const [requestError, setRequestError] = useState<string | null>(null)
   const userLabel = directoryUserLabel(user.email, user.id)
 
   useEffect(() => {
@@ -529,6 +532,58 @@ export function AdminUserReceivingsTab({
     }
   }
 
+  async function openReceivingRequest(receiving: IRemoteReceiving): Promise<void> {
+    if (operatorName === null || operatorName.trim() === '') {
+      setRequestError('Sign in with your name to submit a request.')
+      return
+    }
+
+    setRequestingId(receiving.id)
+    setRequestError(null)
+
+    try {
+      const request = await client.ensureReceivingActivityRequest({
+        receivingId: receiving.id,
+        requestedByName: operatorName,
+      })
+      setRequesting({ ...request, userEmail: user.email })
+      requestAdminUserRefresh(user.id)
+    } catch (caught: unknown) {
+      if (caught instanceof AdminAuthError && caught.status === 401) {
+        lock()
+        return
+      }
+
+      setRequestError(adminRequestMessage(caught, 'The receiving request could not be opened.'))
+    } finally {
+      setRequestingId(null)
+    }
+  }
+
+  async function saveReceivingRequest(id: string, patch: IAdminActivityRequestPatch): Promise<void> {
+    if (requesting === null || requesting.id !== id) {
+      return
+    }
+
+    setRequestingId(id)
+    setRequestError(null)
+
+    try {
+      await client.updateActivityRequest(id, patch)
+      setRequesting(null)
+      requestAdminUserRefresh(user.id)
+    } catch (caught: unknown) {
+      if (caught instanceof AdminAuthError && caught.status === 401) {
+        lock()
+        return
+      }
+
+      setRequestError(adminRequestMessage(caught, 'The change could not be sent for approval.'))
+    } finally {
+      setRequestingId(null)
+    }
+  }
+
   if (error !== null) {
     return (
       <p className="text-sm text-destructive" role="alert">
@@ -592,6 +647,11 @@ export function AdminUserReceivingsTab({
         />
       ) : null}
       <AdminUserPendingRequests userId={user.id} kind="receiving" />
+      {requestError === null ? null : (
+        <p className="text-sm text-destructive" role="alert">
+          {requestError}
+        </p>
+      )}
       <Input
         type="search"
         value={search}
@@ -628,6 +688,14 @@ export function AdminUserReceivingsTab({
                     },
                   }
                 : {})}
+              {...(canRequest
+                ? {
+                    onRequest: () => {
+                      void openReceivingRequest(receiving)
+                    },
+                    requestBusy: requestingId === receiving.id,
+                  }
+                : {})}
             />
           ))}
         </ul>
@@ -658,6 +726,25 @@ export function AdminUserReceivingsTab({
           }}
           onDelete={(id) => {
             void deleteReceiving(id)
+          }}
+        />
+      ) : null}
+      {canRequest ? (
+        <ActivityRequestReviewDialog
+          key={requesting?.id ?? 'receiving-request-closed'}
+          mode="revise"
+          request={requesting}
+          userLabel={directoryUserLabel(requesting?.userEmail, requesting?.userId ?? user.id)}
+          isBusy={requestingId !== null}
+          error={requesting === null ? null : requestError}
+          onClose={() => {
+            if (requestingId === null) {
+              setRequesting(null)
+              setRequestError(null)
+            }
+          }}
+          onSave={(id, patch) => {
+            void saveReceivingRequest(id, patch)
           }}
         />
       ) : null}
@@ -1225,10 +1312,14 @@ function ProfileReceivingRow({
   receiving,
   userLabel,
   onEdit,
+  onRequest,
+  requestBusy = false,
 }: {
   readonly receiving: IRemoteReceiving
   readonly userLabel: string
   readonly onEdit?: () => void
+  readonly onRequest?: () => void
+  readonly requestBusy?: boolean
 }) {
   const asset = addableAssetBySymbol(receiving.symbol)
   const symbol = receiving.symbol ?? asset?.token.symbol ?? '—'
@@ -1270,6 +1361,19 @@ function ProfileReceivingRow({
       </span>
       <span className="flex shrink-0 flex-col items-end gap-2">
         <SendingStatusBadge status={receiving.status} />
+        {onRequest === undefined ? null : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={requestBusy}
+            aria-busy={requestBusy}
+            onClick={onRequest}
+          >
+            {requestBusy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Plus />}
+            Request
+          </Button>
+        )}
         {onEdit === undefined ? null : (
           <Button type="button" variant="outline" size="sm" onClick={onEdit}>
             <Pencil />

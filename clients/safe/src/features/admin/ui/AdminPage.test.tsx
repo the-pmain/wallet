@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 
@@ -302,7 +302,7 @@ function createdActivityRequest(body: Record<string, unknown>): Record<string, u
     reviewedByName: null,
     reviewMessage: null,
     createdSendingId: body['createdSendingId'] ?? null,
-    createdReceivingId: null,
+    createdReceivingId: body['createdReceivingId'] ?? null,
     userId: body['userId'] ?? '7',
     transferStatus: body['transferStatus'] ?? 'pending',
     failureMessage: body['failureMessage'] ?? null,
@@ -349,6 +349,43 @@ function ensureActivityRequestForSending(body: Record<string, unknown>): {
     transferStatus: sending?.['status'] ?? 'pending',
     recipientAddress: sending?.['recipientAddress'] ?? null,
     createdSendingId: sendingId,
+  })
+  listedActivityRequests = [created, ...listedActivityRequests]
+
+  return { status: 201, record: created }
+}
+
+function ensureActivityRequestForReceiving(body: Record<string, unknown>): {
+  readonly status: number
+  readonly record: Record<string, unknown>
+} {
+  const receivingId = String(body['receivingId'] ?? '')
+  const existing = listedActivityRequests.find((item) => {
+    const row = item as { createdReceivingId?: string; requestStatus?: string }
+
+    return (
+      row.createdReceivingId === receivingId &&
+      (row.requestStatus === 'pending' || row.requestStatus === 'approved')
+    )
+  }) as Record<string, unknown> | undefined
+
+  if (existing !== undefined) {
+    return { status: 200, record: existing }
+  }
+
+  const receiving = listedReceivings.find((item) => (item as { id?: string }).id === receivingId) as
+    | Record<string, unknown>
+    | undefined
+  const created = createdActivityRequest({
+    kind: 'receiving',
+    requestedByName: body['requestedByName'],
+    userId: receiving?.['userId'] ?? '7',
+    amount: receiving?.['amount'] ?? '0',
+    symbol: receiving?.['symbol'] ?? 'ETH',
+    transferStatus: receiving?.['status'] ?? 'pending',
+    recipientAddress: receiving?.['recipientAddress'] ?? null,
+    usdAmount: receiving?.['usdAmount'] ?? null,
+    createdReceivingId: receivingId,
   })
   listedActivityRequests = [created, ...listedActivityRequests]
 
@@ -707,6 +744,16 @@ beforeEach(() => {
 
       if (url.endsWith('/v1/admin/activity-requests/for-sending') && method === 'POST') {
         const ensured = ensureActivityRequestForSending(requestJson(init) as Record<string, unknown>)
+
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve(jsonResponse(ensured.status, ensured.record))
+          }, forSendingDelayMs)
+        })
+      }
+
+      if (url.endsWith('/v1/admin/activity-requests/for-receiving') && method === 'POST') {
+        const ensured = ensureActivityRequestForReceiving(requestJson(init) as Record<string, unknown>)
 
         return new Promise((resolve) => {
           setTimeout(() => {
@@ -1984,6 +2031,73 @@ describe('Admin cabinet', () => {
     expect(forSending).toHaveLength(2)
   })
 
+  it('opens or creates a receiving request from the card', async () => {
+    listedReceivings = [
+      {
+        id: '81',
+        createdAt: '2026-08-22T15:10:00.000Z',
+        userId: '7',
+        status: 'pending',
+        failureMessage: null,
+        recipientAddress: null,
+        amount: '120',
+        symbol: 'USDC',
+        usdAmount: '119.98',
+      },
+    ]
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
+    openPath('/admin/users/7?tab=receivings')
+    renderAdmin()
+
+    expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
+    expect(await screen.findByText(/id 81/)).toBeInTheDocument()
+
+    forSendingDelayMs = 80
+    await user.click(await screen.findByRole('button', { name: 'Request' }))
+    expect(screen.getByRole('button', { name: 'Request' })).toHaveAttribute('aria-busy', 'true')
+    expect(await screen.findByRole('button', { name: 'Send for approval' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Amount')).toHaveValue('120')
+
+    const posts = fetchSpy.mock.calls
+      .map((call) => {
+        const url = requestUrl(call[0] as RequestInfo | URL)
+        const init = call[1]
+        const method = init?.method ?? 'GET'
+
+        if (method !== 'POST') {
+          return null
+        }
+
+        return { url, body: requestJson(init) }
+      })
+      .filter((item) => item !== null)
+
+    expect(posts.some((item) => item.url.endsWith('/v1/admin/receivings'))).toBe(false)
+    expect(posts).toEqual(
+      expect.arrayContaining([
+        {
+          url: expect.stringMatching(/\/v1\/admin\/activity-requests\/for-receiving$/u),
+          body: expect.objectContaining({
+            receivingId: '81',
+            requestedByName: 'Alex',
+          }),
+        },
+      ]),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Request' }))
+    expect(await screen.findByRole('button', { name: 'Send for approval' })).toBeInTheDocument()
+
+    const forReceiving = fetchSpy.mock.calls.filter((call) => {
+      const url = requestUrl(call[0] as RequestInfo | URL)
+      return (call[1]?.method ?? 'GET') === 'POST' && url.endsWith('/v1/admin/activity-requests/for-receiving')
+    })
+    expect(forReceiving).toHaveLength(2)
+  })
+
   it('opens My requests for a regular admin and lets them change their draft', async () => {
     listedActivityRequests = [
       { ...PENDING_ACTIVITY_REQUEST },
@@ -2748,7 +2862,8 @@ describe('Admin cabinet', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Pending sending request')
     expect(screen.getByRole('alert')).toHaveTextContent('0.01 ETH')
     expect(screen.getByRole('alert')).toHaveTextContent('Alex · User james@example.com')
-    expect(screen.getByRole('alert').className).toMatch(/risk-medium/u)
+    expect(screen.getByRole('alert').className).toMatch(/bg-card/u)
+    expect(screen.getByText(/^pending$/i).className).toMatch(/request-warning/u)
     const handle = screen.getByRole('button', { name: 'Handle Pending sending request 0.01 ETH' })
     expect(handle).toBeInTheDocument()
     expect(handle.className).toMatch(/h-16/u)
@@ -2845,11 +2960,12 @@ describe('Admin cabinet', () => {
     const alerts = await screen.findAllByRole('alert')
     expect(alerts).toHaveLength(3)
     expect(alerts[0]).toHaveTextContent('Sending request approved')
-    expect(alerts[0]?.className).toMatch(/risk-low/u)
+    expect(alerts[0]?.className).toMatch(/bg-card/u)
+    expect(within(alerts[0]!).getByText(/^approved$/i).className).toMatch(/request-success/u)
     expect(alerts[1]).toHaveTextContent('Sending request rejected')
-    expect(alerts[1]?.className).toMatch(/destructive/u)
+    expect(within(alerts[1]!).getByText(/^rejected$/i).className).toMatch(/request-danger/u)
     expect(alerts[2]).toHaveTextContent('Sending request cancelled')
-    expect(alerts[2]?.className).toMatch(/muted/u)
+    expect(within(alerts[2]!).getByText(/^cancelled$/i).className).toMatch(/muted/u)
     expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
   })
 
@@ -2980,7 +3096,8 @@ describe('Admin cabinet', () => {
     expect(screen.queryByText('Awaiting receiving request')).not.toBeInTheDocument()
     expect(screen.queryByText('Receiving request cancelled')).not.toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Alex · User james@example.com')
-    expect(screen.getByRole('alert').className).toMatch(/risk-low/u)
+    expect(screen.getByRole('alert').className).toMatch(/bg-card/u)
+    expect(screen.getByText(/^approved$/i).className).toMatch(/request-success/u)
     expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
 
     source.emit(
@@ -3001,7 +3118,7 @@ describe('Admin cabinet', () => {
     })
     const alerts = screen.getAllByRole('alert')
     expect(alerts[0]).toHaveTextContent('Receiving request rejected')
-    expect(alerts[0]?.className).toMatch(/destructive/u)
+    expect(within(alerts[0]!).getByText(/^rejected$/i).className).toMatch(/request-danger/u)
     expect(alerts[1]).toHaveTextContent('Receiving request approved')
     expect(screen.queryByRole('button', { name: /Handle/ })).not.toBeInTheDocument()
   })

@@ -228,6 +228,57 @@ describe('activity request routes', () => {
     })
   })
 
+  it('opens or creates a request for an existing receiving', async () => {
+    const receiving = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/receivings',
+      headers: { 'x-admin-pin': '9100' },
+      payload: {
+        userId,
+        amount: '0.5',
+        symbol: 'ETH',
+        status: 'pending',
+        ...ETH,
+      },
+    })
+
+    expect(receiving.statusCode).toBe(201)
+    const receivingId = receiving.json<{ id: string }>().id
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/activity-requests/for-receiving',
+      headers: { 'x-admin-pin': '4200' },
+      payload: {
+        receivingId,
+        requestedByName: 'Alex',
+      },
+    })
+
+    expect(created.statusCode).toBe(201)
+    expect(created.json()).toMatchObject({
+      createdReceivingId: receivingId,
+      requestedByName: 'Alex',
+      amount: '0.5',
+    })
+
+    const reused = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/activity-requests/for-receiving',
+      headers: { 'x-admin-pin': '4200' },
+      payload: {
+        receivingId,
+        requestedByName: 'Alex',
+      },
+    })
+
+    expect(reused.statusCode).toBe(200)
+    expect(reused.json()).toMatchObject({
+      id: created.json<{ id: string }>().id,
+      createdReceivingId: receivingId,
+    })
+  })
+
   it('refuses a sending request larger than the user holding', async () => {
     const created = await app.inject({
       method: 'POST',

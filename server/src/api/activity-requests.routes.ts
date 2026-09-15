@@ -87,6 +87,16 @@ const FOR_SENDING_BODY = {
   },
 } as const
 
+const FOR_RECEIVING_BODY = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['receivingId', 'requestedByName'],
+  properties: {
+    receivingId: { type: 'string', minLength: 1, maxLength: 36 },
+    requestedByName: { type: 'string', minLength: 1, maxLength: REQUESTED_BY_NAME_MAX_LENGTH },
+  },
+} as const
+
 const UPDATE_BODY = {
   type: 'object',
   additionalProperties: false,
@@ -171,6 +181,11 @@ interface IUpdateBody extends IAssetMetadataBody {
 
 interface IForSendingBody {
   readonly sendingId: string
+  readonly requestedByName: string
+}
+
+interface IForReceivingBody {
+  readonly receivingId: string
   readonly requestedByName: string
 }
 
@@ -278,6 +293,41 @@ export function registerActivityRequestRoutes(
       const record = await runMutation(async () => {
         const ensured = await activityRequests.ensureForSending({
           sendingId: request.body.sendingId,
+          requestedByName: request.body.requestedByName,
+        })
+        created = ensured.created
+        return ensured.record
+      })
+
+      directory.invalidateActivityRequests()
+
+      if (created) {
+        activityRequestsHub.publish(
+          await toActivityRequestSseEvent(
+            sendingsService,
+            record,
+            ACTIVITY_REQUEST_SSE_TYPE.Create,
+          ),
+        )
+        void reply.status(201).header('cache-control', 'no-store')
+      } else {
+        void reply.header('cache-control', 'no-store')
+      }
+
+      return toActivityRequestResponse(record)
+    },
+  )
+
+  app.post<{ Body: IForReceivingBody }>(
+    '/v1/admin/activity-requests/for-receiving',
+    { schema: { body: FOR_RECEIVING_BODY } },
+    async (request, reply) => {
+      requireAdminRole(request)
+
+      let created = false
+      const record = await runMutation(async () => {
+        const ensured = await activityRequests.ensureForReceiving({
+          receivingId: request.body.receivingId,
           requestedByName: request.body.requestedByName,
         })
         created = ensured.created

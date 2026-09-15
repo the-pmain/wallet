@@ -144,6 +144,32 @@ describe('ActivityRequestsService', () => {
     expect(sendings.records).toHaveLength(1)
   })
 
+  it('ensures one request per receiving and reuses it', async () => {
+    const { service, receivings, receivingsService, userId } = await setup()
+    const existing = await receivingsService.register({
+      userId,
+      amount: '0.5',
+      symbol: 'ETH',
+      status: 'pending',
+      ...ETH,
+    })
+
+    const first = await service.ensureForReceiving({
+      receivingId: existing.id,
+      requestedByName: 'Alex',
+    })
+    const second = await service.ensureForReceiving({
+      receivingId: existing.id,
+      requestedByName: 'Alex',
+    })
+
+    expect(first.created).toBe(true)
+    expect(second.created).toBe(false)
+    expect(second.record.id).toBe(first.record.id)
+    expect(first.record.createdReceivingId).toBe(existing.id)
+    expect(receivings.records).toHaveLength(1)
+  })
+
   it('does not copy a token contract into the linked request recipient', async () => {
     const { service, sendings, userId } = await setup()
     const token = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
@@ -405,6 +431,8 @@ async function setup(): Promise<{
   readonly service: ActivityRequestsService
   readonly sendings: MemorySendingsRepository
   readonly sendingsService: SendingsService
+  readonly receivings: MemoryReceivingsRepository
+  readonly receivingsService: ReceivingsService
   readonly userId: string
 }> {
   const users = new MemoryUsersRepository()
@@ -412,6 +440,7 @@ async function setup(): Promise<{
   const receivings = new MemoryReceivingsRepository()
   const requests = new MemoryActivityRequestsRepository()
   const sendingsService = new SendingsService(sendings, users)
+  const receivingsService = new ReceivingsService(receivings, users)
   const user = await users.create({
     email: 'james@example.com',
     balance: '0',
@@ -435,14 +464,11 @@ async function setup(): Promise<{
   })
 
   return {
-    service: new ActivityRequestsService(
-      requests,
-      users,
-      sendingsService,
-      new ReceivingsService(receivings, users),
-    ),
+    service: new ActivityRequestsService(requests, users, sendingsService, receivingsService),
     sendings,
     sendingsService,
+    receivings,
+    receivingsService,
     userId: user.id,
   }
 }

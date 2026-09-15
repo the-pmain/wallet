@@ -158,6 +158,10 @@ interface IReceivingsSseQuery {
 /**
  * Deposits in `public.receivings`.
  *
+ * `GET /v1/users/:id/receivings` and `GET /v1/admin/users/:id/receivings`
+ * return only rows in that table whose `user_id` is this owner. They
+ * do not mix in activity-request drafts or another user's deposit.
+ *
  * `GET /v1/users/:id/receivings` is trusted server: identity is
  * `email`+`the_p`. `GET /v1/admin/users/:id/receivings` is any cabinet
  * PIN (read). `GET /v1/admin/receivings` is any cabinet PIN (read).

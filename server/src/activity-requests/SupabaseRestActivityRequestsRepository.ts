@@ -197,6 +197,27 @@ export class SupabaseRestActivityRequestsRepository implements IActivityRequests
     return parseRows(raw, 'listByCreatedSendingId').map(toRecord)
   }
 
+  async listByCreatedReceivingId(receivingId: string): Promise<readonly IActivityRequestRecord[]> {
+    const endpoint = new URL(`${this.#url}/rest/v1/activity_requests`)
+    endpoint.searchParams.set('select', ACTIVITY_REQUEST_SELECT)
+    endpoint.searchParams.set('created_receiving_id', `eq.${receivingId}`)
+    endpoint.searchParams.set('order', 'created_at.desc')
+    endpoint.searchParams.set('limit', '50')
+
+    const response = await this.#fetch(endpoint.toString(), {
+      method: 'GET',
+      headers: this.#readHeaders(),
+    })
+
+    const raw = await response.text()
+
+    if (!response.ok) {
+      throw unavailable('listByCreatedReceivingId', response.status, raw)
+    }
+
+    return parseRows(raw, 'listByCreatedReceivingId').map(toRecord)
+  }
+
   async updateIfPending(
     id: string,
     patch: IActivityRequestDraftFields,

@@ -173,4 +173,21 @@ describe('SupabaseRestActivityRequestsRepository', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('created_sending_id=eq.100')
     expect(listed).toEqual([expect.objectContaining({ createdSendingId: '100' })])
   })
+
+  it('lists requests by created receiving id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify([{ ...ROW, created_receiving_id: 'r-86' }])),
+    })
+    const store = new SupabaseRestActivityRequestsRepository({
+      supabaseUrl: 'https://example.supabase.co',
+      serviceRoleKey: 'service-role',
+      fetch: fetchMock as unknown as typeof fetch,
+    })
+
+    const listed = await store.listByCreatedReceivingId('r-86')
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('created_receiving_id=eq.r-86')
+    expect(listed).toEqual([expect.objectContaining({ createdReceivingId: 'r-86' })])
+  })
 })
