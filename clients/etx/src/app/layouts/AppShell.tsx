@@ -17,10 +17,9 @@ import {
   formatMemberSince,
 } from '@/features/onboarding/lib/directory-identity'
 import { AccountAvatar, SESSION_STATE, addressLabel, useWalletSnapshot } from '@/features/wallet'
-import { APP_CONFIG } from '@/shared/config'
 import { useTranslation } from '@/shared/i18n'
 import { cn } from '@/shared/lib/utils'
-import { BrandMark, Button, Skeleton, Toaster } from '@/shared/ui'
+import { BrandMark, BrandWordmark, Button, Skeleton, Toaster } from '@/shared/ui'
 
 import { AmbientBackground } from './AmbientBackground'
 import { INFO_LINKS, NAVIGATION } from './navigation'
@@ -318,9 +317,7 @@ function BrandLockup({ className }: { readonly className?: string }) {
       className={cn('focus-ring flex items-center gap-2.5 rounded-lg', className)}
     >
       <BrandMark alt="" className="size-9 lg:size-10" />
-      <span className="text-[15px] font-semibold tracking-tight whitespace-nowrap text-foreground lg:text-base">
-        {APP_CONFIG.brandLabel}
-      </span>
+      <BrandWordmark />
     </Link>
   )
 }

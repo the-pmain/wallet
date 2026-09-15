@@ -37,6 +37,7 @@ import {
   Variant1Page,
   Variant2Page,
   Variant3Page,
+  LogoVariantsPage,
 } from './lazy-pages'
 import { ROUTE } from './routes'
 
@@ -241,6 +242,14 @@ export function AppRouter() {
           element={
             <Suspense fallback={<LoadingScreen />}>
               <Variant3Page />
+            </Suspense>
+          }
+        />
+        <Route
+          path={ROUTE.LogoVariants}
+          element={
+            <Suspense fallback={<LoadingScreen />}>
+              <LogoVariantsPage />
             </Suspense>
           }
         />

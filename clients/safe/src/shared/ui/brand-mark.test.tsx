@@ -4,16 +4,13 @@ import { describe, expect, it } from 'vitest'
 import { BrandMark } from './brand-mark'
 
 describe('BrandMark', () => {
-  it('shows the black cube on light and the white cube on dark', () => {
-    const { container } = render(<BrandMark />)
-    const images = container.querySelectorAll('img')
+  it('uses the dark metal tile and no white paint', () => {
+    render(<BrandMark />)
 
-    expect(screen.getByRole('img', { name: 'ELM' })).toBeInTheDocument()
-    expect(images).toHaveLength(2)
-    expect(images[0]).toHaveAttribute('src', '/icons/icon-128.png')
-    expect(images[1]).toHaveAttribute('src', '/icons/icon-white-128.png')
-    expect(images[0]).toHaveClass('dark:hidden')
-    expect(images[1]).toHaveClass('hidden', 'dark:block')
+    const mark = screen.getByRole('img', { name: 'ELM' })
+
+    expect(mark).toHaveAttribute('src', '/icons/icon-128.png')
+    expect(mark.getAttribute('src')).not.toContain('white')
   })
 
   it('stays silent when a visible name already sits beside it', () => {

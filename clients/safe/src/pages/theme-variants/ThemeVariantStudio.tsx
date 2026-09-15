@@ -12,6 +12,7 @@ const VARIANT_LINKS = [
   { to: '/variant-1', label: 'MetaMask' },
   { to: '/variant-2', label: 'Trust Wallet' },
   { to: '/variant-3', label: 'ELM cabinet' },
+  { to: '/logo-variants', label: 'Marks' },
 ] as const
 
 interface ThemeVariantStudioProps {

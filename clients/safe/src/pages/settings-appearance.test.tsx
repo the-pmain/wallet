@@ -38,7 +38,9 @@ describe('Settings appearance', () => {
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument()
     expect(screen.getByText('Appearance')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Light' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Dark' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'System' })).toHaveAttribute('aria-pressed', 'false')
+    expect(document.documentElement).toHaveClass('dark')
     expect(screen.getByRole('button', { name: 'Graphite' })).toHaveAttribute('aria-pressed', 'true')
     expect(document.documentElement.dataset['accent']).toBe(DEFAULT_ACCENT_HEX)
 

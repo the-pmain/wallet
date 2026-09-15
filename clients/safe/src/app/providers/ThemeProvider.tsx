@@ -16,6 +16,7 @@ const DARK_CLASS = 'dark'
 
 interface ThemeProviderProps {
   children: ReactNode
+  /** Starting mode. Dark unless a test or caller passes another value. */
   defaultTheme?: Theme
 }
 
@@ -26,11 +27,12 @@ function getSystemTheme(): 'light' | 'dark' {
 /**
  * Theme and accent provider.
  *
- * Light / dark / system stay independent of the main colour. The
- * accent is persisted: welcome and unlock already paint with brand
- * tokens, and those screens open before the encrypted store.
+ * Light / dark / system stay independent of the main colour. Dark
+ * is the starting mode for every visitor. The accent is persisted:
+ * welcome and unlock already paint with brand tokens, and those
+ * screens open before the encrypted store.
  */
-export function ThemeProvider({ children, defaultTheme = 'system' }: ThemeProviderProps) {
+export function ThemeProvider({ children, defaultTheme = 'dark' }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(defaultTheme)
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(getSystemTheme)
   const [accentHex, setAccentHexState] = useState(readAccentColor)

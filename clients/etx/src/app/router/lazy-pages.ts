@@ -104,3 +104,7 @@ export const Variant2Page = lazy(async () => ({
 export const Variant3Page = lazy(async () => ({
   default: (await import('@/pages/theme-variants/Variant3Page')).Variant3Page,
 }))
+
+export const LogoVariantsPage = lazy(async () => ({
+  default: (await import('@/pages/logo-variants/LogoVariantsPage')).LogoVariantsPage,
+}))

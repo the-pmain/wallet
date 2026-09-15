@@ -22,20 +22,13 @@ const INTRINSIC_SIZE = 128
 /**
  * ELM brand mark.
  *
- * THE MARK WITHOUT LETTERING IS USED. The full logo lockup contains
- * the word “Wallet” in dark blue (rgb 50, 54, 75). On the dark theme
- * (rgb 38, 33, 48) it is nearly invisible, so the full lockup is only
- * fit for light surfaces — a storefront, documents, print.
+ * THE METAL STUDY IS THE MARK. Dark rounded tile, steel chrome
+ * shield, keyhole cut — the same lockup as Safe · Metal on
+ * `/logo-variants`. It is one file in light and dark: the tile
+ * already carries its own ground, so a white invert would erase it.
  *
- * BLACK IN THE CHROME, WHITE ONLY IN THE DARK APP. The purple cube
- * belongs to ETX. Safe ships a black mark for tabs and home-screen
- * tiles (`/icons/icon-128.png`) and a white paint of the same shape
- * (`/icons/icon-white-128.png`) for the in-app mark on a dark canvas.
- *
- * FILE SIZE. The source mark is 1024×1024 and about 1.4 MB. This uses
- * a prepared 128×128 variant: downloading a megabyte and a half for a
- * 56-pixel square is not acceptable. Size variants are produced by
- * `npm run icons` from `brand/icon-dark.png`.
+ * FILE SIZE. The source is 1024×1024. This uses the prepared 128×128
+ * from `npm run icons` / `brand/icon-dark.png`.
  *
  * THE MARK HELPS AGAINST PHISHING. A recognizable look is a weak but
  * real barrier to a fake copy: a user used to a specific mark notices
@@ -43,33 +36,16 @@ const INTRINSIC_SIZE = 128
  * arbitrary icons.
  */
 export function BrandMark({ className, alt = APP_CONFIG.name }: BrandMarkProps) {
-  const decorative = alt === ''
-
   return (
-    <span
-      className={cn('inline-flex size-8', className)}
-      {...(decorative ? {} : { role: 'img', 'aria-label': alt })}
-    >
-      <img
-        src="/icons/icon-128.png"
-        width={INTRINSIC_SIZE}
-        height={INTRINSIC_SIZE}
-        alt=""
-        loading="eager"
-        decoding="async"
-        draggable={false}
-        className="size-full select-none dark:hidden"
-      />
-      <img
-        src="/icons/icon-white-128.png"
-        width={INTRINSIC_SIZE}
-        height={INTRINSIC_SIZE}
-        alt=""
-        loading="eager"
-        decoding="async"
-        draggable={false}
-        className="hidden size-full select-none dark:block"
-      />
-    </span>
+    <img
+      src="/icons/icon-128.png"
+      width={INTRINSIC_SIZE}
+      height={INTRINSIC_SIZE}
+      alt={alt}
+      loading="eager"
+      decoding="async"
+      draggable={false}
+      className={cn('size-8 select-none', className)}
+    />
   )
 }

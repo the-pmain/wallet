@@ -188,8 +188,14 @@ describe('Раздел настроек', () => {
     await findDashboard()
 
     await user.click(screen.getByRole('link', { name: 'Settings' }))
-    await user.click(await screen.findByRole('button', { name: 'Dark' }))
+    expect(await screen.findByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'System' })).toHaveAttribute('aria-pressed', 'false')
+    expect(document.documentElement).toHaveClass('dark')
 
+    await user.click(screen.getByRole('button', { name: 'Light' }))
+    expect(document.documentElement).not.toHaveClass('dark')
+
+    await user.click(screen.getByRole('button', { name: 'Dark' }))
     expect(document.documentElement).toHaveClass('dark')
   })
 

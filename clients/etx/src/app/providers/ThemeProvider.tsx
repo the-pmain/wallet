@@ -10,7 +10,7 @@ const DARK_CLASS = 'dark'
 
 interface ThemeProviderProps {
   children: ReactNode
-  /** Начальный режим. По умолчанию — системный. */
+  /** Начальный режим. По умолчанию — тёмный. */
   defaultTheme?: Theme
 }
 
@@ -27,7 +27,7 @@ function getSystemTheme(): 'light' | 'dark' {
  * Промежуточное решение через localStorage создало бы исключение из правила,
  * которое затем пришлось бы вычищать.
  */
-export function ThemeProvider({ children, defaultTheme = 'system' }: ThemeProviderProps) {
+export function ThemeProvider({ children, defaultTheme = 'dark' }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(defaultTheme)
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(getSystemTheme)
 

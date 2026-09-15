@@ -21,9 +21,8 @@ import { Badge } from '@/shared/ui'
  *   большинство законных токенов в него не входит;
  * - пусто — нативная валюта сети, она часть конфигурации.
  *
- * ПРОВЕРЕННОЕ ВЫДЕЛЕНО ЗНАЧКОМ, А НЕ ЦВЕТОМ. Зелёная метка на каждой
- * второй строке перестаёт читаться, а цвет как единственный признак
- * недоступен людям с нарушением цветовосприятия.
+ * ПРОВЕРЕННОЕ — ЦВЕТ УСПЕХА ПЛЮС ЩИТ. Цвет один не читается при
+ * нарушении цветовосприятия; щит остаётся вторым признаком.
  */
 export function TokenTrustBadge({ token }: { readonly token: IToken }) {
   if (token.address === null) {
@@ -33,12 +32,12 @@ export function TokenTrustBadge({ token }: { readonly token: IToken }) {
   if (token.isVerified) {
     return (
       <Badge
-        variant="outline"
-        className="shrink-0"
+        variant="success"
+        className="shrink-0 border-risk-low/40 bg-risk-low/20 text-risk-low [&_svg]:text-risk-low"
         title="The contract address matches the built-in list"
       >
-        <ShieldCheck className="size-3" aria-hidden />
-        <span className="max-sm:sr-only">verified</span>
+        <ShieldCheck className="size-3 text-risk-low" aria-hidden />
+        <span className="text-risk-low max-sm:sr-only">verified</span>
       </Badge>
     )
   }

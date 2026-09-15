@@ -1,8 +1,7 @@
 import { ChartPie, FileCode, History, LayoutGrid, Lock, Settings, Wallet } from 'lucide-react'
 
 import { AccountAvatar } from '@/features/wallet/ui/AccountAvatar'
-import { APP_CONFIG } from '@/shared/config'
-import { BrandMark } from '@/shared/ui/brand-mark'
+import { BrandMark, BrandWordmark } from '@/shared/ui'
 
 import { InertButton, ThemeVariantStudio, TokenGlyph } from './ThemeVariantStudio'
 import { VARIANT_ACCOUNT, VARIANT_BALANCE, VARIANT_SENDINGS, VARIANT_TOKENS } from './mock-data'
@@ -28,9 +27,7 @@ export function Variant3Page() {
           <aside className="hidden w-60 shrink-0 flex-col border-r border-border/70 bg-background/80 px-3 py-4 lg:flex">
             <div className="mb-4 flex items-center gap-2.5 px-2 py-1">
               <BrandMark alt="" className="size-10" />
-              <span className="text-base font-semibold tracking-tight">
-                {APP_CONFIG.brandLabel}
-              </span>
+              <BrandWordmark />
             </div>
 
             <nav aria-label="Cabinet sections" className="flex flex-col gap-1">

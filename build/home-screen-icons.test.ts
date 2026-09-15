@@ -116,7 +116,7 @@ describe('home-screen icons', () => {
     }
   })
 
-  it('the purple cube is the ETX source and is not used for Safe', () => {
+  it('the purple shield is the ETX source and is not used for Safe', () => {
     expect(existsSync(resolve(clientPaths('etx').root, 'brand/icon-purple.png'))).toBe(true)
     expect(existsSync(resolve(clientPaths('etx').root, 'brand/icon.png'))).toBe(false)
     expect(existsSync(resolve(clientPaths('safe').root, 'brand/icon-dark.png'))).toBe(true)
@@ -124,7 +124,7 @@ describe('home-screen icons', () => {
     expect(existsSync(resolve(clientPaths('safe').root, 'brand/icon-purple.png'))).toBe(false)
     expect(existsSync(publicFile('etx', '/icons/icon-white-32.png'))).toBe(false)
     expect(existsSync(publicFile('safe', '/icons/icon-white-32.png'))).toBe(false)
-    expect(existsSync(publicFile('safe', '/icons/icon-white-128.png'))).toBe(true)
+    expect(existsSync(publicFile('safe', '/icons/icon-white-128.png'))).toBe(false)
     expect(readFileSync(clientPaths('safe').html, 'utf8')).not.toMatch(/icon-white-/u)
   })
 
@@ -134,20 +134,22 @@ describe('home-screen icons', () => {
     expect(maxChannelSpread(pixels), 'etx icon-32 lost its purple').toBeGreaterThan(40)
   })
 
-  it('Safe tab and home-screen icons stay the black mark', async () => {
+  it('Safe tab and home-screen icons use the dark metal tile', async () => {
     const html = readFileSync(clientPaths('safe').html, 'utf8')
-    const dark = await opaquePixels('safe', '/icons/icon-32.png')
+    const tab = await opaquePixels('safe', '/icons/icon-32.png')
     const apple = await opaquePixels('safe', '/icons/icon-180.png')
     const maskable = await opaquePixels('safe', '/icons/icon-maskable-512.png')
 
     expect(html).not.toMatch(/icon-white-/u)
     expect(html).not.toMatch(/rel="icon"[^>]*prefers-color-scheme/u)
-    expect(maxChannelSpread(dark), 'safe icon-32 is still tinted').toBeLessThan(12)
-    expect(meanLuminance(dark), 'safe icon-32 is not black').toBeLessThan(40)
-    expect(apple.some(([red]) => red < 40), 'safe apple icon has no black mark').toBe(true)
-    expect(apple.some(([red]) => red > 230), 'safe apple icon has no light tile').toBe(true)
-    expect(maskable.some(([red]) => red < 40), 'safe maskable icon has no black mark').toBe(true)
-    expect(maskable.some(([red]) => red > 230), 'safe maskable icon has no light tile').toBe(true)
+    expect(tab.some(([red]) => red < 40), 'safe icon-32 lost the dark tile').toBe(true)
+    expect(tab.some(([red, green, blue]) => red > 200 && green > 200 && blue > 200), 'safe icon-32 lost the steel').toBe(
+      true,
+    )
+    expect(apple.some(([red]) => red < 40), 'safe apple icon lost the dark tile').toBe(true)
+    expect(apple.some(([red]) => red > 200), 'safe apple icon lost the steel').toBe(true)
+    expect(maskable.some(([red]) => red < 40), 'safe maskable icon lost the dark tile').toBe(true)
+    expect(maskable.some(([red]) => red > 200), 'safe maskable icon lost the steel').toBe(true)
   })
 })
 
@@ -181,16 +183,3 @@ function maxChannelSpread(pixels: readonly (readonly [number, number, number])[]
   return max
 }
 
-function meanLuminance(pixels: readonly (readonly [number, number, number])[]): number {
-  if (pixels.length === 0) {
-    return 0
-  }
-
-  let sum = 0
-
-  for (const [red, green, blue] of pixels) {
-    sum += 0.299 * red + 0.587 * green + 0.114 * blue
-  }
-
-  return sum / pixels.length
-}

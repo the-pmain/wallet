@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { BrandMark } from './brand-mark'
 
 describe('BrandMark', () => {
-  it('uses the purple cube and no white paint', () => {
+  it('uses the purple shield and no white paint', () => {
     render(<BrandMark />)
 
     const mark = screen.getByRole('img', { name: 'ETWallet' })

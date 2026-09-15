@@ -38,6 +38,7 @@ export const ROUTE = {
   Variant1: '/variant-1',
   Variant2: '/variant-2',
   Variant3: '/variant-3',
+  LogoVariants: '/logo-variants',
 } as const
 
 export type Route = (typeof ROUTE)[keyof typeof ROUTE]

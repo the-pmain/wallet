@@ -26,11 +26,12 @@ import { loadEnv } from 'vite'
  * web app manifest want 192 and 512, plus a maskable 512 whose mark
  * sits in the inner 80% so adaptive-icon masks do not clip it.
  *
- * COLOUR. The purple cube is the ETX mark (`brand/icon-purple.png`)
- * and is not used for Safe. Safe’s source is a black cube
- * (`brand/icon-dark.png`). Tab and home-screen icons stay that
- * black mark. A white 128 is painted only for the in-app mark on
- * a dark canvas.
+ * COLOUR. Both sources are the Metal study: a dark rounded tile
+ * with a chrome shield. ETX is violet (`brand/icon-purple.png`).
+ * Safe is steel (`brand/icon-dark.png`). The tile is the mark, so
+ * it is the same in the app, the tab, and the home-screen icon.
+ * Safe does not invert to white: steel on charcoal already reads
+ * on a light or dark canvas.
  *
  * Run: `npm run icons`. Output lands in `public/` and in version
  * control: the build must not depend on `sharp` being present.
@@ -74,7 +75,7 @@ const MASKABLE_SIZE = 512
  * the OS round masks. Maskable icons need a wider safe zone: Android
  * may crop to a circle whose diameter is 80% of the canvas.
  */
-const PADDING_RATIO = 0.08
+const PADDING_RATIO = 0.03
 const MASKABLE_PADDING_RATIO = 0.2
 
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 }
@@ -82,21 +83,20 @@ const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 }
 /**
  * Per-theme source and paint.
  *
- * Tab icons keep the source on transparency. Home-screen tiles use
- * an opaque theme colour so iOS does not fill transparency with
- * black. Safe’s tile is light so the black mark stays visible. ETX
- * keeps the purple cube on its dark tile.
+ * The source already is the dark rounded tile. Tab icons keep that
+ * tile on transparency. Home-screen squares use the tile’s own dark
+ * so iOS does not fill the rounded corners with white.
  */
 const THEME_ICON = {
   etx: {
     source: 'brand/icon-purple.png',
     inAppWhite: false,
-    background: { r: 22, g: 20, b: 28, alpha: 1 },
+    background: { r: 10, g: 8, b: 22, alpha: 1 },
   },
   safe: {
     source: 'brand/icon-dark.png',
-    inAppWhite: true,
-    background: { r: 244, g: 244, b: 245, alpha: 1 },
+    inAppWhite: false,
+    background: { r: 5, g: 5, b: 5, alpha: 1 },
   },
 }
 

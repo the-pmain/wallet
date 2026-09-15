@@ -21,9 +21,8 @@ import { Badge } from '@/shared/ui'
  *   most legitimate tokens are not on it;
  * - empty — native currency, part of the network config.
  *
- * Verified is marked with an icon, not color. A green chip on every
- * other row stops being read, and color as the only cue is invisible
- * to people with color-vision deficiency.
+ * Verified uses the success color plus the shield: color alone is
+ * invisible to people with color-vision deficiency.
  */
 export function TokenTrustBadge({ token }: { readonly token: IToken }) {
   if (token.address === null) {
@@ -33,12 +32,12 @@ export function TokenTrustBadge({ token }: { readonly token: IToken }) {
   if (token.isVerified) {
     return (
       <Badge
-        variant="outline"
-        className="shrink-0"
+        variant="success"
+        className="shrink-0 border-risk-low/40 bg-risk-low/20 text-risk-low [&_svg]:text-risk-low"
         title="The contract address matches the built-in list"
       >
-        <ShieldCheck className="size-3" aria-hidden />
-        <span className="max-sm:sr-only">verified</span>
+        <ShieldCheck className="size-3 text-risk-low" aria-hidden />
+        <span className="text-risk-low max-sm:sr-only">verified</span>
       </Badge>
     )
   }
