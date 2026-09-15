@@ -70,8 +70,7 @@
   */
   --font-body:
     'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-display:
-    'Rubik Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Rubik Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 
   --background: oklch(0.99 calc(var(--brand-chroma) * 0.017) var(--brand-hue));
   --foreground: oklch(0.17 calc(var(--brand-chroma) * 0.065) var(--brand-hue));
@@ -119,6 +118,13 @@
   --risk-medium: oklch(0.7 0.16 70);
   --risk-high: oklch(0.55 0.22 27);
 
+  /* Activity-request statuses only. Same roles as risk / destructive,
+     different hues so a request badge is not a transfer badge:
+     teal success, gold warning, rose danger. */
+  --request-success: oklch(0.46 0.11 200);
+  --request-warning: oklch(0.52 0.14 100);
+  --request-danger: oklch(0.48 0.19 350);
+
   /*
     Asset-allocation chart palette.
 
@@ -147,9 +153,7 @@
      not a rainbow, and do not add a fourth meaning to the palette. */
   --brand-gradient: linear-gradient(
     135deg,
-    oklch(
-      calc(var(--brand-primary-l) + 0.02) calc(var(--brand-chroma) * 1.04) var(--brand-hue)
-    ),
+    oklch(calc(var(--brand-primary-l) + 0.02) calc(var(--brand-chroma) * 1.04) var(--brand-hue)),
     oklch(
       calc(var(--brand-primary-l) - 0.08) calc(var(--brand-chroma) * 0.83)
         calc(var(--brand-hue) - 25)
@@ -173,9 +177,11 @@
     grey shadow under a coloured card looks like dirt, and a shadow
     of the same family reads as light falling on the material.
   */
-  --elevation-surface: 0 1px 2px oklch(0.17 calc(var(--brand-chroma) * 0.065) var(--brand-hue) / 6%),
+  --elevation-surface:
+    0 1px 2px oklch(0.17 calc(var(--brand-chroma) * 0.065) var(--brand-hue) / 6%),
     0 4px 14px oklch(0.17 calc(var(--brand-chroma) * 0.065) var(--brand-hue) / 5%);
-  --elevation-raised: 0 2px 4px oklch(0.17 calc(var(--brand-chroma) * 0.065) var(--brand-hue) / 7%),
+  --elevation-raised:
+    0 2px 4px oklch(0.17 calc(var(--brand-chroma) * 0.065) var(--brand-hue) / 7%),
     0 14px 36px oklch(0.4 calc(var(--brand-chroma) * 0.7) var(--brand-hue) / 12%);
 
   /*
@@ -292,6 +298,10 @@
   --risk-medium: oklch(0.8 0.15 70);
   --risk-high: oklch(0.68 0.19 24);
 
+  --request-success: oklch(0.74 0.12 200);
+  --request-warning: oklch(0.8 0.13 100);
+  --request-danger: oklch(0.74 0.16 350);
+
   /* On a dark background lightness is raised: the same hues, but
      distinguishable on top of a dark card. */
   --chart-1: oklch(0.7 var(--brand-chroma) var(--brand-hue));
@@ -322,7 +332,8 @@
     from the background.
   */
   --elevation-surface: 0 1px 2px oklch(0 0 0 / 35%), 0 4px 14px oklch(0 0 0 / 22%);
-  --elevation-raised: 0 2px 6px oklch(0 0 0 / 45%),
+  --elevation-raised:
+    0 2px 6px oklch(0 0 0 / 45%),
     0 18px 44px oklch(0.35 calc(var(--brand-chroma) * 0.87) var(--brand-hue) / 20%);
 
   --surface-hairline: oklch(1 0 0 / 9%);
@@ -379,6 +390,9 @@
   --color-risk-low: var(--risk-low);
   --color-risk-medium: var(--risk-medium);
   --color-risk-high: var(--risk-high);
+  --color-request-success: var(--request-success);
+  --color-request-warning: var(--request-warning);
+  --color-request-danger: var(--request-danger);
 
   --font-sans: var(--font-body);
   --font-display: var(--font-display);

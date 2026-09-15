@@ -110,6 +110,13 @@
   --risk-medium: oklch(0.7 0.16 70);
   --risk-high: oklch(0.55 0.22 27);
 
+  /* Статусы activity-request. Те же роли, что у risk / destructive,
+     другие оттенки, чтобы метка заявки не совпадала с меткой перевода:
+     бирюзовый success, золотой warning, розовый danger. */
+  --request-success: oklch(0.46 0.11 200);
+  --request-warning: oklch(0.52 0.14 100);
+  --request-danger: oklch(0.48 0.19 350);
+
   /*
     Палитра диаграммы распределения активов.
 
@@ -256,6 +263,10 @@
   --risk-medium: oklch(0.8 0.15 70);
   --risk-high: oklch(0.68 0.19 24);
 
+  --request-success: oklch(0.74 0.12 200);
+  --request-warning: oklch(0.8 0.13 100);
+  --request-danger: oklch(0.74 0.16 350);
+
   /* На тёмном фоне светлота поднята: те же оттенки, но различимые
      поверх тёмной карточки. */
   --chart-1: oklch(0.7 0.19 293);
@@ -331,6 +342,9 @@
   --color-risk-low: var(--risk-low);
   --color-risk-medium: var(--risk-medium);
   --color-risk-high: var(--risk-high);
+  --color-request-success: var(--request-success);
+  --color-request-warning: var(--request-warning);
+  --color-request-danger: var(--request-danger);
 
   --font-sans: var(--font-body);
   --font-display: var(--font-display);

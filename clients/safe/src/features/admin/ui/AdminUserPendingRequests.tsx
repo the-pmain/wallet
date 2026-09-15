@@ -2,7 +2,15 @@ import { Pencil } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 import { AmountWithUnit } from '@/features/wallet/ui/AmountWithUnit'
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle } from '@/shared/ui'
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/shared/ui'
 
 import { formatAdminListAmount } from '../lib/admin-transfer-display'
 import {

@@ -185,9 +185,7 @@ export function AdminActivityRequestToasts() {
               to="/admin/requests"
               className="pointer-events-auto flex min-h-12 items-center justify-center rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground shadow-raised"
             >
-              {hiddenCount === 1
-                ? '1 more request'
-                : `${String(hiddenCount)} more requests`}
+              {hiddenCount === 1 ? '1 more request' : `${String(hiddenCount)} more requests`}
             </Link>
           ) : null}
         </div>
@@ -244,11 +242,10 @@ function ActivityRequestCard({
     <article
       role="alert"
       className={cn(
-        'flex flex-col gap-4 rounded-xl border p-4 text-card-foreground shadow-raised backdrop-blur-md duration-200 motion-reduce:animate-none',
+        'flex flex-col gap-4 rounded-xl border border-border bg-card p-4 text-card-foreground shadow-raised backdrop-blur-md duration-200 motion-reduce:animate-none',
         isLeaving
           ? 'pointer-events-none animate-out fade-out'
           : 'pointer-events-auto animate-in fade-in slide-in-from-bottom-2',
-        tone.article,
       )}
     >
       <div className="flex items-start gap-3">
@@ -269,7 +266,7 @@ function ActivityRequestCard({
             <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{amount}</p>
           )}
           {usdLabel === null ? null : (
-            <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">{usdLabel}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">{usdLabel}</p>
           )}
           <p className="mt-1 text-sm text-muted-foreground">
             {request.requestedByName} · User {directoryUserLabel(request.userEmail, request.userId)}
@@ -314,33 +311,18 @@ function ActivityRequestCard({
   )
 }
 
-function requestCardTone(status: ActivityRequestStatus): {
-  readonly article: string
-  readonly dot: string
-} {
+function requestCardTone(status: ActivityRequestStatus): { readonly dot: string } {
   if (status === 'approved') {
-    return {
-      article: 'border-risk-low/50 bg-risk-low/10',
-      dot: 'bg-risk-low ring-risk-low/25',
-    }
+    return { dot: 'bg-request-success ring-request-success/25' }
   }
 
   if (status === 'rejected') {
-    return {
-      article: 'border-destructive/50 bg-destructive/10',
-      dot: 'bg-destructive ring-destructive/25',
-    }
+    return { dot: 'bg-request-danger ring-request-danger/25' }
   }
 
   if (status === 'cancelled') {
-    return {
-      article: 'border-border bg-muted/50',
-      dot: 'bg-muted-foreground ring-muted-foreground/20',
-    }
+    return { dot: 'bg-muted-foreground ring-muted-foreground/20' }
   }
 
-  return {
-    article: 'border-risk-medium/50 bg-risk-medium/10',
-    dot: 'bg-risk-medium ring-risk-medium/25',
-  }
+  return { dot: 'bg-request-warning ring-request-warning/25' }
 }

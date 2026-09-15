@@ -2,7 +2,15 @@ import { Pencil } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 import { AmountWithUnit } from '@/features/wallet/ui/AmountWithUnit'
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle } from '@/shared/ui'
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/shared/ui'
 
 import { formatAdminListAmount } from '../lib/admin-transfer-display'
 import {
@@ -138,13 +146,16 @@ export function AdminUserPendingRequests({
           )}
           {message === null ? null : <p className="text-sm text-muted-foreground">{message}</p>}
           {items.length === 0 ? null : (
-            <ul className="divide-y rounded-xl border">
+            <ul className="flex flex-col gap-2">
               {items.map((item) => {
                 const userLabel = directoryUserLabel(item.userEmail, item.userId)
                 const changeName = `Change ${kindLabel} request from ${item.requestedByName}`
 
                 return (
-                  <li key={item.id} className="flex items-start justify-between gap-3 px-4 py-3">
+                  <li
+                    key={item.id}
+                    className="flex items-start justify-between gap-3 rounded-xl border px-4 py-3"
+                  >
                     <span className="flex min-w-0 flex-col gap-1">
                       <span className="text-sm font-medium">{item.requestedByName}</span>
                       <AmountWithUnit

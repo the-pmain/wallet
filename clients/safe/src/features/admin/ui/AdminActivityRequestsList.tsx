@@ -24,10 +24,7 @@ import {
 } from '../model/admin-page'
 import { directoryUserLabel } from '../model/admin-user-emails'
 import { useAdminActivityRequestsLive } from '../model/admin-activity-requests-live'
-import {
-  directoryListIsBusy,
-  useAdminDirectoryQuery,
-} from '../model/use-admin-directory-query'
+import { directoryListIsBusy, useAdminDirectoryQuery } from '../model/use-admin-directory-query'
 import { ActivityRequestReviewDialog } from './ActivityRequestReviewDialog'
 import { AdminDirectoryListPending } from './AdminDirectoryListPending'
 import { AdminListPager } from './AdminListPager'
@@ -258,8 +255,12 @@ export function AdminActivityRequestsList({
       <Input
         type="search"
         value={search}
-        placeholder={mine ? 'Search email, amount, or status' : 'Search operator, email, amount, or status'}
-        aria-label={mine ? 'Search email, amount, or status' : 'Search operator, email, amount, or status'}
+        placeholder={
+          mine ? 'Search email, amount, or status' : 'Search operator, email, amount, or status'
+        }
+        aria-label={
+          mine ? 'Search email, amount, or status' : 'Search operator, email, amount, or status'
+        }
         onChange={(event) => {
           setSearch(event.target.value)
         }}
@@ -397,7 +398,10 @@ function ActivityRequestRow({
                 {name} · {network}
               </p>
               {recipient === null ? null : (
-                <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground" title={recipient}>
+                <p
+                  className="mt-0.5 truncate font-mono text-xs text-muted-foreground"
+                  title={recipient}
+                >
                   To {shortenAddress(recipient)}
                 </p>
               )}
@@ -409,7 +413,7 @@ function ActivityRequestRow({
                 className="text-2xl font-semibold tracking-tight"
               />
               {usdLabel === null ? null : (
-                <p className="mt-0.5 text-sm tabular-nums text-muted-foreground">{usdLabel}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">{usdLabel}</p>
               )}
             </div>
           </div>
