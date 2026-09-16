@@ -94,25 +94,25 @@ export function UnlockWalletPage() {
             }}
           />
 
-          <div className="flex flex-col items-center gap-1">
-            <div className="flex flex-wrap items-center justify-center gap-x-3">
-              <Button asChild variant="ghost" size="sm" className="h-auto whitespace-normal">
-                <Link to={ROUTE.ForgotPassword}>{t('unlock.forgot')}</Link>
-              </Button>
-              <Button asChild variant="ghost" size="sm" className="h-auto whitespace-normal">
-                <Link to={ROUTE.Create}>{t('unlock.createAccount')}</Link>
-              </Button>
-            </div>
-
+          <nav
+            aria-label="Account options"
+            className="flex min-w-0 flex-wrap items-center justify-center gap-2 pt-2"
+          >
+            <Button asChild variant="ghost" size="sm" className="h-auto px-3 py-2.5 whitespace-normal">
+              <Link to={ROUTE.ForgotPassword}>{t('unlock.forgot')}</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm" className="h-auto px-3 py-2.5 whitespace-normal">
+              <Link to={ROUTE.Create}>{t('unlock.createAccount')}</Link>
+            </Button>
             <Button
               asChild
               variant="ghost"
               size="sm"
-              className="h-auto max-w-full whitespace-normal text-center"
+              className="h-auto max-w-full min-w-0 px-3 py-2.5 whitespace-normal text-center"
             >
               <Link to={ROUTE.ForgotPassword}>{t('unlock.otherWallet')}</Link>
             </Button>
-          </div>
+          </nav>
         </CardContent>
       </Card>
     </div>

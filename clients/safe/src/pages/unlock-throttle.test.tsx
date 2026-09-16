@@ -87,6 +87,22 @@ describe('Sign-in without attempt throttling', () => {
     expect(await screen.findByText('Account 1')).toBeInTheDocument()
   })
 
+  it('the sign-in footer actions have padding and keep the long link readable', async () => {
+    renderApp()
+
+    expect(await screen.findByRole('navigation', { name: 'Account options' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Forgot your password?' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Create account' })).toBeInTheDocument()
+
+    const otherWallet = screen.getByRole('link', {
+      name: 'Create another wallet or restore from a seed phrase',
+    })
+
+    expect(otherWallet.className).toMatch(/px-3/u)
+    expect(otherWallet.className).toMatch(/py-2.5/u)
+    expect(otherWallet.className).toMatch(/whitespace-normal/u)
+  })
+
   it('the throttle counter stays empty', async () => {
     renderApp()
 

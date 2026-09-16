@@ -89,6 +89,22 @@ describe('Вход без ограничения попыток', () => {
     expect(await screen.findByText('Account 1')).toBeInTheDocument()
   })
 
+  it('нижние действия входа имеют отступы и не сжимают длинную ссылку', async () => {
+    renderApp()
+
+    expect(await screen.findByRole('navigation', { name: 'Account options' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Forgot your password?' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Create account' })).toBeInTheDocument()
+
+    const otherWallet = screen.getByRole('link', {
+      name: 'Create another wallet or restore from a seed phrase',
+    })
+
+    expect(otherWallet.className).toMatch(/px-3/u)
+    expect(otherWallet.className).toMatch(/py-2.5/u)
+    expect(otherWallet.className).toMatch(/whitespace-normal/u)
+  })
+
   it('счётчик остаётся пустым', async () => {
     renderApp()
 
