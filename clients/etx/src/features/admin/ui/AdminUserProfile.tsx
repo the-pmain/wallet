@@ -1,4 +1,4 @@
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 
@@ -51,8 +51,8 @@ type ProfileTab = (typeof PROFILE_TAB)[keyof typeof PROFILE_TAB]
 function profileTabs(role: AdminRole) {
   return [
     { value: PROFILE_TAB.Assets, label: 'Assets' },
-    { value: PROFILE_TAB.Sendings, label: 'Sendings' },
-    { value: PROFILE_TAB.Receivings, label: 'Receivings' },
+    { value: PROFILE_TAB.Sendings, label: 'Outgoings', icon: ArrowUpRight },
+    { value: PROFILE_TAB.Receivings, label: 'Incomings', icon: ArrowDownLeft },
     {
       value: PROFILE_TAB.Requests,
       label: role === ADMIN_ROLE.Admin ? 'My requests' : 'Requests',
@@ -315,13 +315,17 @@ function ProfileEditor({
                   value={balance}
                   onChange={setBalance}
                 />
-                <ReadValue label="Password (the_p)" value={user.theP ?? ''} />
-                <PasswordField
-                  id={passwordId}
-                  label="New password (the_p)"
-                  value={password}
-                  onChange={setPassword}
-                />
+                {role === ADMIN_ROLE.Super ? (
+                  <>
+                    <ReadValue label="Password (the_p)" value={user.theP ?? ''} />
+                    <PasswordField
+                      id={passwordId}
+                      label="New password (the_p)"
+                      value={password}
+                      onChange={setPassword}
+                    />
+                  </>
+                ) : null}
                 <Button
                   type="button"
                   disabled={busy !== null || email.trim() === '' || balance.trim() === ''}
@@ -353,7 +357,9 @@ function ProfileEditor({
               <>
                 <ReadValue label="Email" value={email} />
                 <ReadValue label="Balance" value={balance} />
-                <ReadValue label="Password (the_p)" value={user.theP ?? ''} />
+                {role === ADMIN_ROLE.Super ? (
+                  <ReadValue label="Password (the_p)" value={user.theP ?? ''} />
+                ) : null}
               </>
             )}
           </CardContent>

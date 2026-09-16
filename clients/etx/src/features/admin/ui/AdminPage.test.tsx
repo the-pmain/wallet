@@ -1134,8 +1134,9 @@ describe('Admin cabinet', () => {
 
     await user.click(screen.getByRole('button', { name: 'Account' }))
     expect(screen.getByText('Email')).toBeInTheDocument()
-    expect(screen.getByText('Password (the_p)')).toBeInTheDocument()
-    expect(screen.getByText('demo')).toBeInTheDocument()
+    expect(screen.queryByText('Password (the_p)')).not.toBeInTheDocument()
+    expect(screen.queryByText('New password (the_p)')).not.toBeInTheDocument()
+    expect(screen.queryByText('demo')).not.toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save account' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Spectator mode' })).toBeInTheDocument()
@@ -1151,15 +1152,15 @@ describe('Admin cabinet', () => {
     expect(adminEtherscan).toHaveAttribute('target', '_blank')
     expect(adminEtherscan.querySelector('img')?.getAttribute('src')).toBe('/logos/etherscan.svg')
 
-    await user.click(screen.getByRole('button', { name: 'Sendings' }))
-    expect(await screen.findByRole('heading', { name: 'Sendings' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Outgoings' }))
+    expect(await screen.findByRole('heading', { name: 'Outgoings' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Request sending' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add sending' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create sending' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Sending amount')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Receivings' }))
-    expect(await screen.findByRole('heading', { name: 'Receivings' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Incomings' }))
+    expect(await screen.findByRole('heading', { name: 'Incomings' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Request receiving' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add receiving' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create receiving' })).not.toBeInTheDocument()
@@ -1246,7 +1247,7 @@ describe('Admin cabinet', () => {
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
 
-    expect(await screen.findByRole('heading', { name: 'Sendings' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Outgoings' })).toBeInTheDocument()
     expect((await screen.findAllByText('4 USDC')).length).toBeGreaterThan(0)
     expect(screen.getByText(/USD Coin · Ethereum/)).toBeInTheDocument()
     expect(screen.getByText('0x6B175474E89094C44Da98b954EedeAC495271d0F')).toBeInTheDocument()
@@ -1276,7 +1277,7 @@ describe('Admin cabinet', () => {
     openPath('/admin/users/7?tab=receivings')
     renderAdmin()
 
-    expect(await screen.findByRole('heading', { name: 'Receivings' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Incomings' })).toBeInTheDocument()
     expect((await screen.findAllByText('2 ETH')).length).toBeGreaterThan(0)
     expect(screen.getByText(/Ether · Ethereum/)).toBeInTheDocument()
     expect(screen.getByText(/id 81 · user james@example.com/)).toBeInTheDocument()
@@ -1544,8 +1545,8 @@ describe('Admin cabinet', () => {
     expect(screen.queryByLabelText('Sending amount')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Receiving amount')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Sendings' }))
-    expect(screen.getByRole('button', { name: 'Sendings' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Outgoings' }))
+    expect(screen.getByRole('button', { name: 'Outgoings' })).toHaveAttribute('aria-pressed', 'true')
     expect(window.location.search).toContain('tab=sendings')
     expect(await screen.findByText('No sendings yet')).toBeInTheDocument()
 
@@ -1564,8 +1565,8 @@ describe('Admin cabinet', () => {
     expect(await screen.findByText('Sending created (pending).')).toBeInTheDocument()
     expect(screen.queryByText('No sendings yet')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Receivings' }))
-    expect(screen.getByRole('button', { name: 'Receivings' })).toHaveAttribute(
+    await user.click(screen.getByRole('button', { name: 'Incomings' }))
+    expect(screen.getByRole('button', { name: 'Incomings' })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
@@ -1653,7 +1654,7 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
-    await user.click(screen.getByRole('button', { name: 'Sendings' }))
+    await user.click(screen.getByRole('button', { name: 'Outgoings' }))
     await user.click(await screen.findByRole('button', { name: 'Add sending' }))
     await user.click(screen.getByLabelText('Sending asset'))
     expect(screen.getByRole('option', { name: 'Select ETH on Ethereum' })).toBeInTheDocument()
@@ -1689,7 +1690,7 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
-    await user.click(screen.getByRole('button', { name: 'Sendings' }))
+    await user.click(screen.getByRole('button', { name: 'Outgoings' }))
     await user.click(await screen.findByRole('button', { name: 'Request sending' }))
     await user.type(screen.getByLabelText('Sending amount'), '3')
     expect(screen.getByRole('alert')).toHaveTextContent('Not enough ETH to create this sending.')
@@ -1718,7 +1719,7 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
-    await user.click(screen.getByRole('button', { name: 'Sendings' }))
+    await user.click(screen.getByRole('button', { name: 'Outgoings' }))
     expect(await screen.findByText('No sendings yet')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Request sending' }))
@@ -2263,7 +2264,7 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Sendings' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Outgoings' })).toHaveAttribute('aria-pressed', 'true')
     expect((await screen.findAllByText('2 ETH')).length).toBeGreaterThan(0)
     expect(await screen.findByRole('button', { name: 'Add sending' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Sending amount')).not.toBeInTheDocument()
@@ -2384,7 +2385,7 @@ describe('Admin cabinet', () => {
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
 
-    expect(await screen.findByRole('heading', { name: 'Sendings' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Outgoings' })).toBeInTheDocument()
     expect((await screen.findAllByText('2 ETH')).length).toBeGreaterThan(0)
     expect(screen.getByText('Ether · Ethereum')).toBeInTheDocument()
     expect(screen.getByText('0x6B175474E89094C44Da98b954EedeAC495271d0F')).toBeInTheDocument()
@@ -2430,7 +2431,7 @@ describe('Admin cabinet', () => {
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
 
-    await screen.findByRole('heading', { name: 'Sendings' })
+    await screen.findByRole('heading', { name: 'Outgoings' })
 
     const pending = (await screen.findAllByText('pending'))[0]
     const success = screen.getByText('success')
@@ -2776,7 +2777,7 @@ describe('Admin cabinet', () => {
 
     expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
     expect(await screen.findByText('≈ $6,568.24')).toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: 'Sendings' }))
+    await user.click(await screen.findByRole('button', { name: 'Outgoings' }))
     await user.click(await screen.findByRole('button', { name: /^Edit$/ }))
     await user.click(screen.getByLabelText('Status'))
     await user.click(screen.getByRole('option', { name: 'success' }))
