@@ -31,7 +31,7 @@ export function UnlockWalletPage() {
 
   if (session.isRestoring) {
     return (
-      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
+      <div className="flex min-h-full flex-1 items-center justify-center text-sm text-muted-foreground">
         Loading…
       </div>
     )
@@ -69,8 +69,8 @@ export function UnlockWalletPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-6">
-      <Card className="w-full max-w-md animate-in duration-500 fade-in slide-in-from-bottom-3">
+    <div className="flex min-h-full flex-1 flex-col items-center justify-center px-4 py-4 sm:p-6">
+      <Card className="w-full min-w-0 max-w-md animate-in duration-500 fade-in slide-in-from-bottom-3">
         <CardHeader className="items-center gap-5 text-center">
           <BrandMark className="mx-auto size-14" />
 
@@ -92,18 +92,25 @@ export function UnlockWalletPage() {
             }}
           />
 
-          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-            <Button asChild variant="ghost" size="sm">
-              <Link to={ROUTE.ForgotPassword}>{t('unlock.forgot')}</Link>
-            </Button>
-            <Button asChild variant="ghost" size="sm">
-              <Link to={ROUTE.Create}>{t('unlock.createAccount')}</Link>
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex flex-wrap items-center justify-center gap-x-3">
+              <Button asChild variant="ghost" size="sm" className="h-auto whitespace-normal">
+                <Link to={ROUTE.ForgotPassword}>{t('unlock.forgot')}</Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm" className="h-auto whitespace-normal">
+                <Link to={ROUTE.Create}>{t('unlock.createAccount')}</Link>
+              </Button>
+            </div>
+
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className="h-auto max-w-full whitespace-normal text-center"
+            >
+              <Link to={ROUTE.ForgotPassword}>{t('unlock.otherWallet')}</Link>
             </Button>
           </div>
-
-          <Button asChild variant="ghost" size="sm">
-            <Link to={ROUTE.ForgotPassword}>{t('unlock.otherWallet')}</Link>
-          </Button>
         </CardContent>
       </Card>
     </div>

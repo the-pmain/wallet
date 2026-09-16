@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { NavigationType, Outlet, useLocation, useNavigationType } from 'react-router'
 
 import { cn } from '@/shared/lib/utils'
+import { AddToHomeScreen } from '@/shared/ui'
 
 import { COINS, type ICoin } from './coins'
 
@@ -33,8 +34,18 @@ export function AuthLayout() {
   const isBackwards = navigationType === NavigationType.Pop
 
   return (
-    <div className="relative min-h-svh overflow-hidden bg-background">
+    <div className="relative flex min-h-svh flex-col overflow-x-hidden bg-background">
       <AuroraBackground />
+
+      {/*
+        IN THE LAYOUT, NOT OVER THE CARD. An overlay on a 360-pixel
+        phone covers the mark or is clipped by `overflow-hidden`.
+        The page below fills what is left and scrolls when the
+        keyboard opens.
+      */}
+      <div className="relative z-20 flex shrink-0 justify-end px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1">
+        <AddToHomeScreen variant="square" />
+      </div>
 
       {/*
         A key on the path restarts the animation on every navigation.
@@ -44,7 +55,8 @@ export function AuthLayout() {
       <div
         key={location.pathname}
         className={cn(
-          'relative z-10 animate-in duration-500 fade-in',
+          'relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain',
+          'animate-in duration-500 fade-in',
           isBackwards ? 'slide-in-from-left-8' : 'slide-in-from-right-8',
         )}
       >

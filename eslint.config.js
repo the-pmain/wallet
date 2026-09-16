@@ -98,7 +98,7 @@ const FORBIDDEN_STORAGE_GLOBALS = [
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'coverage/**', 'node_modules/**', '.vite/**'],
+    ignores: ['dist/**', 'coverage/**', 'node_modules/**', '.vite/**', '**/public/sw.js'],
   },
 
   js.configs.recommended,

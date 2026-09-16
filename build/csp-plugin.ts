@@ -46,11 +46,12 @@ export function buildContentSecurityPolicy(connectSrc: string = DEFAULT_CONNECT_
     /* blob: — mail preview in an iframe without srcDoc (Trusted Types). */
     "frame-src blob:",
     /*
-    The app has no workers. Allowing `blob:` would let a worker run
-    code built from a string — a bypass of `script-src 'self'`, which
-    is why the policy exists.
+    Same-origin workers only. Chrome will not offer "Add to Home
+    Screen" without a service worker, and that worker is served from
+    `/sw.js`. `blob:` stays forbidden: a worker built from a string
+    would bypass `script-src 'self'`, which is why the policy exists.
   */
-    "worker-src 'none'",
+    "worker-src 'self'",
     /* The app does not embed foreign pages. blob: is for the same
      mail preview as frame-src. */
     "child-src blob:",

@@ -36,6 +36,13 @@ export async function registerUi(app: FastifyInstance, staticRoot: string): Prom
         reply.header('cache-control', 'public, max-age=31536000, immutable')
       }
 
+      /* The install worker must be revalidated: a long-cached copy
+         would keep an old script after a fix, including one that
+         closed a hole. */
+      if (normalized.endsWith('/sw.js')) {
+        reply.header('cache-control', 'no-cache')
+      }
+
       reply.header('cross-origin-resource-policy', 'same-origin')
     },
   })

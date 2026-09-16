@@ -28,6 +28,7 @@ import {
 import { ROUTE } from '@/app/router/routes'
 import { useTheme, type Theme } from '@/shared/theme'
 import {
+  AddToHomeScreen,
   Alert,
   AlertDescription,
   Button,
@@ -136,6 +137,8 @@ export function SettingsPage() {
           />
         </CardContent>
       </Card>
+
+      <AddToHomeScreen variant="card" />
 
       {/*
         ЧЕТЫРЕ ПЕРЕХОДА ОДНИМ СПИСКОМ, А НЕ ЧЕТЫРЬМЯ КАРТОЧКАМИ.

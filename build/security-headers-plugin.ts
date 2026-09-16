@@ -122,6 +122,7 @@ export function buildSecurityHeaders(connectSrc?: string): readonly ISecurityHea
 const CACHE_RULES: readonly { readonly path: string; readonly value: string }[] = [
   { path: '/assets/*', value: 'public, max-age=31536000, immutable' },
   { path: '/index.html', value: 'no-cache' },
+  { path: '/sw.js', value: 'no-cache' },
   { path: '/', value: 'no-cache' },
 ]
 
@@ -164,6 +165,10 @@ export function buildNginxSnippet(connectSrc?: string): string {
     '}',
     '',
     'location = /index.html {',
+    '  add_header Cache-Control "no-cache" always;',
+    '}',
+    '',
+    'location = /sw.js {',
     '  add_header Cache-Control "no-cache" always;',
     '}',
   )

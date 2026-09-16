@@ -1,3 +1,4 @@
+export { AddToHomeScreen, type AddToHomeScreenVariant } from './add-to-home-screen'
 export { Alert, AlertDescription, AlertTitle, type AlertProps } from './alert'
 export { alertVariants } from './alert-variants'
 export { Badge, type BadgeProps } from './badge'

@@ -42,6 +42,18 @@ describe('Connect policy', () => {
   })
 })
 
+describe('Worker policy', () => {
+  it('allows a same-origin service worker and forbids blob workers', () => {
+    /* Chrome will not offer Add to Home Screen without a worker.
+       `blob:` would let a worker run code built from a string. */
+    const policy = buildContentSecurityPolicy()
+
+    expect(policy).toContain("worker-src 'self'")
+    expect(policy).not.toContain("worker-src 'none'")
+    expect(policy).not.toContain('worker-src blob')
+  })
+})
+
 describe('Host headers', () => {
   it('forbid framing on a foreign page', () => {
     /* The meta tag ignores `frame-ancestors`: without the header the
@@ -119,6 +131,7 @@ describe('Host config files', () => {
 
     expect(file).toContain('/assets/*\n  Cache-Control: public, max-age=31536000, immutable')
     expect(file).toContain('/index.html\n  Cache-Control: no-cache')
+    expect(file).toContain('/sw.js\n  Cache-Control: no-cache')
   })
 
   it('in the nginx snippet every header is marked `always`', () => {

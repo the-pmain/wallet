@@ -18,6 +18,7 @@ import { afterEach, vi } from 'vitest'
 
 import { clearCapturedSpectatorQuery } from '@/features/onboarding/model/spectator-session'
 import { appMarketCatalog } from '@/core'
+import { resetHomeScreenInstall } from '@/shared/lib/home-screen'
 import { appFiatRates } from '@/features/wallet/model/fiat-rates-cache'
 import { TestEventSource } from '@/test/doubles'
 
@@ -146,6 +147,7 @@ afterEach(() => {
   /* Иначе следующий тест откроется на `/wallet/nft` после перехода
      в предыдущем: `BrowserRouter` читает `pathname` при монтировании. */
   window.history.replaceState(null, '', '/')
+  resetHomeScreenInstall()
 })
 
 /*

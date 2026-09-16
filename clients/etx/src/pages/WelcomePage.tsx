@@ -31,7 +31,7 @@ export function WelcomePage() {
 
   if (session.isRestoring) {
     return (
-      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
+      <div className="flex min-h-full flex-1 items-center justify-center text-sm text-muted-foreground">
         Loading…
       </div>
     )
@@ -63,8 +63,8 @@ export function WelcomePage() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 px-5 py-6">
-      <Card className="w-full max-w-md animate-in duration-500 fade-in slide-in-from-bottom-3">
+    <div className="flex min-h-full flex-1 flex-col items-center justify-center gap-6 px-4 py-4 sm:px-5 sm:py-6">
+      <Card className="w-full min-w-0 max-w-md animate-in duration-500 fade-in slide-in-from-bottom-3">
         <CardHeader className="items-center gap-5 text-center">
           <BrandMark className="mx-auto size-14" />
           <div className="flex flex-col gap-2">

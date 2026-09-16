@@ -63,7 +63,7 @@ export function pageContentSecurityPolicy(https: boolean): string {
     "base-uri 'self'",
     "form-action 'none'",
     'frame-src blob:',
-    "worker-src 'none'",
+    "worker-src 'self'",
     'child-src blob:',
     "media-src 'none'",
     "manifest-src 'self'",

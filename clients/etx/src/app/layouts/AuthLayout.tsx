@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { NavigationType, Outlet, useLocation, useNavigationType } from 'react-router'
 
 import { cn } from '@/shared/lib/utils'
+import { AddToHomeScreen } from '@/shared/ui'
 
 import { COINS, type ICoin } from './coins'
 
@@ -32,8 +33,18 @@ export function AuthLayout() {
   const isBackwards = navigationType === NavigationType.Pop
 
   return (
-    <div className="relative min-h-svh overflow-hidden bg-background">
+    <div className="relative flex min-h-svh flex-col overflow-x-hidden bg-background">
       <AuroraBackground />
+
+      {/*
+        В ПОТОКЕ, А НЕ ПОВЕРХ КАРТОЧКИ. Наложение на экране 360 пикселей
+        закрывает знак или обрезается `overflow-hidden`. Страница ниже
+        занимает оставшееся место и прокручивается, когда открывается
+        клавиатура.
+      */}
+      <div className="relative z-20 flex shrink-0 justify-end px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1">
+        <AddToHomeScreen variant="square" />
+      </div>
 
       {/*
         Ключ по адресу перезапускает анимацию при каждом переходе.
@@ -44,7 +55,8 @@ export function AuthLayout() {
       <div
         key={location.pathname}
         className={cn(
-          'relative z-10 animate-in duration-500 fade-in',
+          'relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain',
+          'animate-in duration-500 fade-in',
           isBackwards ? 'slide-in-from-left-8' : 'slide-in-from-right-8',
         )}
       >

@@ -2,6 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { assertTestModeIsDisabledInProduction } from '@/shared/config'
+import {
+  registerHomeScreenWorker,
+  startHomeScreenInstallListener,
+} from '@/shared/lib/home-screen'
 
 import { App } from './App'
 import { AppProviders } from './providers'
@@ -11,6 +15,8 @@ import './styles/index.css'
    обязана не запуститься, а не заработать незаметно. Забытый флаг — это
    не гипотетическая оплошность, а обычный способ потерять чужие деньги. */
 assertTestModeIsDisabledInProduction()
+startHomeScreenInstallListener()
+registerHomeScreenWorker()
 
 const rootElement = document.getElementById('root')
 

@@ -2,6 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { assertTestModeIsDisabledInProduction } from '@/shared/config'
+import {
+  registerHomeScreenWorker,
+  startHomeScreenInstallListener,
+} from '@/shared/lib/home-screen'
 
 import { App } from './App'
 import { AppProviders } from './providers'
@@ -12,6 +16,8 @@ import './styles/index.css'
    forgotten flag is not a hypothetical slip — it is a usual way to
    lose someone else's money. */
 assertTestModeIsDisabledInProduction()
+startHomeScreenInstallListener()
+registerHomeScreenWorker()
 
 const rootElement = document.getElementById('root')
 

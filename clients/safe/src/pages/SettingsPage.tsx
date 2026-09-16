@@ -28,6 +28,7 @@ import {
 import { ROUTE } from '@/app/router/routes'
 import { AccentColorPicker, useTheme, type Theme } from '@/shared/theme'
 import {
+  AddToHomeScreen,
   Alert,
   AlertDescription,
   Button,
@@ -137,6 +138,8 @@ export function SettingsPage() {
           <AccentColorPicker />
         </CardContent>
       </Card>
+
+      <AddToHomeScreen variant="card" />
 
       {/*
         FOUR LINKS AS ONE LIST, NOT FOUR CARDS.
