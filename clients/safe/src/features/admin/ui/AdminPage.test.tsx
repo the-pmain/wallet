@@ -1191,6 +1191,11 @@ describe('Admin cabinet', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save wallets' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', {
+        name: 'Add address for receiving funds from exchange or institution',
+      }),
+    ).not.toBeInTheDocument()
     const adminEtherscan = screen.getByRole('link', {
       name: 'Open address-receiving-funds on Etherscan',
     })
@@ -1365,6 +1370,11 @@ describe('Admin cabinet', () => {
     expect(screen.getByText(/Estimated total/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Wallets' }))
+    expect(
+      screen.getByRole('button', {
+        name: 'Add address for receiving funds from exchange or institution',
+      }),
+    ).toBeInTheDocument()
     const addressField = await screen.findByLabelText('Address for address-receiving-funds')
     const superEtherscan = screen.getByRole('link', {
       name: 'Open address-receiving-funds on Etherscan',
@@ -1383,6 +1393,59 @@ describe('Admin cabinet', () => {
 
     expect(await screen.findByText('Saved.')).toBeInTheDocument()
     expect(window.location.pathname).toContain('/admin/users/7')
+  })
+
+  it('a super PIN adds an exchange or institution receiving address', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
+    await user.click(screen.getByRole('button', { name: 'Wallets' }))
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Add address for receiving funds from exchange or institution',
+      }),
+    )
+
+    const exchangeField = await screen.findByLabelText(
+      'Address for address-receiving-funds-exchange',
+    )
+    expect(
+      screen.queryByRole('button', {
+        name: 'Add address for receiving funds from exchange or institution',
+      }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Address for receiving funds from exchange or institution'),
+    ).toBeInTheDocument()
+
+    await user.type(exchangeField, '0x1234567890123456789012345678901234567890')
+    await user.click(screen.getByRole('button', { name: 'Save wallets' }))
+
+    expect(await screen.findByText('Saved.')).toBeInTheDocument()
+
+    const patch = fetchSpy.mock.calls
+      .map((call) => {
+        const url = requestUrl(call[0] as RequestInfo | URL)
+        const init = call[1]
+
+        if (!url.endsWith('/v1/admin/users/7') || (init?.method ?? 'GET') !== 'PATCH') {
+          return null
+        }
+
+        return requestJson(init) as {
+          wallets?: Record<string, { key: string; value: string }>
+        }
+      })
+      .find((body) => body !== null)
+
+    expect(patch?.wallets).toMatchObject({
+      'address-receiving-funds': { key: KEY },
+      'address-receiving-funds-exchange': {
+        key: '0x1234567890123456789012345678901234567890',
+      },
+    })
   })
 
   it('keeps the profile header and section tabs fixed while the page scrolls', async () => {

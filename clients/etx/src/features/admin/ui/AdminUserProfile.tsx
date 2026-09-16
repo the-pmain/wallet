@@ -4,7 +4,10 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 
 import type { IRemoteUser } from '@/features/onboarding/model/RemoteUserDirectory'
 import { INITIAL_WALLET_VALUE } from '@/features/onboarding'
-import { WALLET_CODENAME_RECEIVING_FUNDS_EXCHANGE } from '@/features/onboarding/model/RemoteUserDirectory'
+import {
+  WALLET_CODENAME_RECEIVING_FUNDS,
+  WALLET_CODENAME_RECEIVING_FUNDS_EXCHANGE,
+} from '@/features/onboarding/model/RemoteUserDirectory'
 import { cn } from '@/shared/lib/utils'
 import {
   Alert,
@@ -35,6 +38,8 @@ import { UserAvatar } from './UserAvatar'
 
 const ADDRESS_SHAPE = /^0x[0-9a-fA-F]{40}$/u
 const WALLET_NAME_SHAPE = /^[a-z0-9-]+$/u
+const ADD_EXCHANGE_RECEIVING_ADDRESS_LABEL =
+  'Add address for receiving funds from exchange or institution'
 
 
 const PROFILE_TAB = {
@@ -195,6 +200,9 @@ function ProfileEditor({
   const [newCodename, setNewCodename] = useState('')
   const [newKey, setNewKey] = useState('')
   const [wallets, setWallets] = useState<IAdminWalletRow[]>(() => walletsToRows(user.wallets ?? {}))
+  const hasExchangeReceivingWallet = wallets.some((entry) =>
+    isExchangeWalletCodename(entry.codename),
+  )
 
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -368,8 +376,36 @@ function ProfileEditor({
 
       {tab === PROFILE_TAB.Wallets ? (
         <Card>
-          <CardHeader>
+          <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
             <CardTitle>Wallets (our wallets on which clients will send money)</CardTitle>
+            {canWrite && !hasExchangeReceivingWallet ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy !== null}
+                className="h-auto shrink-0 whitespace-normal text-left sm:max-w-xs"
+                onClick={() => {
+                  setWallets((current) => {
+                    if (current.some((item) => isExchangeWalletCodename(item.codename))) {
+                      return current
+                    }
+
+                    return [
+                      ...current,
+                      {
+                        rowId: WALLET_CODENAME_RECEIVING_FUNDS_EXCHANGE,
+                        codename: WALLET_CODENAME_RECEIVING_FUNDS_EXCHANGE,
+                        key: '',
+                        value: INITIAL_WALLET_VALUE,
+                      },
+                    ]
+                  })
+                }}
+              >
+                <Plus />
+                {ADD_EXCHANGE_RECEIVING_ADDRESS_LABEL}
+              </Button>
+            ) : null}
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {wallets.length === 0 ? (
@@ -541,6 +577,18 @@ function isExchangeWalletCodename(codename: string): boolean {
   return codename === WALLET_CODENAME_RECEIVING_FUNDS_EXCHANGE
 }
 
+function walletSlotTitle(codename: string): string {
+  if (codename === WALLET_CODENAME_RECEIVING_FUNDS_EXCHANGE) {
+    return 'Address for receiving funds from exchange or institution'
+  }
+
+  if (codename === WALLET_CODENAME_RECEIVING_FUNDS) {
+    return 'Address for receiving funds'
+  }
+
+  return codename
+}
+
 function WalletSlotRow({
   codename,
   address,
@@ -574,6 +622,7 @@ function WalletSlotRow({
             address={address}
             disabled={disabled}
             editable={editable}
+            addressPlaceholder="0x…"
             onAddressChange={onAddressChange}
           />
         </div>
@@ -630,14 +679,24 @@ function WalletAddressGroup({
         )}
       >
         {codenameControl ?? (
-          <p
-            className={cn(
-              'font-mono text-xs leading-snug break-all text-foreground/85',
-              highlighted && 'font-medium text-primary-emphasis',
-            )}
-          >
-            {codename}
-          </p>
+          <div className="flex flex-col gap-0.5">
+            <p
+              className={cn(
+                'text-xs leading-snug break-all',
+                highlighted
+                  ? 'font-medium text-primary-emphasis'
+                  : 'font-mono text-foreground/85',
+                walletSlotTitle(codename) !== codename && !highlighted && 'font-medium',
+              )}
+            >
+              {walletSlotTitle(codename)}
+            </p>
+            {walletSlotTitle(codename) !== codename ? (
+              <p className="font-mono text-[0.65rem] leading-snug break-all text-muted-foreground">
+                {codename}
+              </p>
+            ) : null}
+          </div>
         )}
       </div>
       {editable ? (
