@@ -21,17 +21,17 @@ export function SeedPhraseConfirmation({
   onAnswer,
 }: SeedPhraseConfirmationProps) {
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {challenge.positions.map((position, questionIndex) => (
         <div key={position} className="flex flex-col gap-2">
           <Label>Word number {position + 1}</Label>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
             {(challenge.options[questionIndex] ?? []).map((option) => (
               <Button
                 key={option}
                 variant={answers[questionIndex] === option ? 'default' : 'outline'}
-                className="justify-start"
+                className="h-auto min-w-0 justify-start whitespace-normal break-words"
                 onClick={() => {
                   onAnswer(questionIndex, option)
                 }}

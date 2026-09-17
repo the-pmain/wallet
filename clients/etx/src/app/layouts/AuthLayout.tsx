@@ -33,33 +33,27 @@ export function AuthLayout() {
   const isBackwards = navigationType === NavigationType.Pop
 
   return (
-    <div className="relative flex min-h-svh flex-col overflow-x-hidden bg-background">
+    <div className="relative h-svh overflow-hidden bg-background">
       <AuroraBackground />
-
-      {/*
-        В ПОТОКЕ, А НЕ ПОВЕРХ КАРТОЧКИ. Наложение на экране 360 пикселей
-        закрывает знак или обрезается `overflow-hidden`. Страница ниже
-        занимает оставшееся место и прокручивается, когда открывается
-        клавиатура.
-      */}
-      <div className="relative z-20 flex shrink-0 justify-end px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1">
-        <AddToHomeScreen variant="square" />
-      </div>
 
       {/*
         Ключ по адресу перезапускает анимацию при каждом переходе.
         Фон при этом остаётся на месте: меняется только содержимое,
         и смена читается как продолжение одного экрана, а не как
         загрузка нового.
+        Один скроллер: сначала кнопка установки в потоке, потом страница.
       */}
       <div
         key={location.pathname}
         className={cn(
-          'relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain',
+          'relative z-10 h-full overflow-x-hidden overflow-y-auto',
           'animate-in duration-500 fade-in',
           isBackwards ? 'slide-in-from-left-8' : 'slide-in-from-right-8',
         )}
       >
+        <div className="flex justify-end px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1">
+          <AddToHomeScreen variant="square" />
+        </div>
         <Outlet />
       </div>
     </div>

@@ -481,6 +481,12 @@ describe('Wallet creation', () => {
     expect(await screen.findByLabelText('Email')).toBeInTheDocument()
     expect(screen.queryByLabelText(/Your name/i)).not.toBeInTheDocument()
     expect(screen.getByText(/sign in with this email/i)).toBeInTheDocument()
+
+    const createStep = screen.getByRole('heading', { name: 'Create a wallet' }).closest('.max-w-lg')
+    expect(createStep?.closest('.overflow-y-auto')).not.toBeNull()
+    expect(createStep?.className).not.toMatch(/overflow-x-clip/u)
+    expect(createStep?.className).not.toMatch(/overflow-hidden/u)
+    expect(createStep?.className).not.toMatch(/min-h-svh/u)
   })
 
   it('shows the phrase only after an explicit action', async () => {
@@ -528,6 +534,13 @@ describe('Wallet creation', () => {
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
     expect(screen.getByText(/do not save the phrase in notes/i)).toBeInTheDocument()
+
+    const phraseStep = screen
+      .getByRole('heading', { name: 'Save your seed phrase' })
+      .closest('.max-w-lg')
+    expect(phraseStep?.className).not.toMatch(/overflow-x-clip/u)
+    expect(phraseStep?.className).not.toMatch(/overflow-hidden/u)
+    expect(screen.getByRole('button', { name: /Next|Create wallet/i })).toBeInTheDocument()
   })
 
   it('still shows the phrase when confirmation is disabled', async () => {
@@ -713,6 +726,7 @@ describe('Unlock', () => {
     expect(await screen.findByLabelText('Email')).toBeInTheDocument()
     expect(screen.getByLabelText('Password')).toBeInTheDocument()
     expect(screen.queryByLabelText(/^Name$/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Welcome back' }).closest('.overflow-y-auto')).not.toBeNull()
   })
 
   it('reports an error on a wrong password', async () => {

@@ -176,9 +176,9 @@ export function CreateWalletPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-start justify-center p-6">
-      <Card className="w-full max-w-lg">
-        <CardHeader>
+    <div className="mx-auto flex w-full min-w-0 max-w-lg flex-col px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-6">
+      <Card className="w-full min-w-0 gap-5 py-5 sm:gap-6 sm:py-6">
+        <CardHeader className="px-4 sm:px-6">
           <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
             <Link to="/">
               <ArrowLeft />
@@ -186,13 +186,15 @@ export function CreateWalletPage() {
             </Link>
           </Button>
 
-          <CardTitle>{t(STEP_TITLE[step])}</CardTitle>
-          <CardDescription>{t(STEP_DESCRIPTION[step])}</CardDescription>
+          <CardTitle className="leading-snug text-wrap">{t(STEP_TITLE[step])}</CardTitle>
+          <CardDescription className="text-pretty leading-relaxed">
+            {t(STEP_DESCRIPTION[step])}
+          </CardDescription>
         </CardHeader>
 
-        <CardContent className="flex flex-col gap-6">
+        <CardContent className="flex flex-col gap-5 px-4 sm:gap-6 sm:px-6">
           {step === STEP.Password && (
-            <form className="flex flex-col gap-6" noValidate onSubmit={handlePasswordStep}>
+            <form className="flex flex-col gap-4 sm:gap-6" noValidate onSubmit={handlePasswordStep}>
               <div className="flex flex-col gap-2">
                 <Label htmlFor={usernameId}>{t('create.username')}</Label>
                 <Input
@@ -249,47 +251,51 @@ export function CreateWalletPage() {
             <>
               <SeedPhraseDisplay words={words} />
 
-              <Label className="items-start gap-3">
-                <Checkbox
-                  checked={isAcknowledged}
-                  onChange={(event) => {
-                    setIsAcknowledged(event.target.checked)
+              <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-border/60 bg-card pt-3">
+                <Label className="items-start gap-3">
+                  <Checkbox
+                    checked={isAcknowledged}
+                    onChange={(event) => {
+                      setIsAcknowledged(event.target.checked)
+                    }}
+                  />
+                  <span className="min-w-0 text-sm leading-snug font-normal break-words">
+                    {t('create.acknowledge')}
+                  </span>
+                </Label>
+
+                {/* There is no separate warning that confirmation is off:
+                    it is off permanently, not temporarily, and announcing
+                    that on every creation is noise. The cost of the
+                    decision is the checkbox above: without it the button
+                    stays disabled. */}
+
+                {error !== null && (
+                  <Alert variant="danger">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                <Button
+                  size="lg"
+                  disabled={!isAcknowledged || isBusy}
+                  onClick={() => {
+                    if (!APP_CONFIG.requiresSeedConfirmation) {
+                      void finish()
+
+                      return
+                    }
+
+                    goToConfirm()
                   }}
-                />
-                <span className="text-sm leading-snug font-normal">{t('create.acknowledge')}</span>
-              </Label>
-
-              {/* There is no separate warning that confirmation is off:
-                  it is off permanently, not temporarily, and announcing
-                  that on every creation is noise. The cost of the
-                  decision is the checkbox above: without it the button
-                  stays disabled. */}
-
-              {error !== null && (
-                <Alert variant="danger">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <Button
-                size="lg"
-                disabled={!isAcknowledged || isBusy}
-                onClick={() => {
-                  if (!APP_CONFIG.requiresSeedConfirmation) {
-                    void finish()
-
-                    return
-                  }
-
-                  goToConfirm()
-                }}
-              >
-                {APP_CONFIG.requiresSeedConfirmation
-                  ? t('common.next')
-                  : isBusy
-                    ? t('create.encrypting')
-                    : t('create.submit')}
-              </Button>
+                >
+                  {APP_CONFIG.requiresSeedConfirmation
+                    ? t('common.next')
+                    : isBusy
+                      ? t('create.encrypting')
+                      : t('create.submit')}
+                </Button>
+              </div>
             </>
           )}
 
@@ -305,34 +311,36 @@ export function CreateWalletPage() {
                 }}
               />
 
-              {error !== null && (
-                <Alert variant="danger">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+              <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-border/60 bg-card pt-3">
+                {error !== null && (
+                  <Alert variant="danger">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
 
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  disabled={isBusy}
-                  onClick={() => {
-                    setStep(STEP.Phrase)
-                  }}
-                >
-                  {t('create.showPhrase')}
-                </Button>
+                <div className="flex flex-col gap-3 min-[400px]:flex-row">
+                  <Button
+                    variant="outline"
+                    className="min-w-0 flex-1"
+                    disabled={isBusy}
+                    onClick={() => {
+                      setStep(STEP.Phrase)
+                    }}
+                  >
+                    {t('create.showPhrase')}
+                  </Button>
 
-                <Button
-                  size="lg"
-                  className="flex-1"
-                  disabled={isBusy || !isConfirmationComplete(challenge, answers, words)}
-                  onClick={() => {
-                    void finish()
-                  }}
-                >
-                  {isBusy ? t('create.encrypting') : t('create.submit')}
-                </Button>
+                  <Button
+                    size="lg"
+                    className="min-w-0 flex-1"
+                    disabled={isBusy || !isConfirmationComplete(challenge, answers, words)}
+                    onClick={() => {
+                      void finish()
+                    }}
+                  >
+                    {isBusy ? t('create.encrypting') : t('create.submit')}
+                  </Button>
+                </div>
               </div>
             </>
           )}

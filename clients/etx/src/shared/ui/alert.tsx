@@ -30,7 +30,10 @@ export function AlertTitle({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
       data-slot="alert-title"
-      className={cn('col-start-2 font-medium tracking-tight', className)}
+      className={cn(
+        'col-start-2 min-w-0 font-medium leading-snug tracking-tight break-words',
+        className,
+      )}
       {...props}
     />
   )
@@ -40,7 +43,10 @@ export function AlertDescription({ className, ...props }: ComponentProps<'div'>)
   return (
     <div
       data-slot="alert-description"
-      className={cn('col-start-2 text-sm text-muted-foreground [&_p]:leading-relaxed', className)}
+      className={cn(
+        'col-start-2 min-w-0 text-sm leading-relaxed break-words text-muted-foreground [&_p]:leading-relaxed',
+        className,
+      )}
       {...props}
     />
   )

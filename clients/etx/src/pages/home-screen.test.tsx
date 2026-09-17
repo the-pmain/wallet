@@ -28,7 +28,7 @@ beforeEach(async () => {
 })
 
 describe('Add to Home Screen', () => {
-  it('offers a square install control on the sign-in screen', async () => {
+  it('shows a square install control at the start of the sign-in page', async () => {
     const user = userEvent.setup()
 
     services = createTestAppServices()
@@ -38,6 +38,7 @@ describe('Add to Home Screen', () => {
 
     expect(button).toBeInTheDocument()
     expect(button.className).toMatch(/size-11/u)
+    expect(button.parentElement?.className).not.toMatch(/absolute|fixed/u)
     await user.click(button)
     expect(screen.getByRole('dialog', { name: 'Add to Home Screen' })).toBeInTheDocument()
   })

@@ -33,4 +33,12 @@ describe('SeedPhraseDisplay', () => {
 
     expect(screen.getAllByRole('listitem')).toHaveLength(REAL_WORDS.length)
   })
+
+  it('keeps the word grid two columns on a tight phone and three when there is room', () => {
+    const { container } = render(<SeedPhraseDisplay words={REAL_WORDS} />)
+    const list = container.querySelector('ol')
+
+    expect(list?.className).toMatch(/grid-cols-2/u)
+    expect(list?.className).toMatch(/min-\[400px\]:grid-cols-3/u)
+  })
 })

@@ -778,6 +778,7 @@
     ни одного пересчёта геометрии за кадр.
   */
   .coin-rain {
+    pointer-events: none;
     position: absolute;
     inset: 0;
     overflow: hidden;
@@ -814,6 +815,7 @@
     байт трафика и никакой зависимости от `img-src`.
   */
   .aurora-grid {
+    pointer-events: none;
     position: absolute;
     inset: 0;
     background-image:
@@ -826,6 +828,7 @@
 
   /* Затемнение к краям — держит внимание на карточке в центре. */
   .aurora-vignette {
+    pointer-events: none;
     position: absolute;
     inset: 0;
     background: radial-gradient(ellipse at center, transparent 35%, var(--background) 100%);

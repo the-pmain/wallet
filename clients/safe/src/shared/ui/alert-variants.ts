@@ -12,7 +12,7 @@ import { cva } from 'class-variance-authority'
  * the text.
  */
 export const alertVariants = cva(
-  'relative grid w-full grid-cols-[auto_1fr] items-start gap-x-3 gap-y-1 rounded-lg border px-4 py-3 text-sm [&>svg]:size-4 [&>svg]:translate-y-0.5',
+  'relative grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 rounded-lg border px-3 py-3 text-sm sm:px-4 [&>svg]:size-4 [&>svg]:translate-y-0.5',
   {
     variants: {
       variant: {

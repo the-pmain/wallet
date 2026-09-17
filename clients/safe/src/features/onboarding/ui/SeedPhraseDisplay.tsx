@@ -65,20 +65,20 @@ export function SeedPhraseDisplay({ words, onCopy }: SeedPhraseDisplayProps) {
   const displayWords = useMemo(() => randomDisplayWords(words.length), [words.length])
 
   return (
-    <div className="flex flex-col gap-4">
-      <Alert variant="danger">
-        <AlertTitle>Write the phrase down on paper</AlertTitle>
-        <AlertDescription>
+    <div className="flex min-w-0 flex-col gap-3">
+      <Alert variant="danger" className="px-3 py-2.5 sm:px-4 sm:py-3">
+        <AlertTitle className="text-sm">Write the phrase down on paper</AlertTitle>
+        <AlertDescription className="text-xs sm:text-sm">
           This is the only way to restore the wallet. We keep no copy of it and cannot restore
           access. Do not photograph the screen and do not save the phrase in notes — they sync to
           the cloud.
         </AlertDescription>
       </Alert>
 
-      <div className="relative">
+      <div className="relative min-w-0">
         <ol
           className={cn(
-            'grid grid-cols-3 gap-2 rounded-lg border p-4',
+            'grid min-w-0 grid-cols-2 gap-1.5 rounded-lg border p-2 min-[400px]:grid-cols-3 min-[400px]:gap-2 min-[400px]:p-4',
             !isRevealed && 'blur-sm select-none',
           )}
           aria-hidden={!isRevealed}
@@ -86,20 +86,21 @@ export function SeedPhraseDisplay({ words, onCopy }: SeedPhraseDisplayProps) {
           {displayWords.map((word, index) => (
             <li
               key={`${String(index)}-${word}`}
-              className="flex items-baseline gap-2 rounded-md bg-muted px-2 py-1.5 text-sm"
+              className="flex min-w-0 items-baseline gap-1.5 rounded-md bg-muted px-1.5 py-1.5 text-sm min-[400px]:gap-2 min-[400px]:px-2"
             >
               <span className="w-4 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
                 {index + 1}
               </span>
-              <span className="font-medium">{word}</span>
+              <span className="min-w-0 break-words font-medium">{word}</span>
             </li>
           ))}
         </ol>
 
         {!isRevealed && (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center p-2">
             <Button
               variant="secondary"
+              className="h-auto max-w-full whitespace-normal px-3"
               onClick={() => {
                 setIsRevealed(true)
               }}

@@ -69,7 +69,7 @@ export function UnlockWalletPage() {
   }
 
   return (
-    <div className="flex min-h-full flex-1 flex-col items-center justify-center px-4 py-4 sm:p-6">
+    <div className="flex min-h-full flex-col items-center justify-center px-4 py-4 sm:p-6">
       <Card className="w-full min-w-0 max-w-md animate-in duration-500 fade-in slide-in-from-bottom-3">
         <CardHeader className="items-center gap-5 text-center">
           <BrandMark className="mx-auto size-14" />

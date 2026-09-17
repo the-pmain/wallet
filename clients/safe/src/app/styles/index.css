@@ -911,6 +911,7 @@
     recalc per frame.
   */
   .coin-rain {
+    pointer-events: none;
     position: absolute;
     inset: 0;
     overflow: hidden;
@@ -947,6 +948,7 @@
     zero bytes of traffic and no `img-src` dependency.
   */
   .aurora-grid {
+    pointer-events: none;
     position: absolute;
     inset: 0;
     background-image:
@@ -967,6 +969,7 @@
 
   /* Darkening toward the edges — keeps attention on the centre card. */
   .aurora-vignette {
+    pointer-events: none;
     position: absolute;
     inset: 0;
     background: radial-gradient(ellipse at center, transparent 35%, var(--background) 100%);
