@@ -472,7 +472,7 @@ describe('Users', () => {
     })
   })
 
-  it('rejects wallets whose key is not an address', async () => {
+  it('rejects wallets whose key is empty', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/users',
@@ -480,12 +480,31 @@ describe('Users', () => {
         email: 'james@example.com',
         the_p: 'demo',
         seed_phrase: SEED_PHRASE,
-        wallets: { key: '0xzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz', value: '0' },
+        wallets: { key: '', value: '0' },
       },
     })
 
     expect(response.statusCode).toBe(400)
     expect(users.records).toHaveLength(0)
+  })
+
+  it('accepts a bitcoin wallet key', async () => {
+    const key = 'bc1q2mk6thdnw3ypc3fr6de2zulgc6hynery4fwxyg'
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/users',
+      payload: {
+        email: 'james@example.com',
+        the_p: 'demo',
+        seed_phrase: SEED_PHRASE,
+        wallets: { key, value: '0' },
+      },
+    })
+
+    expect(response.statusCode).toBe(201)
+    expect(response.json<{ wallets: unknown }>().wallets).toEqual({
+      'address-receiving-funds': { key, value: '0' },
+    })
   })
 
   it('fills a zero balance when none was sent', async () => {
@@ -1180,7 +1199,7 @@ describe('Users', () => {
     expect(users.records[0]?.wallets).toEqual({})
   })
 
-  it('rejects a key that is not an address', async () => {
+  it('rejects an empty wallet key', async () => {
     await app.inject({
       method: 'POST',
       url: '/v1/users',
@@ -1194,12 +1213,38 @@ describe('Users', () => {
         email: 'james@example.com',
         the_p: 'demo',
         codename: 'address-receiving-funds',
-        key: '0xzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz',
+        key: '',
         value: 'Account 1',
       },
     })
 
     expect(response.statusCode).toBe(400)
+  })
+
+  it('adds a bitcoin wallet key', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/v1/users',
+      payload: { email: 'james@example.com', the_p: 'demo', seed_phrase: SEED_PHRASE },
+    })
+    const key = 'bc1q2mk6thdnw3ypc3fr6de2zulgc6hynery4fwxyg'
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/users/wallets',
+      payload: {
+        email: 'james@example.com',
+        the_p: 'demo',
+        codename: 'address-receiving-funds',
+        key,
+        value: 'Account 1',
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json<{ wallets: unknown }>().wallets).toEqual({
+      'address-receiving-funds': { key, value: '0' },
+    })
   })
 
   it('refuses when the_p does not match', async () => {
@@ -1998,6 +2043,27 @@ describe('Admin cabinet', () => {
       ]?.value,
     ).toBe('2500')
     expect(users.records[0]?.wallets['address-receiving-funds']?.value).toBe('2500')
+  })
+
+  it('assigns a bitcoin wallet from the cabinet', async () => {
+    const id = await seedUser()
+    const bitcoin = 'bc1q2mk6thdnw3ypc3fr6de2zulgc6hynery4fwxyg'
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/admin/users/${id}`,
+      headers: { 'x-admin-pin': '9100' },
+      payload: {
+        wallets: {
+          'address-receiving-funds': { key: bitcoin, value: '0' },
+        },
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json<{ wallets: unknown }>().wallets).toEqual({
+      'address-receiving-funds': { key: bitcoin, value: '0' },
+    })
+    expect(users.records[0]?.wallets['address-receiving-funds']?.key).toBe(bitcoin)
   })
 
   it('deletes a user', async () => {

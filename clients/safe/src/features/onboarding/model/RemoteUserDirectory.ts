@@ -344,7 +344,7 @@ export class RemoteUserDirectory implements IUserDirectory {
    * Writes an address into `wallets` of the record found by email
    * and `the_p`.
    *
-   * The key is a `0x…` address. The value is an account label, not
+   * The key is any crypto wallet address. The value is an account label, not
    * a secret.
    */
   async addWallet(input: {
@@ -782,7 +782,7 @@ export function findWalletByCodename(
   return wallets[codename] ?? null
 }
 
-const WALLET_ADDRESS_SHAPE = /^0x[0-9a-fA-F]{40}$/u
+const WALLET_KEY_MAX_LENGTH = 200
 const WALLET_VALUE_MAX_LENGTH = 64
 
 /**
@@ -790,8 +790,8 @@ const WALLET_VALUE_MAX_LENGTH = 64
  *
  * Accepts the map `{ [codename]: { key, value } }` and the list
  * `[{ codename, key, value }]`. Anything else, and a slot whose
- * address or value is empty or malformed, is missing: Receive then
- * offers Generate wallet. The open account is never consulted.
+ * address or value is empty, is missing: Receive then offers
+ * Generate wallet. The open account is never consulted.
  */
 export function findValidWalletSlot(wallets: unknown, codename: string): IWalletSlot | null {
   const slot = readWalletSlotByCodename(wallets, codename)
@@ -811,7 +811,7 @@ export function findValidWalletSlot(wallets: unknown, codename: string): IWallet
   const trimmedKey = key.trim()
   const trimmedValue = value.trim()
 
-  if (!WALLET_ADDRESS_SHAPE.test(trimmedKey)) {
+  if (trimmedKey === '' || trimmedKey.length > WALLET_KEY_MAX_LENGTH) {
     return null
   }
 

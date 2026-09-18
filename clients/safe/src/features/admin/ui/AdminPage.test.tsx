@@ -1560,6 +1560,43 @@ describe('Admin cabinet', () => {
     })
   })
 
+  it('adds a bitcoin wallet without an EVM checksum', async () => {
+    const user = userEvent.setup()
+    const bitcoin = 'bc1q2mk6thdnw3ypc3fr6de2zulgc6hynery4fwxyg'
+    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    renderAdmin()
+
+    await user.click(await screen.findByRole('link', { name: /maria@example.com/i }))
+    await user.click(await screen.findByRole('button', { name: 'Wallets' }))
+    await user.type(screen.getByLabelText('Wallet name'), 'btc')
+    await user.type(screen.getByLabelText('Wallet address'), bitcoin)
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(await screen.findByLabelText('Address for btc')).toHaveValue(bitcoin)
+
+    await user.click(screen.getByRole('button', { name: 'Save wallets' }))
+    expect(await screen.findByText('Saved.')).toBeInTheDocument()
+
+    const patch = fetchSpy.mock.calls
+      .map((call) => {
+        const url = requestUrl(call[0] as RequestInfo | URL)
+        const init = call[1]
+
+        if (!url.endsWith('/v1/admin/users/8') || (init?.method ?? 'GET') !== 'PATCH') {
+          return null
+        }
+
+        return requestJson(init) as {
+          wallets?: Record<string, { key: string; value: string }>
+        }
+      })
+      .find((body) => body !== null)
+
+    expect(patch?.wallets).toMatchObject({
+      btc: { key: bitcoin },
+    })
+  })
+
   it('saves an asset amount in USD or in crypto', async () => {
     const user = userEvent.setup()
     localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')

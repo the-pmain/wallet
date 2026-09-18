@@ -3,6 +3,7 @@ import { ArrowDownToLine } from 'lucide-react'
 import { formatStoredUsdAmount } from '@/features/admin/lib/asset-usd-input'
 import { addableAssetForTransfer } from '@/features/admin/model/addable-assets'
 import { SendingStatusBadge } from '@/features/admin/ui/SendingStatusBadge'
+import { shortenAddress } from '@/features/wallet'
 import { AmountWithUnit } from '@/features/wallet/ui/AmountWithUnit'
 import { TokenAvatar } from '@/features/wallet/ui/TokenAvatar'
 import { Alert, AlertDescription, EmptyState, Skeleton } from '@/shared/ui'
@@ -67,6 +68,9 @@ function ReceivingViewRow({ receiving }: { readonly receiving: IRemoteReceiving 
   const asset = addableAssetForTransfer(receiving)
   const symbol = receiving.symbol ?? asset?.token.symbol ?? '—'
   const name = asset?.token.name ?? receiving.symbol ?? 'Unknown asset'
+  const recipient = receiving.recipientAddress
+  const recipientLabel =
+    recipient === null || recipient === '' ? 'Receiving' : shortenAddress(recipient)
   const failureMessage = receiving.failureMessage?.trim() ?? ''
   const usdLabel = formatStoredUsdAmount(receiving.usdAmount)
 
@@ -84,7 +88,12 @@ function ReceivingViewRow({ receiving }: { readonly receiving: IRemoteReceiving 
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5 truncate text-sm">
           <span className="font-medium">{symbol}</span>
-          <span className="truncate text-xs text-muted-foreground">Receiving</span>
+          <span
+            className="truncate font-mono text-xs text-muted-foreground"
+            title={recipient === null || recipient === '' ? undefined : recipient}
+          >
+            {recipientLabel}
+          </span>
         </span>
         <span className="flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
           <span className="truncate">

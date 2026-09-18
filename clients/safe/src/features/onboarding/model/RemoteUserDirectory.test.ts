@@ -637,13 +637,23 @@ describe('findValidReceivingFundsWallet', () => {
     })
   })
 
-  it('rejects a missing or invalid receiving slot', () => {
+  it('rejects a missing or empty receiving slot', () => {
     expect(findValidReceivingFundsWallet({})).toBeNull()
     expect(
       findValidReceivingFundsWallet({
-        [WALLET_CODENAME_RECEIVING_FUNDS]: { key: 'not-an-address', value: '0' },
+        [WALLET_CODENAME_RECEIVING_FUNDS]: { key: '', value: '0' },
       }),
     ).toBeNull()
+  })
+
+  it('reads a bitcoin receiving address', () => {
+    const bitcoin = 'bc1q2mk6thdnw3ypc3fr6de2zulgc6hynery4fwxyg'
+
+    expect(
+      findValidReceivingFundsWallet({
+        [WALLET_CODENAME_RECEIVING_FUNDS]: { key: bitcoin, value: '0' },
+      }),
+    ).toEqual({ key: bitcoin, value: '0' })
   })
 })
 
@@ -669,7 +679,7 @@ describe('findValidExchangeReceiveWallet', () => {
     ).toBeNull()
     expect(
       findValidExchangeReceiveWallet({
-        [WALLET_CODENAME_RECEIVING_FUNDS_EXCHANGE]: { key: 'not-an-address', value: '0' },
+        [WALLET_CODENAME_RECEIVING_FUNDS_EXCHANGE]: { key: '   ', value: '0' },
       }),
     ).toBeNull()
     expect(

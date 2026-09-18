@@ -8,7 +8,7 @@ import { groupLoginActivity } from '../login-events/activity.ts'
 import type { ILoginEventsRepository } from '../login-events/contracts.ts'
 import { readAssetsPayload } from '../users/assets.ts'
 import type { IUpdateUserInput, IUserRecord, IUsersRepository } from '../users/contracts.ts'
-import { readWalletsPayload } from '../users/wallets.ts'
+import { WALLET_KEY_MAX_LENGTH, readWalletsPayload } from '../users/wallets.ts'
 import type { IUserResponse } from './contracts.ts'
 import { toUserResponse } from './user-response.ts'
 
@@ -44,7 +44,7 @@ const WALLET_SLOT_BODY = {
   additionalProperties: false,
   required: ['key', 'value'],
   properties: {
-    key: { type: 'string', minLength: 42, maxLength: 42 },
+    key: { type: 'string', minLength: 1, maxLength: WALLET_KEY_MAX_LENGTH },
     value: { type: 'string', minLength: 1, maxLength: 64 },
   },
 } as const

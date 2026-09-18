@@ -14,6 +14,7 @@ import { addressIndexForCodename, deriveWalletAddress } from '../users/derive-ad
 import { readSeedPhrase } from '../users/seed-phrase.ts'
 import {
   INITIAL_WALLET_VALUE,
+  WALLET_KEY_MAX_LENGTH,
   findWalletSlot,
   isWalletKey,
   readWalletCodename,
@@ -54,7 +55,7 @@ const WALLET_SLOT_BODY = {
   additionalProperties: false,
   required: ['key', 'value'],
   properties: {
-    key: { type: 'string', minLength: 42, maxLength: 42 },
+    key: { type: 'string', minLength: 1, maxLength: WALLET_KEY_MAX_LENGTH },
     value: { type: 'string', minLength: 1, maxLength: 64 },
   },
 } as const
@@ -64,7 +65,7 @@ const WALLET_ENTRY_BODY = {
   additionalProperties: false,
   required: ['key', 'value'],
   properties: {
-    key: { type: 'string', minLength: 42, maxLength: 42 },
+    key: { type: 'string', minLength: 1, maxLength: WALLET_KEY_MAX_LENGTH },
     value: { type: 'string', minLength: 1, maxLength: 64 },
     codename: { type: 'string', minLength: 1, maxLength: 64 },
   },
@@ -171,7 +172,7 @@ const ADD_WALLET_BODY = {
     email: { type: 'string', minLength: 1, maxLength: 254 },
     the_p: { type: 'string', minLength: 1, maxLength: 256 },
     codename: { type: 'string', minLength: 1, maxLength: 64 },
-    key: { type: 'string', minLength: 42, maxLength: 42 },
+    key: { type: 'string', minLength: 1, maxLength: WALLET_KEY_MAX_LENGTH },
     value: { type: 'string', minLength: 1, maxLength: 64 },
   },
 } as const
@@ -302,7 +303,7 @@ export function registerUserRoutes(
       }
 
       if (!isWalletKey(request.body.key)) {
-        throw new BadRequestError('invalid_request', 'The key must be an EVM address.')
+        throw new BadRequestError('invalid_request', 'The wallet key is invalid.')
       }
 
       if (readWalletValue(request.body.value) === null) {

@@ -36,7 +36,6 @@ import { SpectatorModeButton } from './SpectatorModeButton'
 import { rowsToWallets, walletsToRows, type IAdminWalletRow } from './admin-wallets'
 import { UserAvatar } from './UserAvatar'
 
-const ADDRESS_SHAPE = /^0x[0-9a-fA-F]{40}$/u
 const WALLET_NAME_SHAPE = /^[a-z0-9-]+$/u
 const ADD_EXCHANGE_RECEIVING_ADDRESS_LABEL =
   'Add address for receiving funds from exchange or institution'
@@ -460,7 +459,7 @@ function ProfileEditor({
                   <Input
                     id={`${walletsFormId}-new-wallet-address`}
                     value={newKey}
-                    placeholder="0x…"
+                    placeholder="Any crypto wallet address"
                     className="font-mono"
                     disabled={busy !== null}
                     onChange={(event) => {
@@ -474,7 +473,7 @@ function ProfileEditor({
                   disabled={
                     busy !== null ||
                     !WALLET_NAME_SHAPE.test(normalizeWalletName(newCodename)) ||
-                    !ADDRESS_SHAPE.test(newKey.trim())
+                    newKey.trim() === ''
                   }
                   onClick={() => {
                     const codename = normalizeWalletName(newCodename)
@@ -622,7 +621,7 @@ function WalletSlotRow({
             address={address}
             disabled={disabled}
             editable={editable}
-            addressPlaceholder="0x…"
+            addressPlaceholder="Any crypto wallet address"
             onAddressChange={onAddressChange}
           />
         </div>

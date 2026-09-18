@@ -133,19 +133,20 @@ describe('QuickActions: exchange receive address', () => {
     expect(generate).toHaveBeenCalledTimes(1)
   })
 
-  it('shows Generate wallet when the exchange field is not a valid address', async () => {
+  it('shows a bitcoin receiving address assigned from the cabinet', async () => {
     const user = userEvent.setup()
+    const bitcoin = 'bc1q2mk6thdnw3ypc3fr6de2zulgc6hynery4fwxyg'
 
     renderActions({
       wallets: {
-        'address-receiving-funds-exchange': { key: 'not-an-address', value: '0' },
+        [WALLET_CODENAME_RECEIVING_FUNDS]: { key: bitcoin, value: '0' },
       },
     })
 
     await user.click(screen.getByRole('button', { name: /receive/iu }))
 
-    expect(screen.getAllByRole('button', { name: /generate wallet/iu }).length).toBeGreaterThan(0)
-    expect(screen.queryByText('not-an-address')).not.toBeInTheDocument()
+    expect(screen.getByText(bitcoin)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /generate wallet/iu })).toBeInTheDocument()
   })
 
   it('reads address-receiving-funds-exchange from a wallets list', async () => {

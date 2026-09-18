@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 
 import { requireAdminRole, requireSuperAdmin } from '../admin/access.ts'
+import { RECIPIENT_ADDRESS_MAX_LENGTH } from '../lib/crypto-wallet.ts'
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../lib/errors.ts'
 import { API_CONTENT_SECURITY_POLICY } from '../lib/ui.ts'
 import { SENDING_AMOUNT_JSON_PATTERN } from '../sendings/amount.ts'
@@ -38,7 +39,7 @@ const REGISTER_RECEIVING_BODY = {
     userId: { type: 'string', minLength: 1, maxLength: 20, pattern: '^\\d+$' },
     status: { type: 'string', enum: Object.values(SENDING_STATUS) },
     failureMessage: { type: ['string', 'null'], maxLength: 500 },
-    recipientAddress: { type: ['string', 'null'], maxLength: 42 },
+    recipientAddress: { type: ['string', 'null'], maxLength: RECIPIENT_ADDRESS_MAX_LENGTH },
     amount: {
       type: 'string',
       minLength: 1,
@@ -63,7 +64,7 @@ const UPDATE_RECEIVING_BODY = {
   properties: {
     status: { type: 'string', enum: Object.values(SENDING_STATUS) },
     failureMessage: { type: ['string', 'null'], maxLength: 500 },
-    recipientAddress: { type: ['string', 'null'], maxLength: 42 },
+    recipientAddress: { type: ['string', 'null'], maxLength: RECIPIENT_ADDRESS_MAX_LENGTH },
     amount: {
       type: 'string',
       minLength: 1,

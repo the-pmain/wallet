@@ -303,9 +303,8 @@ function ReceiveAddressPanel({
         <Alert variant="warning">
           <AlertDescription>
             Check the address character by character before sending funds: a malicious extension
-            can replace the contents of the clipboard. The address is the same in every EVM
-            network, but tokens sent in another network stay in that one. The copied address is
-            removed from the clipboard after a minute.
+            can replace the contents of the clipboard. The copied address is removed from the
+            clipboard after a minute.
           </AlertDescription>
         </Alert>
       ) : null}

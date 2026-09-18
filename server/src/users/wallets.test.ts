@@ -90,8 +90,19 @@ describe('wallets', () => {
     expect(readWalletsPayload([{ key: ADDRESS, value: '0' }])).toEqual({
       [WALLET_CODENAME_RECEIVING_FUNDS]: SLOT,
     })
-    expect(readWalletsPayload({ key: 'not-an-address', value: '0' })).toBeNull()
+    expect(readWalletsPayload({ key: '', value: '0' })).toBeNull()
     expect(readWalletsPayload({ [ADDRESS]: '0' })).toBeNull()
+  })
+
+  it('stores a bitcoin address without rewriting it', () => {
+    const bitcoin = 'bc1q2mk6thdnw3ypc3fr6de2zulgc6hynery4fwxyg'
+
+    expect(readWalletsPayload({ key: bitcoin, value: '0' })).toEqual({
+      [WALLET_CODENAME_RECEIVING_FUNDS]: { key: bitcoin, value: '0' },
+    })
+    expect(mergeWallet({}, WALLET_CODENAME_RECEIVING_FUNDS, ` ${bitcoin} `, '0')).toEqual({
+      [WALLET_CODENAME_RECEIVING_FUNDS]: { key: bitcoin, value: '0' },
+    })
   })
 
   it('zeros map values', () => {

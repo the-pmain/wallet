@@ -1,4 +1,5 @@
 import { hasAddressShape, toChecksumAddress } from '../lib/address.ts'
+import { RECIPIENT_ADDRESS_MAX_LENGTH } from '../lib/crypto-wallet.ts'
 
 /** Role of the primary address for incoming transfers. */
 export const WALLET_CODENAME_RECEIVING_FUNDS = 'address-receiving-funds'
@@ -30,6 +31,9 @@ export const WALLET_VALUE_MAX_LENGTH = 64
 
 /** `codename` length. Short id for the wallet's role. */
 export const WALLET_CODENAME_MAX_LENGTH = 64
+
+/** `key` length. Covers Cardano Shelley and a pasted payment URI. */
+export const WALLET_KEY_MAX_LENGTH = RECIPIENT_ADDRESS_MAX_LENGTH
 
 const WALLET_ENTRY_KEY = 'key'
 const WALLET_ENTRY_VALUE = 'value'
@@ -99,7 +103,7 @@ export function mergeWallet(
   return {
     ...wallets,
     [parsedCodename]: {
-      key: toChecksumAddress(key),
+      key: normalizeWalletKey(key),
       value,
     },
   }
@@ -109,9 +113,18 @@ export function findWalletSlot(wallets: IUserWallets, codename: string): IWallet
   return wallets[codename] ?? null
 }
 
-/** Whether the string looks like a map key. */
+/** Whether the string can be stored as a wallet address. */
 export function isWalletKey(value: string): boolean {
-  return hasAddressShape(value)
+  const trimmed = value.trim()
+
+  return trimmed !== '' && trimmed.length <= WALLET_KEY_MAX_LENGTH
+}
+
+/** EIP-55 for EVM keys; every other chain is stored as typed. */
+export function normalizeWalletKey(value: string): string {
+  const trimmed = value.trim()
+
+  return hasAddressShape(trimmed) ? toChecksumAddress(trimmed) : trimmed
 }
 
 /** Trimmed `value`, or `null` if empty or too long. */
@@ -217,7 +230,7 @@ function readWalletEntry(
 
   return {
     codename,
-    key: toChecksumAddress(key),
+    key: normalizeWalletKey(key),
     value: parsedValue,
   }
 }
@@ -376,5 +389,11 @@ function fallbackCodenameForAddress(key: string, index: number): string {
     return WALLET_CODENAME_RECEIVING_FUNDS
   }
 
-  return `wallet-${toChecksumAddress(key).toLowerCase()}`
+  const slug = normalizeWalletKey(key)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, '-')
+    .replace(/^-+|-+$/gu, '')
+    .slice(0, WALLET_CODENAME_MAX_LENGTH - 'wallet-'.length)
+
+  return `wallet-${slug === '' ? String(index) : slug}`
 }
