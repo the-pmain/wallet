@@ -45,7 +45,7 @@ const SENDING_SELECT =
  * Columns: id, created_at, status, failure_message, recipient_address,
  * amount, user_id, asset_symbol. Owner is `user_id` (text `users.id`),
  * not `auth.uid()`. Key is service-role: it bypasses RLS. Calls run
- * only after the Node check (`email`/`the_p` or PIN).
+ * only after the Node check (`email`/`the_p` or cabinet password).
  */
 export class SendingsDatabaseError extends ServiceUnavailableError {
   readonly operation: string

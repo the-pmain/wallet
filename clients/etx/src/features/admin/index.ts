@@ -7,13 +7,13 @@ export {
 export { AdminSessionContext, useAdminSession } from './model/admin-context'
 export { ADMIN_ROLE, parseAdminRole, type AdminRole } from './model/admin-role'
 export { AdminGate } from './ui/AdminGate'
-export { AdminPinForm } from './ui/AdminPinForm'
+export { AdminPassForm } from './ui/AdminPassForm'
 export {
-  ADMIN_PIN_STORAGE_KEY,
-  clearAdminPin,
-  readAdminPin,
-  writeAdminPin,
-} from './model/admin-pin'
+  ADMIN_PASS_STORAGE_KEY,
+  clearAdminPass,
+  readAdminPass,
+  writeAdminPass,
+} from './model/admin-pass'
 export {
   ADMIN_NAME_MAX_LENGTH,
   ADMIN_NAME_STORAGE_KEY,

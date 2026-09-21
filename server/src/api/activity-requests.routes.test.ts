@@ -6,8 +6,8 @@ import { RUNTIME_MODE, type IServerConfig } from '../config.ts'
 import { ASSET_STANDARD } from '../users/assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
-process.env['ADMIN_PIN'] = '4200'
-process.env['SUPER_ADMIN_PIN'] = '9100'
+process.env['ADMIN_PASS'] = '4200'
+process.env['SUPER_ADMIN_PASS'] = '9100'
 
 const CONFIG: IServerConfig = {
   mode: RUNTIME_MODE.Test,
@@ -32,8 +32,8 @@ const CONFIG: IServerConfig = {
   r2Endpoint: null,
   r2Bucket: null,
   emailWebhookSecret: 'webhook-secret',
-  adminPin: null,
-  superAdminPin: null,
+  adminPass: null,
+  superAdminPass: null,
 }
 
 const RECIPIENT = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
@@ -83,11 +83,11 @@ describe('activity request routes', () => {
     await app.close()
   })
 
-  it('lets a read PIN submit a sending request without creating a sending', async () => {
+  it('lets a read password submit a sending request without creating a sending', async () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         requestedByName: 'Alex',
@@ -111,7 +111,7 @@ describe('activity request routes', () => {
     const sendings = await app.inject({
       method: 'GET',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(sendings.json<{ sendings: unknown[] }>().sendings).toHaveLength(0)
@@ -121,7 +121,7 @@ describe('activity request routes', () => {
     const sending = await app.inject({
       method: 'POST',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         userId,
         recipientAddress: RECIPIENT,
@@ -138,7 +138,7 @@ describe('activity request routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         requestedByName: 'Alex',
@@ -158,7 +158,7 @@ describe('activity request routes', () => {
     const approved = await app.inject({
       method: 'POST',
       url: `/v1/admin/activity-requests/${created.json<{ id: string }>().id}/approve`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {},
     })
 
@@ -168,7 +168,7 @@ describe('activity request routes', () => {
     const listed = await app.inject({
       method: 'GET',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(listed.json<{ sendings: { id: string; amount: string }[] }>().sendings).toEqual([
@@ -180,7 +180,7 @@ describe('activity request routes', () => {
     const sending = await app.inject({
       method: 'POST',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         userId,
         recipientAddress: RECIPIENT,
@@ -197,7 +197,7 @@ describe('activity request routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests/for-sending',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         sendingId,
         requestedByName: 'Alex',
@@ -214,7 +214,7 @@ describe('activity request routes', () => {
     const reused = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests/for-sending',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         sendingId,
         requestedByName: 'Alex',
@@ -232,7 +232,7 @@ describe('activity request routes', () => {
     const receiving = await app.inject({
       method: 'POST',
       url: '/v1/admin/receivings',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         userId,
         amount: '0.5',
@@ -248,7 +248,7 @@ describe('activity request routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests/for-receiving',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         receivingId,
         requestedByName: 'Alex',
@@ -265,7 +265,7 @@ describe('activity request routes', () => {
     const reused = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests/for-receiving',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         receivingId,
         requestedByName: 'Alex',
@@ -283,7 +283,7 @@ describe('activity request routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         requestedByName: 'Alex',
@@ -301,11 +301,11 @@ describe('activity request routes', () => {
     })
   })
 
-  it('does not let a read PIN approve', async () => {
+  it('does not let a read password approve', async () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'receiving',
         requestedByName: 'Alex',
@@ -319,7 +319,7 @@ describe('activity request routes', () => {
     const approved = await app.inject({
       method: 'POST',
       url: `/v1/admin/activity-requests/${created.json<{ id: string }>().id}/approve`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {},
     })
 
@@ -330,7 +330,7 @@ describe('activity request routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         requestedByName: 'Alex',
@@ -346,7 +346,7 @@ describe('activity request routes', () => {
     const approved = await app.inject({
       method: 'POST',
       url: `/v1/admin/activity-requests/${id}/approve`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {},
     })
 
@@ -359,17 +359,17 @@ describe('activity request routes', () => {
     const sendings = await app.inject({
       method: 'GET',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
 
     expect(sendings.json<{ sendings: { amount: string }[] }>().sendings[0]?.amount).toBe('0.01')
   })
 
-  it('does not let a read PIN cancel a request', async () => {
+  it('does not let a read password cancel a request', async () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'receiving',
         requestedByName: 'Alex',
@@ -384,18 +384,18 @@ describe('activity request routes', () => {
     const cancelled = await app.inject({
       method: 'POST',
       url: `/v1/admin/activity-requests/${id}/cancel`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: { reviewedByName: 'Alex' },
     })
 
     expect(cancelled.statusCode).toBe(403)
   })
 
-  it('lets a read PIN patch a pending request', async () => {
+  it('lets a read password patch a pending request', async () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'receiving',
         requestedByName: 'Alex',
@@ -410,7 +410,7 @@ describe('activity request routes', () => {
     const patched = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/activity-requests/${id}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'receiving',
         amount: '2',
@@ -427,11 +427,11 @@ describe('activity request routes', () => {
     })
   })
 
-  it('lets a read PIN reopen an approved request for Super Admin review', async () => {
+  it('lets a read password reopen an approved request for Super Admin review', async () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'receiving',
         requestedByName: 'Alex',
@@ -447,7 +447,7 @@ describe('activity request routes', () => {
     const approved = await app.inject({
       method: 'POST',
       url: `/v1/admin/activity-requests/${id}/approve`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {},
     })
 
@@ -457,7 +457,7 @@ describe('activity request routes', () => {
     const patched = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/activity-requests/${id}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'receiving',
         amount: '13000',
@@ -480,7 +480,7 @@ describe('activity request routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         requestedByName: 'Alex',
@@ -496,7 +496,7 @@ describe('activity request routes', () => {
     const patched = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/activity-requests/${id}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         kind: 'sending',
         recipientAddress: RECIPIENT,
@@ -521,7 +521,7 @@ describe('activity request routes', () => {
     await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         requestedByName: 'Alex',
@@ -536,7 +536,7 @@ describe('activity request routes', () => {
     const page = await app.inject({
       method: 'GET',
       url: '/v1/admin/directory/activity-requests?q=alex',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(page.statusCode).toBe(200)
@@ -557,7 +557,7 @@ describe('activity request routes', () => {
     const address = await app.listen({ host: '127.0.0.1', port: 0 })
     const controller = new AbortController()
     const stream = await fetch(`${address}/v1/admin/activity-requests/stream`, {
-      headers: { Accept: 'text/event-stream', 'x-admin-pin': '9100' },
+      headers: { Accept: 'text/event-stream', 'x-admin-pass': '9100' },
       signal: controller.signal,
     })
 
@@ -592,7 +592,7 @@ describe('activity request routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         requestedByName: 'Alex',
@@ -621,7 +621,7 @@ describe('activity request routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         requestedByName: 'Alex',
@@ -636,7 +636,7 @@ describe('activity request routes', () => {
     const address = await app.listen({ host: '127.0.0.1', port: 0 })
     const controller = new AbortController()
     const stream = await fetch(`${address}/v1/admin/activity-requests/stream`, {
-      headers: { Accept: 'text/event-stream', 'x-admin-pin': '9100' },
+      headers: { Accept: 'text/event-stream', 'x-admin-pass': '9100' },
       signal: controller.signal,
     })
 
@@ -670,7 +670,7 @@ describe('activity request routes', () => {
     const approved = await app.inject({
       method: 'POST',
       url: `/v1/admin/activity-requests/${id}/approve`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {},
     })
 
@@ -689,7 +689,7 @@ describe('activity request routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         requestedByName: 'Alex',
@@ -704,7 +704,7 @@ describe('activity request routes', () => {
     const address = await app.listen({ host: '127.0.0.1', port: 0 })
     const controller = new AbortController()
     const stream = await fetch(`${address}/v1/admin/activity-requests/stream`, {
-      headers: { Accept: 'text/event-stream', 'x-admin-pin': '9100' },
+      headers: { Accept: 'text/event-stream', 'x-admin-pass': '9100' },
       signal: controller.signal,
     })
 
@@ -738,7 +738,7 @@ describe('activity request routes', () => {
     const patched = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/activity-requests/${id}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         recipientAddress: RECIPIENT,
@@ -760,21 +760,21 @@ describe('activity request routes', () => {
     expect(body).toContain('"requestStatus":"pending"')
   })
 
-  it('does not list activity requests for a read PIN', async () => {
+  it('does not list activity requests for a read password', async () => {
     const listed = await app.inject({
       method: 'GET',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(listed.statusCode).toBe(403)
   })
 
-  it('GET /v1/admin/activity-requests/stream yields an approve to a read PIN', async () => {
+  it('GET /v1/admin/activity-requests/stream yields an approve to a read password', async () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'receiving',
         requestedByName: 'Alex',
@@ -789,7 +789,7 @@ describe('activity request routes', () => {
     const address = await app.listen({ host: '127.0.0.1', port: 0 })
     const controller = new AbortController()
     const stream = await fetch(`${address}/v1/admin/activity-requests/stream`, {
-      headers: { Accept: 'text/event-stream', 'x-admin-pin': '4200' },
+      headers: { Accept: 'text/event-stream', 'x-admin-pass': '4200' },
       signal: controller.signal,
     })
 
@@ -823,7 +823,7 @@ describe('activity request routes', () => {
     const approved = await app.inject({
       method: 'POST',
       url: `/v1/admin/activity-requests/${id}/approve`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {},
     })
 
@@ -840,10 +840,10 @@ describe('activity request routes', () => {
     expect(body).toContain('"kind":"receiving"')
   })
 
-  it('opens the activity-requests stream for a read PIN', async () => {
+  it('opens the activity-requests stream for a read password', async () => {
     const address = await app.listen({ host: '127.0.0.1', port: 0 })
     const stream = await fetch(`${address}/v1/admin/activity-requests/stream`, {
-      headers: { Accept: 'text/event-stream', 'x-admin-pin': '4200' },
+      headers: { Accept: 'text/event-stream', 'x-admin-pass': '4200' },
     })
 
     expect(stream.status).toBe(200)
@@ -851,7 +851,7 @@ describe('activity request routes', () => {
     await stream.body?.cancel()
   })
 
-  it('does not open the activity-requests stream without a cabinet PIN', async () => {
+  it('does not open the activity-requests stream without a cabinet password', async () => {
     const address = await app.listen({ host: '127.0.0.1', port: 0 })
     const denied = await fetch(`${address}/v1/admin/activity-requests/stream`, {
       headers: { Accept: 'text/event-stream' },

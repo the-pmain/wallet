@@ -15,7 +15,7 @@ interface AdminShellProps {
   readonly children: ReactNode
   readonly role: AdminRole
   readonly operatorName: string | null
-  readonly pin: string
+  readonly pass: string
   readonly onLock: () => void
 }
 
@@ -43,7 +43,7 @@ const TABS = [
 /**
  * Cabinet shell: header and tabs stay when opening a profile.
  */
-export function AdminShell({ children, role, operatorName, pin, onLock }: AdminShellProps) {
+export function AdminShell({ children, role, operatorName, pass, onLock }: AdminShellProps) {
   const location = useLocation()
   const isSuper = role === ADMIN_ROLE.Super
   const tabs = TABS.filter((tab) => isSuper || !tab.superOnly).map((tab) =>
@@ -101,7 +101,7 @@ export function AdminShell({ children, role, operatorName, pin, onLock }: AdminS
   )
 
   return (
-    <AdminActivityRequestsLiveProvider pin={pin}>
+    <AdminActivityRequestsLiveProvider pass={pass}>
       <AdminRequestQueueProvider>{frame}</AdminRequestQueueProvider>
     </AdminActivityRequestsLiveProvider>
   )

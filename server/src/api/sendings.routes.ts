@@ -187,8 +187,8 @@ interface IListUserSendingsQuery {
  * `POST /v1/users/sendings` and `GET /v1/users/:id/sendings` are trusted
  * server: identity is `email`+`the_p`, `user_id` must match.
  * `GET /v1/admin/users/:id/sendings` and `GET /v1/admin/sendings`
- * are any cabinet PIN (read). `POST/PATCH/DELETE /v1/admin/sendings`
- * are Super Admin: `x-admin-pin`.
+ * are any cabinet password (read). `POST/PATCH/DELETE /v1/admin/sendings`
+ * are Super Admin: `x-admin-pass`.
  * The store uses the service-role client. A user-scoped JWT does not
  * fit: `user_id` is `users.id`, not `auth.uid()`.
  */

@@ -1,5 +1,5 @@
 -- public.login_events — one row per successful app login (POST /v1/users/auth).
--- The Node server uses SUPABASE_SERVICE_ROLE_KEY after email+the_p or x-admin-pin.
+-- The Node server uses SUPABASE_SERVICE_ROLE_KEY after email+the_p or x-admin-pass.
 -- Do not grant anon/authenticated.
 -- user_id is a text copy of public.users.id (bigint). No FK: same as sendings/receivings.
 

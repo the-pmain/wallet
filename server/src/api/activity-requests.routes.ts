@@ -201,7 +201,7 @@ interface IRequestIdParams {
 /**
  * Cabinet activity-request queue.
  *
- * Any cabinet PIN may submit or patch a pending or approved draft,
+ * Any cabinet password may submit or patch a pending or approved draft,
  * and may open the request stream. Patching an approved row reopens
  * it for Super Admin. Super lists the full queue, then approves,
  * rejects, or cancels. Regular admin toasts filter to their name.

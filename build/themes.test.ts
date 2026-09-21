@@ -61,7 +61,7 @@ describe('theme registry', () => {
         resolve(sourceRoot, 'features/onboarding/model/login-credentials.ts'),
         'utf8',
       )
-      const admin = readFileSync(resolve(sourceRoot, 'features/admin/model/admin-pin.ts'), 'utf8')
+      const admin = readFileSync(resolve(sourceRoot, 'features/admin/model/admin-pass.ts'), 'utf8')
       const broadcast = readFileSync(
         resolve(sourceRoot, 'features/onboarding/model/WalletBroadcast.ts'),
         'utf8',
@@ -69,7 +69,7 @@ describe('theme registry', () => {
 
       expect(database).toContain(`DEFAULT_DATABASE_NAME = '${client.storageNamespace}'`)
       expect(login).toContain(`'${client.storageNamespace}.login-credentials'`)
-      expect(admin).toContain(`'${client.storageNamespace}.admin-pin'`)
+      expect(admin).toContain(`'${client.storageNamespace}.admin-pass'`)
       expect(broadcast).toContain(`name = '${client.storageNamespace}'`)
     }
   })

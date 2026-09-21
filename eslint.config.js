@@ -333,12 +333,12 @@ export default tseslint.config(
   },
 
   /*
-    The admin-cabinet PIN lives in localStorage on purpose: moving
+    The admin-cabinet password lives in localStorage on purpose: moving
     inside `/admin` and reloading the page must not ask for the code
-    again. The server checks the PIN on every request.
+    again. The server checks the password on every request.
   */
   {
-    files: ['clients/*/src/features/admin/model/admin-pin.ts'],
+    files: ['clients/*/src/features/admin/model/admin-pass.ts'],
     rules: {
       'no-restricted-globals': 'off',
     },

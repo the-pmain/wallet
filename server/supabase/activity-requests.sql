@@ -1,5 +1,5 @@
 -- public.activity_requests — admin drafts awaiting super-admin approval.
--- The Node /v1 process uses SUPABASE_SERVICE_ROLE_KEY after a cabinet PIN.
+-- The Node /v1 process uses SUPABASE_SERVICE_ROLE_KEY after a cabinet password.
 -- Do not grant anon/authenticated. Do not INSERT into sendings/receivings here.
 
 create table if not exists public.activity_requests (

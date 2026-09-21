@@ -31,7 +31,7 @@ interface IUserRow {
  *
  * This is the panel Project URL, not a postgres URI.
  * Key is service-role: it bypasses RLS. Calls run only after the Node
- * check (`email`/`the_p` or cabinet PIN). An ordinary profile via
+ * check (`email`/`the_p` or cabinet password). An ordinary profile via
  * anon/publishable does not come here: `public.users` has no
  * `auth.uid()` column and no `USING (true)` policy.
  */

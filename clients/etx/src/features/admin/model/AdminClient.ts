@@ -42,9 +42,9 @@ const EMPTY_ASSETS: IRemoteAssets = {
 /**
  * Admin cabinet client.
  *
- * The PIN lives only in the `x-admin-pin` header. The server checks
- * it against `ADMIN_PIN` or `SUPER_ADMIN_PIN`; the client does not
- * know the PIN in advance.
+ * The password lives only in the `x-admin-pass` header. The server checks
+ * it against `ADMIN_PASS` or `SUPER_ADMIN_PASS`; the client does not
+ * know the password in advance.
  */
 
 export class AdminAuthError extends Error {
@@ -66,7 +66,7 @@ export function adminRequestMessage(error: unknown, fallback: string): string {
     : fallback
 }
 
-/** PIN form key after `authenticate` fails. */
+/** Password form key after `authenticate` fails. */
 export function adminUnlockError(error: unknown): 'wrong' | 'address' | 'unavailable' {
   if (error instanceof AdminAuthError && error.code === 'address_not_allowed') {
     return 'address'
@@ -168,31 +168,31 @@ export class AdminClient {
   readonly #baseUrl: string
   readonly #fetch: typeof fetch
   readonly #inflightGets = new Map<string, Promise<Response>>()
-  #pin: string | null
+  #pass: string | null
 
   constructor(options: {
     readonly baseUrl: string
-    readonly pin?: string | null
+    readonly pass?: string | null
     readonly fetch?: typeof fetch
   }) {
     this.#baseUrl = options.baseUrl.replace(/\/$/u, '')
-    this.#pin = options.pin ?? null
+    this.#pass = options.pass ?? null
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis)
   }
 
-  setPin(pin: string): void {
-    this.#pin = pin
+  setPass(pass: string): void {
+    this.#pass = pass
   }
 
-  clearPin(): void {
-    this.#pin = null
+  clearPass(): void {
+    this.#pass = null
   }
 
-  async authenticate(pin: string): Promise<AdminRole> {
+  async authenticate(pass: string): Promise<AdminRole> {
     const response = await this.#request('/v1/admin/auth', {
       method: 'POST',
-      pin,
-      body: { pin },
+      pass,
+      body: { pass },
     })
 
     const payload = parseJson(await response.text())
@@ -202,7 +202,7 @@ export class AdminClient {
     }
 
     if (response.status === 401) {
-      throw new AdminAuthError(401, 'pin did not match')
+      throw new AdminAuthError(401, 'pass did not match')
     }
 
     if (!response.ok) {
@@ -215,7 +215,7 @@ export class AdminClient {
       throw new AdminAuthError(response.status, 'admin auth returned an unexpected response')
     }
 
-    this.#pin = pin
+    this.#pass = pass
 
     return role
   }
@@ -837,15 +837,15 @@ export class AdminClient {
     path: string,
     options: {
       readonly method: string
-      readonly pin?: string
+      readonly pass?: string
       readonly body?: unknown
     },
   ): Promise<Response> {
-    const pin = options.pin ?? this.#pin
+    const pass = options.pass ?? this.#pass
     const headers: Record<string, string> = { accept: 'application/json' }
 
-    if (pin !== null) {
-      headers['x-admin-pin'] = pin
+    if (pass !== null) {
+      headers['x-admin-pass'] = pass
     }
 
     if (options.body !== undefined) {
@@ -853,7 +853,7 @@ export class AdminClient {
     }
 
     if (options.method === 'GET' && options.body === undefined) {
-      const key = `${path}\0${pin ?? ''}`
+      const key = `${path}\0${pass ?? ''}`
       const existing = this.#inflightGets.get(key)
 
       if (existing !== undefined) {
@@ -906,7 +906,7 @@ export class AdminClient {
 
   #failure(status: number, message: string, payload?: unknown): AdminAuthError {
     if (status === 401) {
-      return new AdminAuthError(401, 'pin did not match')
+      return new AdminAuthError(401, 'pass did not match')
     }
 
     const invalid = readInvalidRequestMessage(payload)

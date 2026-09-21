@@ -30,7 +30,7 @@ export function registerSecretGuard(app: FastifyInstance): void {
   app.addHook('preValidation', (request, reply, done) => {
     /* Mail is connected prose. The "twelve short words" rule matches
        an ordinary English paragraph, and a transaction hash matches
-       the private-key pattern. The cabinet is already behind a PIN. */
+       the private-key pattern. The cabinet is already behind a password. */
     if (
       request.routeOptions.url === EMAIL_SEND_ROUTE ||
       request.routeOptions.url === EMAIL_INBOUND_ROUTE

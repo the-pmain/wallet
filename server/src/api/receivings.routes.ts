@@ -165,8 +165,8 @@ interface IReceivingsSseQuery {
  *
  * `GET /v1/users/:id/receivings` is trusted server: identity is
  * `email`+`the_p`. `GET /v1/admin/users/:id/receivings` is any cabinet
- * PIN (read). `GET /v1/admin/receivings` is any cabinet PIN (read).
- * `POST/PATCH/DELETE /v1/admin/receivings` are Super Admin: `x-admin-pin`.
+ * password (read). `GET /v1/admin/receivings` is any cabinet password (read).
+ * `POST/PATCH/DELETE /v1/admin/receivings` are Super Admin: `x-admin-pass`.
  * The store uses the service-role client.
  */
 export function registerReceivingRoutes(

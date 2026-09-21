@@ -1,27 +1,27 @@
 import type { FastifyRequest } from 'fastify'
 
 import { ForbiddenError, UnauthorizedError } from '../lib/errors.ts'
-import { ADMIN_ROLE, resolveAdminRole, type AdminRole } from './pin.ts'
+import { ADMIN_ROLE, resolveAdminRole, type AdminRole } from './pass.ts'
 
-export function presentedAdminPin(request: FastifyRequest): string | null {
-  const header = request.headers['x-admin-pin']
-  const pin = Array.isArray(header) ? header[0] : header
+export function presentedAdminPass(request: FastifyRequest): string | null {
+  const header = request.headers['x-admin-pass']
+  const pass = Array.isArray(header) ? header[0] : header
 
-  if (typeof pin !== 'string' || pin.trim() === '') {
+  if (typeof pass !== 'string' || pass.trim() === '') {
     return null
   }
 
-  return pin.trim()
+  return pass.trim()
 }
 
 export function requireAdminRole(request: FastifyRequest): AdminRole {
-  const pin = presentedAdminPin(request)
+  const pass = presentedAdminPass(request)
 
-  if (pin === null) {
+  if (pass === null) {
     throw new UnauthorizedError('Invalid credentials.')
   }
 
-  const role = resolveAdminRole(pin)
+  const role = resolveAdminRole(pass)
 
   if (role === null) {
     throw new UnauthorizedError('Invalid credentials.')

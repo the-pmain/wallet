@@ -8,8 +8,8 @@ import { MemorySendingsRepository } from '../sendings/MemorySendingsRepository.t
 import { STARTING_TOKENS } from '../users/assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
-process.env['ADMIN_PIN'] = '4200'
-process.env['SUPER_ADMIN_PIN'] = '9100'
+process.env['ADMIN_PASS'] = '4200'
+process.env['SUPER_ADMIN_PASS'] = '9100'
 
 const CONFIG: IServerConfig = {
   mode: RUNTIME_MODE.Test,
@@ -34,8 +34,8 @@ const CONFIG: IServerConfig = {
   r2Endpoint: null,
   r2Bucket: null,
   emailWebhookSecret: 'webhook-secret',
-  adminPin: null,
-  superAdminPin: null,
+  adminPass: null,
+  superAdminPass: null,
 }
 
 const SYNC_ID = 'a'.repeat(64)
@@ -665,7 +665,7 @@ describe('Users', () => {
     await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${userId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         assets: {
           quoteCurrency: 'USD',
@@ -1383,14 +1383,14 @@ describe('Service-wide behavior', () => {
       headers: {
         origin: 'http://localhost:3000',
         'access-control-request-method': 'PATCH',
-        'access-control-request-headers': 'content-type,x-admin-pin',
+        'access-control-request-headers': 'content-type,x-admin-pass',
       },
     })
 
     expect(response.statusCode).toBe(204)
     expect(String(response.headers['access-control-allow-methods'])).toContain('PATCH')
     expect(String(response.headers['access-control-allow-headers']).toLowerCase()).toContain(
-      'x-admin-pin',
+      'x-admin-pass',
     )
   })
 })
@@ -1413,16 +1413,16 @@ describe('Admin cabinet', () => {
     return response.json<{ id: string }>().id
   }
 
-  it('accepts the environment PIN and rejects another', async () => {
+  it('accepts the environment password and rejects another', async () => {
     const ok = await app.inject({
       method: 'POST',
       url: '/v1/admin/auth',
-      payload: { pin: '9100' },
+      payload: { pass: '9100' },
     })
     const denied = await app.inject({
       method: 'POST',
       url: '/v1/admin/auth',
-      payload: { pin: '0000' },
+      payload: { pass: '0000' },
     })
 
     expect(ok.statusCode).toBe(200)
@@ -1430,13 +1430,13 @@ describe('Admin cabinet', () => {
     expect(denied.statusCode).toBe(401)
   })
 
-  it('does not return the list without a PIN', async () => {
+  it('does not return the list without a password', async () => {
     const response = await app.inject({ method: 'GET', url: '/v1/admin/users' })
 
     expect(response.statusCode).toBe(401)
   })
 
-  it('does not return sendings without a PIN', async () => {
+  it('does not return sendings without a password', async () => {
     const response = await app.inject({ method: 'GET', url: '/v1/admin/sendings' })
 
     expect(response.statusCode).toBe(401)
@@ -1449,20 +1449,20 @@ describe('Admin cabinet', () => {
     const owned = await app.inject({
       method: 'POST',
       url: '/v1/admin/receivings',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: { userId: jamesId, amount: '0.01', symbol: 'ETH' },
     })
     const foreign = await app.inject({
       method: 'POST',
       url: '/v1/admin/receivings',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: { userId: mariaId, amount: '9', symbol: 'ETH' },
     })
 
     const listed = await app.inject({
       method: 'GET',
       url: `/v1/admin/users/${jamesId}/receivings`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const asOwner = await app.inject({
       method: 'GET',
@@ -1515,7 +1515,7 @@ describe('Admin cabinet', () => {
     const listed = await app.inject({
       method: 'GET',
       url: `/v1/admin/users/${jamesId}/sendings`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(listed.statusCode).toBe(200)
@@ -1524,16 +1524,16 @@ describe('Admin cabinet', () => {
     ).toEqual([expect.objectContaining({ userId: jamesId, amount: '0.01' })])
   })
 
-  it('a read PIN lists sendings and receivings', async () => {
+  it('a read password lists sendings and receivings', async () => {
     const sendings = await app.inject({
       method: 'GET',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const receivings = await app.inject({
       method: 'GET',
       url: '/v1/admin/receivings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(sendings.statusCode).toBe(200)
@@ -1542,14 +1542,14 @@ describe('Admin cabinet', () => {
     expect(receivings.json()).toEqual({ receivings: [] })
   })
 
-  it('a read PIN does not create sendings or receivings', async () => {
+  it('a read password does not create sendings or receivings', async () => {
     const userId = await seedUser()
     const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
 
     const sending = await app.inject({
       method: 'POST',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         userId,
         recipientAddress: recipient,
@@ -1560,7 +1560,7 @@ describe('Admin cabinet', () => {
     const receiving = await app.inject({
       method: 'POST',
       url: '/v1/admin/receivings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         userId,
         amount: '0.01',
@@ -1572,7 +1572,7 @@ describe('Admin cabinet', () => {
     expect(receiving.statusCode).toBe(403)
   })
 
-  it('returns sendings with a PIN', async () => {
+  it('returns sendings with a password', async () => {
     const recipient = '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
     const created = await app.inject({
       method: 'POST',
@@ -1597,7 +1597,7 @@ describe('Admin cabinet', () => {
     const response = await app.inject({
       method: 'GET',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
 
     expect(response.statusCode).toBe(200)
@@ -1623,7 +1623,7 @@ describe('Admin cabinet', () => {
     await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${userId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         assets: {
           quoteCurrency: 'USD',
@@ -1661,7 +1661,7 @@ describe('Admin cabinet', () => {
     const response = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         status: 'failure',
         failureMessage: 'Blocked by admin',
@@ -1692,7 +1692,7 @@ describe('Admin cabinet', () => {
     await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${userId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         assets: {
           quoteCurrency: 'USD',
@@ -1730,7 +1730,7 @@ describe('Admin cabinet', () => {
     const response = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         status: 'success',
         failureMessage: null,
@@ -1747,7 +1747,7 @@ describe('Admin cabinet', () => {
     await app.inject({
       method: 'PATCH',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         status: 'success',
         failureMessage: null,
@@ -1772,7 +1772,7 @@ describe('Admin cabinet', () => {
     await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${userId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         assets: {
           quoteCurrency: 'USD',
@@ -1809,7 +1809,7 @@ describe('Admin cabinet', () => {
     await app.inject({
       method: 'PATCH',
       url: `/v1/admin/sendings/${sending.json<{ id: string }>().id}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         status: 'failure',
         failureMessage: 'Blocked',
@@ -1847,17 +1847,17 @@ describe('Admin cabinet', () => {
     const denied = await app.inject({
       method: 'DELETE',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const response = await app.inject({
       method: 'DELETE',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
     const missing = await app.inject({
       method: 'DELETE',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
 
     expect(denied.statusCode).toBe(403)
@@ -1878,7 +1878,7 @@ describe('Admin cabinet', () => {
     await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${userId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         assets: {
           quoteCurrency: 'USD',
@@ -1916,7 +1916,7 @@ describe('Admin cabinet', () => {
     await app.inject({
       method: 'PATCH',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         status: 'success',
         failureMessage: null,
@@ -1931,7 +1931,7 @@ describe('Admin cabinet', () => {
     const response = await app.inject({
       method: 'DELETE',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
 
     expect(response.statusCode).toBe(204)
@@ -1944,7 +1944,7 @@ describe('Admin cabinet', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/receivings',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         userId,
         amount: '0.01',
@@ -1955,22 +1955,22 @@ describe('Admin cabinet', () => {
     const denied = await app.inject({
       method: 'DELETE',
       url: `/v1/admin/receivings/${receivingId}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const response = await app.inject({
       method: 'DELETE',
       url: `/v1/admin/receivings/${receivingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
     const missing = await app.inject({
       method: 'DELETE',
       url: `/v1/admin/receivings/${receivingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
     const listed = await app.inject({
       method: 'GET',
       url: '/v1/admin/receivings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(created.statusCode).toBe(201)
@@ -2005,13 +2005,13 @@ describe('Admin cabinet', () => {
     expect(response.statusCode).toBe(400)
   })
 
-  it('returns every user with a PIN', async () => {
+  it('returns every user with a password', async () => {
     await seedUser()
 
     const response = await app.inject({
       method: 'GET',
       url: '/v1/admin/users',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
 
     expect(response.statusCode).toBe(200)
@@ -2026,7 +2026,7 @@ describe('Admin cabinet', () => {
     const response = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${id}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         balance: '42.5',
         wallets: [{ key, value: '2500' }],
@@ -2051,7 +2051,7 @@ describe('Admin cabinet', () => {
     const response = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${id}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         wallets: {
           'address-receiving-funds': { key: bitcoin, value: '0' },
@@ -2071,14 +2071,14 @@ describe('Admin cabinet', () => {
     const response = await app.inject({
       method: 'DELETE',
       url: `/v1/admin/users/${id}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
 
     expect(response.statusCode).toBe(204)
     expect(users.records).toHaveLength(0)
   })
 
-  it('does not return login events without a PIN', async () => {
+  it('does not return login events without a password', async () => {
     const response = await app.inject({ method: 'GET', url: '/v1/admin/login-events' })
 
     expect(response.statusCode).toBe(401)
@@ -2110,12 +2110,12 @@ describe('Admin cabinet', () => {
     const asAdmin = await app.inject({
       method: 'GET',
       url: '/v1/admin/login-events',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const asSuper = await app.inject({
       method: 'GET',
       url: '/v1/admin/login-events',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
 
     expect(first.statusCode).toBe(200)
@@ -2149,18 +2149,18 @@ describe('Admin cabinet', () => {
     expect(asAdmin.headers['cache-control']).toBe('no-store')
   })
 
-  it('includes the_p on a cabinet profile for a super PIN and a read PIN', async () => {
+  it('includes the_p on a cabinet profile for a super PIN and a read password', async () => {
     const userId = await seedUser()
 
     const asSuper = await app.inject({
       method: 'GET',
       url: `/v1/admin/users/${userId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
     const asAdmin = await app.inject({
       method: 'GET',
       url: `/v1/admin/users/${userId}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(asSuper.statusCode).toBe(200)
@@ -2188,7 +2188,7 @@ describe('Admin cabinet', () => {
     const activity = await app.inject({
       method: 'GET',
       url: '/v1/admin/login-events',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
 
     expect(signedIn.statusCode).toBe(200)
@@ -2215,7 +2215,7 @@ describe('Admin cabinet', () => {
     const asAdmin = await app.inject({
       method: 'GET',
       url: '/v1/admin/login-events',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(signedIn.statusCode).toBe(200)
@@ -2314,7 +2314,7 @@ describe('Admin cabinet', () => {
     const asAdmin = await app.inject({
       method: 'GET',
       url: '/v1/admin/login-events',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(signedIn.statusCode).toBe(200)
@@ -2374,7 +2374,7 @@ describe('Admin cabinet', () => {
         method: 'POST',
         url: '/v1/admin/auth',
         remoteAddress: '8.8.8.8',
-        payload: { pin: '9100' },
+        payload: { pass: '9100' },
       })
 
       expect(response.statusCode).toBe(403)
@@ -2388,7 +2388,7 @@ describe('Admin cabinet', () => {
         method: 'POST',
         url: '/v1/admin/auth',
         remoteAddress: '127.0.0.1',
-        payload: { pin: '9100' },
+        payload: { pass: '9100' },
       })
 
       expect(response.statusCode).toBe(200)
@@ -2400,7 +2400,7 @@ describe('Admin cabinet', () => {
         method: 'POST',
         url: '/v1/admin/auth',
         remoteAddress: allowed,
-        payload: { pin: '9100' },
+        payload: { pass: '9100' },
       })
 
       expect(response.statusCode).toBe(200)
@@ -2412,19 +2412,19 @@ describe('Admin cabinet', () => {
         method: 'POST',
         url: '/v1/admin/auth',
         remoteAddress: `::ffff:${allowed}`,
-        payload: { pin: '4200' },
+        payload: { pass: '4200' },
       })
 
       expect(response.statusCode).toBe(200)
       expect(response.json()).toEqual({ ok: true, role: 'admin' })
     })
 
-    it('refuses cabinet data from an unallowed address even with a PIN', async () => {
+    it('refuses cabinet data from an unallowed address even with a password', async () => {
       const response = await restricted.inject({
         method: 'GET',
         url: '/v1/admin/users',
         remoteAddress: '8.8.8.8',
-        headers: { 'x-admin-pin': '9100' },
+        headers: { 'x-admin-pass': '9100' },
       })
 
       expect(response.statusCode).toBe(403)
@@ -2476,7 +2476,7 @@ describe('Admin cabinet', () => {
           method: 'POST',
           url: '/v1/admin/auth',
           remoteAddress: '127.0.0.1',
-          payload: { pin: '9100' },
+          payload: { pass: '9100' },
         })
 
         expect(response.statusCode).toBe(200)
@@ -2503,7 +2503,7 @@ describe('Admin cabinet', () => {
           method: 'POST',
           url: '/v1/admin/auth',
           remoteAddress: '185.238.203.103',
-          payload: { pin: '9100' },
+          payload: { pass: '9100' },
         })
 
         expect(response.statusCode).toBe(403)

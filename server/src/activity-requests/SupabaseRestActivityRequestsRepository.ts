@@ -68,7 +68,7 @@ export class ActivityRequestsDatabaseError extends ServiceUnavailableError {
  * Activity requests via Supabase REST (`/rest/v1/activity_requests`).
  *
  * Key is service-role: it bypasses RLS. Calls run only after the Node
- * check (cabinet PIN).
+ * check (cabinet password).
  */
 export class SupabaseRestActivityRequestsRepository implements IActivityRequestsRepository {
   readonly #url: string

@@ -10,8 +10,8 @@ import { SENDING_STATUS } from '../sendings/status.ts'
 import { ASSET_STANDARD } from '../users/assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
-process.env['ADMIN_PIN'] = '4200'
-process.env['SUPER_ADMIN_PIN'] = '9100'
+process.env['ADMIN_PASS'] = '4200'
+process.env['SUPER_ADMIN_PASS'] = '9100'
 
 const CONFIG: IServerConfig = {
   mode: RUNTIME_MODE.Test,
@@ -36,8 +36,8 @@ const CONFIG: IServerConfig = {
   r2Endpoint: null,
   r2Bucket: null,
   emailWebhookSecret: 'webhook-secret',
-  adminPin: null,
-  superAdminPin: null,
+  adminPass: null,
+  superAdminPass: null,
 }
 
 const RECIPIENT = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
@@ -84,17 +84,17 @@ describe('admin directory pages', () => {
     await app.close()
   })
 
-  it('does not return a directory page without a PIN', async () => {
+  it('does not return a directory page without a password', async () => {
     const response = await app.inject({ method: 'GET', url: '/v1/admin/directory/sendings' })
 
     expect(response.statusCode).toBe(401)
   })
 
-  it('returns an empty sendings page for a read PIN', async () => {
+  it('returns an empty sendings page for a read password', async () => {
     const response = await app.inject({
       method: 'GET',
       url: '/v1/admin/directory/sendings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(response.statusCode).toBe(200)
@@ -122,17 +122,17 @@ describe('admin directory pages', () => {
     const first = await app.inject({
       method: 'GET',
       url: '/v1/admin/directory/sendings?page=1&pageSize=20',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const second = await app.inject({
       method: 'GET',
       url: '/v1/admin/directory/sendings?page=2&pageSize=20',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const search = await app.inject({
       method: 'GET',
       url: '/v1/admin/directory/sendings?q=james@',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
 
     expect(first.statusCode).toBe(200)
@@ -156,7 +156,7 @@ describe('admin directory pages', () => {
     const pending = await app.inject({
       method: 'GET',
       url: '/v1/admin/directory/sendings?status=pending',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(pending.json()).toMatchObject({ total: 21, page: 1 })
@@ -176,7 +176,7 @@ describe('admin directory pages', () => {
     const response = await app.inject({
       method: 'GET',
       url: '/v1/admin/directory/receivings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(response.statusCode).toBe(200)
@@ -208,12 +208,12 @@ describe('admin directory pages', () => {
     const userPage = await app.inject({
       method: 'GET',
       url: '/v1/admin/directory/users?pageSize=1',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const activity = await app.inject({
       method: 'GET',
       url: '/v1/admin/directory/activity?q=london',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(userPage.json()).toMatchObject({ total: 2, page: 1, pageSize: 1 })
@@ -234,7 +234,7 @@ describe('admin directory pages', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         kind: 'sending',
         requestedByName: 'Alex',
@@ -256,7 +256,7 @@ describe('admin directory pages', () => {
     const response = await app.inject({
       method: 'GET',
       url: '/v1/admin/directory/activity-requests',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(response.statusCode).toBe(200)
@@ -307,7 +307,7 @@ describe('admin directory pages', () => {
         await app.inject({
           method: 'POST',
           url: '/v1/admin/activity-requests',
-          headers: { 'x-admin-pin': '4200' },
+          headers: { 'x-admin-pass': '4200' },
           payload: { ...payload, userId: james.id },
         })
       ).statusCode,
@@ -317,7 +317,7 @@ describe('admin directory pages', () => {
         await app.inject({
           method: 'POST',
           url: '/v1/admin/activity-requests',
-          headers: { 'x-admin-pin': '4200' },
+          headers: { 'x-admin-pass': '4200' },
           payload: { ...payload, userId: maria.id, amount: '1.5' },
         })
       ).statusCode,
@@ -326,7 +326,7 @@ describe('admin directory pages', () => {
     const response = await app.inject({
       method: 'GET',
       url: `/v1/admin/directory/activity-requests?userId=${james.id}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(response.statusCode).toBe(200)

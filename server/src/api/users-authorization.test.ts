@@ -6,8 +6,8 @@ import { RUNTIME_MODE, type IServerConfig } from '../config.ts'
 import { MemorySendingsRepository } from '../sendings/MemorySendingsRepository.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
-process.env['ADMIN_PIN'] = '4200'
-process.env['SUPER_ADMIN_PIN'] = '9100'
+process.env['ADMIN_PASS'] = '4200'
+process.env['SUPER_ADMIN_PASS'] = '9100'
 
 const CONFIG: IServerConfig = {
   mode: RUNTIME_MODE.Test,
@@ -32,8 +32,8 @@ const CONFIG: IServerConfig = {
   r2Endpoint: null,
   r2Bucket: null,
   emailWebhookSecret: null,
-    adminPin: null,
-    superAdminPin: null,
+    adminPass: null,
+    superAdminPass: null,
 }
 
 const SEED_PHRASE =
@@ -161,25 +161,25 @@ describe('public.users authorization', () => {
     expect(users.records[0]?.theP).toBe('demo')
   })
 
-  it('without a PIN blocks the cabinet; with a PIN — only declared admin operations', async () => {
+  it('without a password blocks the cabinet; with a password — only declared admin operations', async () => {
     const id = await seed('james@example.com', 'demo')
 
     const denied = await app.inject({ method: 'GET', url: '/v1/admin/users' })
     const listed = await app.inject({
       method: 'GET',
       url: '/v1/admin/users',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
     const patched = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${id}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: { balance: '12.5', role: 'superadmin' },
     })
     const updated = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${id}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: { balance: '12.5' },
     })
 
@@ -202,34 +202,34 @@ describe('public.users authorization', () => {
     expect(listed.body).not.toContain(SERVICE_ROLE)
   })
 
-  it('a read PIN sees the list and does not change the record', async () => {
+  it('a read password sees the list and does not change the record', async () => {
     const id = await seed('james@example.com', 'demo')
 
     const auth = await app.inject({
       method: 'POST',
       url: '/v1/admin/auth',
-      payload: { pin: '4200' },
+      payload: { pass: '4200' },
     })
     const listed = await app.inject({
       method: 'GET',
       url: '/v1/admin/users',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const activity = await app.inject({
       method: 'GET',
       url: '/v1/admin/login-events',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const patched = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${id}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: { balance: '99' },
     })
     const removed = await app.inject({
       method: 'DELETE',
       url: `/v1/admin/users/${id}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(auth.statusCode).toBe(200)

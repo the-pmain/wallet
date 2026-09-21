@@ -59,7 +59,7 @@ export async function registerSecurity(app: FastifyInstance, config: IServerConf
     /* PATCH is required by the admin cabinet: balance and `wallets`
        updates are partial, not a full record replace. */
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Accept', 'Content-Type', 'x-admin-pin'],
+    allowedHeaders: ['Accept', 'Content-Type', 'x-admin-pass'],
     /* Credentials are not sent: the service uses neither cookies nor
        an authorization header. Allowing them would let the browser
        attach something the user does not know about. */

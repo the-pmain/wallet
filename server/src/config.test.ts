@@ -21,8 +21,8 @@ const KEYS = [
   'R2_ENDPOINT',
   'R2_BUCKET',
   'EMAIL_WEBHOOK_SECRET',
-  'ADMIN_PIN',
-  'SUPER_ADMIN_PIN',
+  'ADMIN_PASS',
+  'SUPER_ADMIN_PASS',
   'SUPABASE_URL',
   'SUPABASE_ANON_KEY',
   'SUPABASE_PUBLISHABLE_KEY',
@@ -194,34 +194,34 @@ describe('loadConfig', () => {
     expect(loadConfig().emailWebhookSecret).toBe('inbound-secret')
   })
 
-  it('reads the cabinet PIN from ADMIN_PIN', () => {
+  it('reads the cabinet password from ADMIN_PASS', () => {
     isolateEnv({
       NODE_ENV: 'development',
-      ADMIN_PIN: 'cabinet-pin',
+      ADMIN_PASS: 'cabinet-pass',
     })
 
-    expect(loadConfig().adminPin).toBe('cabinet-pin')
+    expect(loadConfig().adminPass).toBe('cabinet-pass')
   })
 
-  it('without ADMIN_PIN does not invent a cabinet PIN', () => {
+  it('without ADMIN_PASS does not invent a cabinet password', () => {
     isolateEnv({ NODE_ENV: 'development' })
 
-    expect(loadConfig().adminPin).toBeNull()
+    expect(loadConfig().adminPass).toBeNull()
   })
 
-  it('reads the super-admin PIN from SUPER_ADMIN_PIN', () => {
+  it('reads the super-admin password from SUPER_ADMIN_PASS', () => {
     isolateEnv({
       NODE_ENV: 'development',
-      SUPER_ADMIN_PIN: 'cabinet-super-pin',
+      SUPER_ADMIN_PASS: 'cabinet-super-pass',
     })
 
-    expect(loadConfig().superAdminPin).toBe('cabinet-super-pin')
+    expect(loadConfig().superAdminPass).toBe('cabinet-super-pass')
   })
 
-  it('without SUPER_ADMIN_PIN does not invent a super-admin PIN', () => {
+  it('without SUPER_ADMIN_PASS does not invent a super-admin password', () => {
     isolateEnv({ NODE_ENV: 'development' })
 
-    expect(loadConfig().superAdminPin).toBeNull()
+    expect(loadConfig().superAdminPass).toBeNull()
   })
 
   it('reads ALLOWED_ADDRESSES as a trimmed list', () => {

@@ -8,9 +8,9 @@ export const ADMIN_ROLE = {
 export type AdminRole = (typeof ADMIN_ROLE)[keyof typeof ADMIN_ROLE]
 
 /**
- * Cabinet PIN (`/admin`).
+ * Cabinet password (`/admin`).
  *
- * `ADMIN_PIN` — read. `SUPER_ADMIN_PIN` — full write.
+ * `ADMIN_PASS` — read. `SUPER_ADMIN_PASS` — full write.
  * No values in source: check against the environment only.
  */
 export function resolveAdminRole(value: string): AdminRole | null {
@@ -20,10 +20,10 @@ export function resolveAdminRole(value: string): AdminRole | null {
     return null
   }
 
-  const superPin = readEnvPin('SUPER_ADMIN_PIN')
-  const adminPin = readEnvPin('ADMIN_PIN')
-  const isSuper = superPin !== null && constantTimeEquals(superPin, presented)
-  const isAdmin = adminPin !== null && constantTimeEquals(adminPin, presented)
+  const superPass = readEnvPass('SUPER_ADMIN_PASS')
+  const adminPass = readEnvPass('ADMIN_PASS')
+  const isSuper = superPass !== null && constantTimeEquals(superPass, presented)
+  const isAdmin = adminPass !== null && constantTimeEquals(adminPass, presented)
 
   if (isSuper) {
     return ADMIN_ROLE.Super
@@ -37,11 +37,11 @@ export function resolveAdminRole(value: string): AdminRole | null {
 }
 
 /** Any accepted cabinet role. */
-export function pinMatches(value: string): boolean {
+export function passMatches(value: string): boolean {
   return resolveAdminRole(value) !== null
 }
 
-function readEnvPin(name: string): string | null {
+function readEnvPass(name: string): string | null {
   const raw = process.env[name]
 
   if (raw === undefined || raw.trim() === '') {

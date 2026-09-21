@@ -13,21 +13,21 @@ const AdminActivityRequestsLiveContext = createContext<
 >(null)
 
 /**
- * One cabinet stream per signed-in PIN.
+ * One cabinet stream per signed-in password.
  *
  * The request list and the toast queue share the connection.
- * Every signed-in cabinet PIN mounts this provider.
+ * Every signed-in cabinet password mounts this provider.
  */
 export function AdminActivityRequestsLiveProvider({
   children,
-  pin,
+  pass,
 }: {
   readonly children: ReactNode
-  readonly pin: string
+  readonly pass: string
 }) {
   const listeners = useRef(new Set<ActivityRequestLiveListener>())
 
-  useCabinetActivityRequestsStream(pin, (event) => {
+  useCabinetActivityRequestsStream(pass, (event) => {
     for (const listener of listeners.current) {
       listener(event)
     }
@@ -68,7 +68,7 @@ export function useAdminActivityRequestsLive(onEvent: ActivityRequestLiveListene
 }
 
 function useCabinetActivityRequestsStream(
-  pin: string,
+  pass: string,
   onEvent: ActivityRequestLiveListener,
 ): void {
   const onEventRef = useRef(onEvent)
@@ -101,7 +101,7 @@ function useCabinetActivityRequestsStream(
 
     const controller = new AbortController()
 
-    void readPinnedActivityRequestsStream(url, pin, controller.signal, (data) => {
+    void readPinnedActivityRequestsStream(url, pass, controller.signal, (data) => {
       const parsed = parseActivityRequestSseEvent(data)
 
       if (parsed !== null) {
@@ -112,19 +112,19 @@ function useCabinetActivityRequestsStream(
     return () => {
       controller.abort()
     }
-  }, [pin])
+  }, [pass])
 }
 
 async function readPinnedActivityRequestsStream(
   url: string,
-  pin: string,
+  pass: string,
   signal: AbortSignal,
   onData: (data: string) => void,
 ): Promise<void> {
   const response = await fetch(url, {
     headers: {
       accept: 'text/event-stream',
-      'x-admin-pin': pin,
+      'x-admin-pass': pass,
     },
     signal,
   })

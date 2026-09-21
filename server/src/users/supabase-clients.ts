@@ -8,7 +8,7 @@ import { UnauthorizedError } from '../lib/errors.ts'
  * not included.
  *
  * Admin client: `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS. Only after
- * a server check (`email`+`the_p` or `x-admin-pin`). Do not pick by
+ * a server check (`email`+`the_p` or `x-admin-pass`). Do not pick by
  * a body field such as `{ "role": "admin" }`.
  */
 

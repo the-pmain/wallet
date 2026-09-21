@@ -5,8 +5,8 @@ import { AdminClient, adminUnlockError } from '../model/AdminClient'
 import { ADMIN_ROLE, type AdminRole } from '../model/admin-role'
 import { AdminSessionContext } from '../model/admin-context'
 import { readAdminName, writeAdminName } from '../model/admin-name'
-import { clearAdminPin, readAdminPin, writeAdminPin } from '../model/admin-pin'
-import { AdminPinForm, type IAdminPinSubmit } from './AdminPinForm'
+import { clearAdminPass, readAdminPass, writeAdminPass } from '../model/admin-pass'
+import { AdminPassForm, type IAdminPassSubmit } from './AdminPassForm'
 import { AdminShell } from './AdminShell'
 
 function createAdminClient(): AdminClient {
@@ -21,9 +21,9 @@ interface IUnlockIntent {
 }
 
 /**
- * Cabinet gate: PIN on the server, session in `localStorage`.
+ * Cabinet gate: password on the server, session in `localStorage`.
  *
- * Nested routes do not mount until the PIN is accepted. After that
+ * Nested routes do not mount until the password is accepted. After that
  * the shell stays in place when opening a user profile. The admin
  * name is written only after a successful sign-in and is not
  * cleared on lock.
@@ -32,17 +32,17 @@ export function AdminGate() {
   const client = useMemo(() => createAdminClient(), [])
   const intentRef = useRef<IUnlockIntent | null>(null)
   const unlockEpochRef = useRef(0)
-  const [pin, setPin] = useState<string | null>(() => readAdminPin())
+  const [pass, setPass] = useState<string | null>(() => readAdminPass())
   const [role, setRole] = useState<AdminRole | null>(null)
   const [operatorName, setOperatorName] = useState<string | null>(null)
   const [unlocked, setUnlocked] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isBusy, setBusy] = useState(() => readAdminPin() !== null)
-  const [pinFormKey, setPinFormKey] = useState(0)
+  const [isBusy, setBusy] = useState(() => readAdminPass() !== null)
+  const [passFormKey, setPassFormKey] = useState(0)
 
   useEffect(() => {
-    if (pin === null) {
-      client.clearPin()
+    if (pass === null) {
+      client.clearPass()
 
       return
     }
@@ -51,7 +51,7 @@ export function AdminGate() {
     const epoch = unlockEpochRef.current
 
     void client
-      .authenticate(pin)
+      .authenticate(pass)
       .then((nextRole) => {
         if (cancelled || epoch !== unlockEpochRef.current) {
           return
@@ -61,18 +61,18 @@ export function AdminGate() {
         intentRef.current = null
 
         if (intent !== null && intent.role !== nextRole) {
-          clearAdminPin()
-          client.clearPin()
+          clearAdminPass()
+          client.clearPass()
           setUnlocked(false)
           setRole(null)
           setOperatorName(null)
-          setPin(null)
+          setPass(null)
           setError('wrong')
 
           return
         }
 
-        writeAdminPin(pin)
+        writeAdminPass(pass)
 
         if (nextRole === ADMIN_ROLE.Admin) {
           const name = intent?.name ?? readAdminName()
@@ -96,12 +96,12 @@ export function AdminGate() {
         }
 
         intentRef.current = null
-        clearAdminPin()
-        client.clearPin()
+        clearAdminPass()
+        client.clearPass()
         setUnlocked(false)
         setRole(null)
         setOperatorName(null)
-        setPin(null)
+        setPass(null)
         setError(adminUnlockError(caught))
       })
       .finally(() => {
@@ -113,20 +113,20 @@ export function AdminGate() {
     return () => {
       cancelled = true
     }
-  }, [client, pin])
+  }, [client, pass])
 
   const lock = useCallback(() => {
     unlockEpochRef.current += 1
     intentRef.current = null
-    clearAdminPin()
-    client.clearPin()
+    clearAdminPass()
+    client.clearPass()
     setUnlocked(false)
     setRole(null)
     setOperatorName(null)
-    setPin(null)
+    setPass(null)
     setError(null)
     setBusy(false)
-    setPinFormKey((key) => key + 1)
+    setPassFormKey((key) => key + 1)
   }, [client])
 
   const session = useMemo(
@@ -143,31 +143,31 @@ export function AdminGate() {
     [client, lock, operatorName, role],
   )
 
-  const submitPin = (value: IAdminPinSubmit) => {
+  const submitPass = (value: IAdminPassSubmit) => {
     intentRef.current = { role: value.role, name: value.name }
     setError(null)
     setBusy(true)
-    setPin(value.pin)
+    setPass(value.pass)
   }
 
-  if (pin === null || !unlocked || session === null) {
+  if (pass === null || !unlocked || session === null) {
     return (
-      <AdminPinForm
-        key={pinFormKey}
+      <AdminPassForm
+        key={passFormKey}
         savedName={readAdminName()}
         error={error}
         isBusy={isBusy}
         onInteract={() => {
           setError(null)
         }}
-        onSubmit={submitPin}
+        onSubmit={submitPass}
       />
     )
   }
 
   return (
     <AdminSessionContext.Provider value={session}>
-      <AdminShell role={session.role} operatorName={operatorName} pin={pin} onLock={session.lock}>
+      <AdminShell role={session.role} operatorName={operatorName} pass={pass} onLock={session.lock}>
         <Outlet />
       </AdminShell>
     </AdminSessionContext.Provider>

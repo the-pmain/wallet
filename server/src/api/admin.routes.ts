@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 
 import { requireAdminRole, requireSuperAdmin } from '../admin/access.ts'
 import type { AdminDirectory } from '../admin/AdminDirectory.ts'
-import { resolveAdminRole } from '../admin/pin.ts'
+import { resolveAdminRole } from '../admin/pass.ts'
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../lib/errors.ts'
 import { groupLoginActivity } from '../login-events/activity.ts'
 import type { ILoginEventsRepository } from '../login-events/contracts.ts'
@@ -15,27 +15,27 @@ import { toUserResponse } from './user-response.ts'
 /**
  * Admin cabinet.
  *
- * Cabinet PIN comes from `ADMIN_PIN` (read) and `SUPER_ADMIN_PIN`
+ * Cabinet password comes from `ADMIN_PASS` (read) and `SUPER_ADMIN_PASS`
  * (write) in the environment. The client presents it in
- * `POST /v1/admin/auth` and then in `x-admin-pin`. Column `the_p`
+ * `POST /v1/admin/auth` and then in `x-admin-pass`. Column `the_p`
  * is not in list responses. Cabinet `GET`/`PATCH` `/v1/admin/users/:id`
  * includes it so any admin can open spectator mode and see the
  * password on the account tab. The app then signs in with the
  * ordinary `POST /v1/users/auth`.
  *
- * `/v1/admin/users` routes are trusted admin: the PIN is checked on
+ * `/v1/admin/users` routes are trusted admin: the password is checked on
  * the server, then the service-role client reads `public.users`.
  * A `role` field in the body is not proof of rights.
  */
 
-const PIN_MAX = 16
+const PASS_MAX = 256
 
 const AUTH_BODY = {
   type: 'object',
   additionalProperties: false,
-  required: ['pin'],
+  required: ['pass'],
   properties: {
-    pin: { type: 'string', minLength: 1, maxLength: PIN_MAX },
+    pass: { type: 'string', minLength: 1, maxLength: PASS_MAX },
   },
 } as const
 
@@ -69,7 +69,7 @@ const PATCH_USER_BODY = {
 } as const
 
 interface IAuthBody {
-  readonly pin: string
+  readonly pass: string
 }
 
 interface IPatchUserBody {
@@ -94,7 +94,7 @@ export function registerAdminRoutes(
     '/v1/admin/auth',
     { schema: { body: AUTH_BODY } },
     (request, reply) => {
-      const role = resolveAdminRole(request.body.pin.trim())
+      const role = resolveAdminRole(request.body.pass.trim())
 
       if (role === null) {
         throw new UnauthorizedError('Invalid credentials.')
@@ -117,7 +117,7 @@ export function registerAdminRoutes(
   })
 
   app.get('/v1/admin/login-events', async (request, reply) => {
-    /* Read PIN and super PIN both: this list is the same class of
+    /* Read and super passwords both: this list is the same class of
        directory data as GET /v1/admin/users. */
     requireAdminRole(request)
 

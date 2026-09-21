@@ -5,7 +5,7 @@
 --
 -- This is not one profile row per auth.users id. There is no
 -- auth_user_id, user_id, created_by, organization_id, or role.
--- The Node server proves identity with email + the_p, or x-admin-pin.
+-- The Node server proves identity with email + the_p, or x-admin-pass.
 -- Policies using auth.uid() would lock every existing client out.
 --
 -- RLS stays enabled. The open users_all policy (USING true / WITH CHECK

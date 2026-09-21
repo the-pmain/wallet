@@ -27,7 +27,7 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe('AdminClient', () => {
-  it('accepts a PIN and puts it in the list header', async () => {
+  it('accepts a password and puts it in the list header', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse(200, { ok: true, role: 'super' }))
@@ -41,8 +41,8 @@ describe('AdminClient', () => {
     await expect(client.authenticate('9100')).resolves.toBe('super')
     const users = await client.listUsers()
 
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ pin: '9100' })
-    expect(fetchMock.mock.calls[1]?.[1]?.headers).toMatchObject({ 'x-admin-pin': '9100' })
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ pass: '9100' })
+    expect(fetchMock.mock.calls[1]?.[1]?.headers).toMatchObject({ 'x-admin-pass': '9100' })
     expect(users[0]?.email).toBe('james@example.com')
   })
 
@@ -120,14 +120,14 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '4200',
+      pass: '4200',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
     const activity = await client.listLoginActivity()
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/login-events')
-    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-admin-pin': '4200' })
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-admin-pass': '4200' })
     expect(activity[0]).toMatchObject({
       userId: '7',
       email: 'james@example.com',
@@ -173,7 +173,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '9100',
+      pass: '9100',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -228,7 +228,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '4200',
+      pass: '4200',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -281,7 +281,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '4200',
+      pass: '4200',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -340,7 +340,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '4200',
+      pass: '4200',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -381,7 +381,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '4200',
+      pass: '4200',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -422,7 +422,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '9100',
+      pass: '9100',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -477,7 +477,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '9100',
+      pass: '9100',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -511,7 +511,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '9100',
+      pass: '9100',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -554,14 +554,14 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '9100',
+      pass: '9100',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
     const sendings = await client.listSendings()
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/sendings')
-    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-admin-pin': '9100' })
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-admin-pass': '9100' })
     expect(sendings[0]).toMatchObject({
       id: '62',
       amount: '4',
@@ -604,7 +604,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '4200',
+      pass: '4200',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -643,7 +643,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '4200',
+      pass: '4200',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -668,7 +668,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '9100',
+      pass: '9100',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -705,7 +705,7 @@ describe('AdminClient', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(204, null))
     const client = new AdminClient({
       baseUrl: '',
-      pin: '9100',
+      pass: '9100',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -718,7 +718,7 @@ describe('AdminClient', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(204, null))
     const client = new AdminClient({
       baseUrl: '',
-      pin: '9100',
+      pass: '9100',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -731,7 +731,7 @@ describe('AdminClient', () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { ...USER, the_p: 'demo' }))
     const client = new AdminClient({
       baseUrl: '',
-      pin: '4200',
+      pass: '4200',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -742,10 +742,10 @@ describe('AdminClient', () => {
     })
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe('/v1/admin/users/7')
     expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('GET')
-    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-admin-pin': '4200' })
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ 'x-admin-pass': '4200' })
   })
 
-  it('rejects a wrong PIN', async () => {
+  it('rejects a wrong password', async () => {
     const client = new AdminClient({
       baseUrl: '',
       fetch: vi
@@ -785,7 +785,7 @@ describe('AdminClient', () => {
 
     const client = new AdminClient({
       baseUrl: '',
-      pin: '9100',
+      pass: '9100',
       fetch: fetchMock as unknown as typeof fetch,
     })
 
@@ -808,7 +808,7 @@ describe('AdminClient', () => {
     )
     const client = new AdminClient({
       baseUrl: '',
-      pin: '9100',
+      pass: '9100',
       fetch: fetchMock as unknown as typeof fetch,
     })
 

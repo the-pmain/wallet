@@ -12,7 +12,7 @@ import { AppRouter } from '@/app/router'
 
 import {
   ADMIN_NAME_STORAGE_KEY,
-  ADMIN_PIN_STORAGE_KEY,
+  ADMIN_PASS_STORAGE_KEY,
   ADMIN_PINNED_USERS_STORAGE_KEY,
 } from '@/features/admin'
 import { activityMatchesAdminQuery } from '@/features/admin/model/activity-query'
@@ -655,24 +655,24 @@ beforeEach(() => {
   fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
     const url = requestUrl(input)
     const headers = new Headers(init?.headers)
-    const pin = headers.get('x-admin-pin')
+    const pass = headers.get('x-admin-pass')
     const method = init?.method ?? 'GET'
 
     if (url.endsWith('/v1/admin/auth')) {
-      const body = requestJson(init) as { pin?: string }
+      const body = requestJson(init) as { pass?: string }
 
-      if (body.pin === '9100') {
+      if (body.pass === '9100') {
         return Promise.resolve(jsonResponse(200, { ok: true, role: 'super' }))
       }
 
-      if (body.pin === '4200') {
+      if (body.pass === '4200') {
         return Promise.resolve(jsonResponse(200, { ok: true, role: 'admin' }))
       }
 
       return Promise.resolve(jsonResponse(401, {}))
     }
 
-    if (pin === '4200') {
+    if (pass === '4200') {
       if (method === 'GET') {
         const directory = serveDirectoryGet(url)
 
@@ -787,7 +787,7 @@ beforeEach(() => {
       return Promise.resolve(jsonResponse(403, {}))
     }
 
-    if (pin !== '9100') {
+    if (pass !== '9100') {
       return Promise.resolve(jsonResponse(401, {}))
     }
 
@@ -988,28 +988,27 @@ afterEach(() => {
 })
 
 describe('Admin cabinet', () => {
-  it('asks for a PIN and admits the correct value', async () => {
+  it('asks for a password and admits the correct value', async () => {
     const user = userEvent.setup()
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'Admin' })).toBeInTheDocument()
-    expect(screen.getByText('Enter your name, then the PIN.')).toBeInTheDocument()
+    expect(screen.getByText('Enter your name, then the password.')).toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toBeInTheDocument()
-    expect(screen.getByLabelText('PIN')).toHaveAttribute('type', 'text')
-    expect(screen.getByLabelText('PIN')).toHaveAttribute('autocomplete', 'one-time-code')
-    expect(screen.getByRole('group', { name: 'PIN keypad' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('autocomplete', 'current-password')
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Super Admin' }))
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('PIN')).toHaveAttribute('type', 'text')
-    expect(screen.getByLabelText('PIN')).toHaveAttribute('autocomplete', 'one-time-code')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('autocomplete', 'current-password')
     expect(screen.getByRole('button', { name: 'Super Admin' })).not.toHaveClass('text-amber-300')
     expect(screen.getByRole('heading', { name: 'Super Admin' })).toHaveClass('text-amber-300')
     expect(
-      screen.getByText('Enter the PIN to manage users and wallet balances.'),
+      screen.getByText('Enter the password to manage users and wallet balances.'),
     ).toBeInTheDocument()
-    for (const digit of ['9', '1', '0', '0']) {
-      await user.click(screen.getByRole('button', { name: digit }))
-    }
+    await user.type(screen.getByLabelText('Password'), '9100')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
     expect(screen.getByText('Super Admin')).toBeInTheDocument()
@@ -1020,22 +1019,52 @@ describe('Admin cabinet', () => {
     expect(screen.queryByRole('link', { name: 'Sendings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Receivings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Email' })).not.toBeInTheDocument()
-    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBe('9100')
+    expect(localStorage.getItem(ADMIN_PASS_STORAGE_KEY)).toBe('9100')
     expect(localStorage.getItem(ADMIN_NAME_STORAGE_KEY)).toBeNull()
   })
 
-  it('does not admit a wrong PIN', async () => {
+  it('keeps admin and super-admin passwords in separate browser forms', async () => {
+    const user = userEvent.setup()
+    renderAdmin()
+
+    await screen.findByLabelText('Name')
+    const adminForm = document.getElementById('admin-sign-in')
+
+    expect(adminForm).toHaveAttribute('name', 'admin-sign-in')
+    expect(adminForm).toHaveAttribute('action', '/admin/auth/admin')
+    expect(screen.getByLabelText('Name')).toHaveAttribute('name', 'admin-username')
+    expect(screen.getByLabelText('Name')).toHaveAttribute('autocomplete', 'username')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('name', 'admin-password')
+    expect(document.getElementById('super-admin-sign-in')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Super Admin' }))
+
+    const superForm = document.getElementById('super-admin-sign-in')
+
+    expect(document.getElementById('admin-sign-in')).not.toBeInTheDocument()
+    expect(superForm).toHaveAttribute('name', 'super-admin-sign-in')
+    expect(superForm).toHaveAttribute('action', '/admin/auth/super')
+    expect(screen.queryByLabelText('Account')).not.toBeInTheDocument()
+    const superUsername = superForm?.querySelector('input[name="super-admin-username"]')
+    expect(superUsername).toHaveAttribute('autocomplete', 'username')
+    expect(superUsername).toHaveValue('Super Admin')
+    expect(superUsername).toHaveClass('sr-only')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('name', 'super-admin-password')
+  })
+
+  it('does not admit a wrong password', async () => {
     const user = userEvent.setup()
     renderAdmin()
 
     await user.click(await screen.findByRole('button', { name: 'Super Admin' }))
-    await user.type(screen.getByLabelText('PIN'), '0000')
+    await user.type(screen.getByLabelText('Password'), '0000')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByText('That PIN is not accepted.')).toBeInTheDocument()
-    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+    expect(await screen.findByText('That password is not accepted.')).toBeInTheDocument()
+    expect(localStorage.getItem(ADMIN_PASS_STORAGE_KEY)).toBeNull()
   })
 
-  it('does not admit a PIN from an unallowed address', async () => {
+  it('does not admit a password from an unallowed address', async () => {
     fetchSpy.mockImplementation((input) => {
       const url = requestUrl(input)
 
@@ -1054,20 +1083,21 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     await user.click(await screen.findByRole('button', { name: 'Super Admin' }))
-    await user.type(screen.getByLabelText('PIN'), '9100')
+    await user.type(screen.getByLabelText('Password'), '9100')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByText('This IP address is not allowed.')).toBeInTheDocument()
-    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(ADMIN_PASS_STORAGE_KEY)).toBeNull()
   })
 
-  it('does not accept an admin PIN until a name is entered', async () => {
+  it('does not accept an admin password until a name is entered', async () => {
     renderAdmin()
 
     await screen.findByLabelText('Name')
-    expect(screen.getByLabelText('PIN')).toBeDisabled()
-    expect(screen.getByRole('button', { name: '4' })).toBeDisabled()
+    expect(screen.getByLabelText('Password')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled()
     expect(screen.queryByRole('heading', { name: 'Users' })).not.toBeInTheDocument()
-    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(ADMIN_PASS_STORAGE_KEY)).toBeNull()
   })
 
   it('saves the admin name, fills it next time, and overwrites it on a later sign-in', async () => {
@@ -1075,9 +1105,8 @@ describe('Admin cabinet', () => {
     renderAdmin()
 
     await user.type(await screen.findByLabelText('Name'), 'Alex')
-    for (const digit of ['4', '2', '0', '0']) {
-      await user.click(screen.getByRole('button', { name: digit }))
-    }
+    await user.type(screen.getByLabelText('Password'), '4200')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
     expect(screen.getByText('Alex')).toBeInTheDocument()
@@ -1089,9 +1118,8 @@ describe('Admin cabinet', () => {
 
     await user.clear(nameField)
     await user.type(nameField, 'Maria')
-    for (const digit of ['4', '2', '0', '0']) {
-      await user.click(screen.getByRole('button', { name: digit }))
-    }
+    await user.type(screen.getByLabelText('Password'), '4200')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
     expect(localStorage.getItem(ADMIN_NAME_STORAGE_KEY)).toBe('Maria')
@@ -1099,50 +1127,47 @@ describe('Admin cabinet', () => {
     expect(screen.queryByText('Alex')).not.toBeInTheDocument()
   })
 
-  it('does not sign the operator back in after Lock from a dumped PIN', async () => {
+  it('does not sign the operator back in after Lock from a dumped password', async () => {
     const user = userEvent.setup()
     renderAdmin()
 
     await user.type(await screen.findByLabelText('Name'), 'Alex')
-    for (const digit of ['4', '2', '0', '0']) {
-      await user.click(screen.getByRole('button', { name: digit }))
-    }
+    await user.type(screen.getByLabelText('Password'), '4200')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Lock' }))
     expect(await screen.findByLabelText('Name')).toBeInTheDocument()
-    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(ADMIN_PASS_STORAGE_KEY)).toBeNull()
 
-    fireEvent.change(screen.getByLabelText('PIN'), { target: { value: '4200' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: '4200' } })
 
     expect(screen.queryByRole('heading', { name: 'Users' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toBeInTheDocument()
-    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+    expect(localStorage.getItem(ADMIN_PASS_STORAGE_KEY)).toBeNull()
   })
 
-  it('rejects a super PIN while the admin role is selected', async () => {
+  it('rejects a super password while the admin role is selected', async () => {
     const user = userEvent.setup()
     renderAdmin()
 
     await user.type(await screen.findByLabelText('Name'), 'Alex')
-    for (const digit of ['9', '1', '0', '0']) {
-      await user.click(screen.getByRole('button', { name: digit }))
-    }
+    await user.type(screen.getByLabelText('Password'), '9100')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByText('That PIN is not accepted.')).toBeInTheDocument()
-    expect(localStorage.getItem(ADMIN_PIN_STORAGE_KEY)).toBeNull()
+    expect(await screen.findByText('That password is not accepted.')).toBeInTheDocument()
+    expect(localStorage.getItem(ADMIN_PASS_STORAGE_KEY)).toBeNull()
     expect(localStorage.getItem(ADMIN_NAME_STORAGE_KEY)).toBeNull()
   })
 
-  it('a read PIN opens the cabinet without writes', async () => {
+  it('a read password opens the cabinet without writes', async () => {
     const user = userEvent.setup()
     renderAdmin()
 
     await user.type(await screen.findByLabelText('Name'), 'Alex')
-    for (const digit of ['4', '2', '0', '0']) {
-      await user.click(screen.getByRole('button', { name: digit }))
-    }
+    await user.type(screen.getByLabelText('Password'), '4200')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
     expect(screen.getByText('Admin')).toBeInTheDocument()
@@ -1218,9 +1243,9 @@ describe('Admin cabinet', () => {
     expect(screen.queryByLabelText('Receiving amount')).not.toBeInTheDocument()
   })
 
-  it('a read PIN opens the Activity tab and lists authentications', async () => {
+  it('a read password opens the Activity tab and lists authentications', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: 'Activity' }))
@@ -1280,7 +1305,7 @@ describe('Admin cabinet', () => {
     expect(screen.getByText('Yes')).toBeInTheDocument()
   })
 
-  it('a read PIN opens a user Sendings tab as a view-only list', async () => {
+  it('a read password opens a user Sendings tab as a view-only list', async () => {
     listedSendings = [
       {
         id: '62',
@@ -1294,7 +1319,7 @@ describe('Admin cabinet', () => {
       },
     ]
 
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
 
@@ -1309,7 +1334,7 @@ describe('Admin cabinet', () => {
     ).toHaveLength(0)
   })
 
-  it('a read PIN opens a user Receivings tab as a view-only list', async () => {
+  it('a read password opens a user Receivings tab as a view-only list', async () => {
     listedReceivings = [
       {
         id: '81',
@@ -1324,7 +1349,7 @@ describe('Admin cabinet', () => {
       },
     ]
 
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     openPath('/admin/users/7?tab=receivings')
     renderAdmin()
 
@@ -1336,9 +1361,9 @@ describe('Admin cabinet', () => {
     expect(screen.queryByRole('button', { name: /^Edit$/ })).not.toBeInTheDocument()
   })
 
-  it('a super PIN also opens the Activity tab', async () => {
+  it('a super password also opens the Activity tab', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: 'Activity' }))
@@ -1348,17 +1373,17 @@ describe('Admin cabinet', () => {
     expect(screen.queryByRole('link', { name: 'Sendings' })).not.toBeInTheDocument()
   })
 
-  it('stays in the cabinet with a stored PIN', async () => {
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+  it('stays in the cabinet with a stored password', async () => {
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
-    expect(screen.queryByLabelText('PIN')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
   })
 
   it('opens a profile and changes a wallet address', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
@@ -1395,9 +1420,9 @@ describe('Admin cabinet', () => {
     expect(window.location.pathname).toContain('/admin/users/7')
   })
 
-  it('a super PIN adds an exchange or institution receiving address', async () => {
+  it('a super password adds an exchange or institution receiving address', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
@@ -1450,7 +1475,7 @@ describe('Admin cabinet', () => {
 
   it('keeps the profile header and section tabs fixed while the page scrolls', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
@@ -1467,7 +1492,7 @@ describe('Admin cabinet', () => {
 
   it('opens spectator mode in a new tab without leaving the cabinet', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
@@ -1487,9 +1512,9 @@ describe('Admin cabinet', () => {
     expect(screen.getByText('demo')).toBeInTheDocument()
   })
 
-  it('a read PIN opens spectator mode in a new tab without leaving the cabinet', async () => {
+  it('a read password opens spectator mode in a new tab without leaving the cabinet', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
@@ -1507,7 +1532,7 @@ describe('Admin cabinet', () => {
 
   it('shows a mock wallet by default and adds a named wallet', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /maria@example.com/i }))
@@ -1563,7 +1588,7 @@ describe('Admin cabinet', () => {
   it('adds a bitcoin wallet without an EVM checksum', async () => {
     const user = userEvent.setup()
     const bitcoin = 'bc1q2mk6thdnw3ypc3fr6de2zulgc6hynery4fwxyg'
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /maria@example.com/i }))
@@ -1599,7 +1624,7 @@ describe('Admin cabinet', () => {
 
   it('saves an asset amount in USD or in crypto', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
@@ -1681,7 +1706,7 @@ describe('Admin cabinet', () => {
 
   it('creates a sending and a receiving from the user profile tabs', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
@@ -1797,7 +1822,7 @@ describe('Admin cabinet', () => {
 
   it('does not create a sending larger than the user holding', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
@@ -1832,7 +1857,7 @@ describe('Admin cabinet', () => {
 
   it('does not request a sending larger than the user holding', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     renderAdmin()
 
@@ -1861,7 +1886,7 @@ describe('Admin cabinet', () => {
 
   it('submits a sending request without creating a sending', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     renderAdmin()
 
@@ -1944,7 +1969,7 @@ describe('Admin cabinet', () => {
 
   it('sends a chosen failure reason on a sending request', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
@@ -1999,7 +2024,7 @@ describe('Admin cabinet', () => {
 
   it('sends a chosen failure reason on a receiving request', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     openPath('/admin/users/7?tab=receivings')
     renderAdmin()
@@ -2057,7 +2082,7 @@ describe('Admin cabinet', () => {
       },
     ]
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
@@ -2080,7 +2105,7 @@ describe('Admin cabinet', () => {
       },
     ]
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
@@ -2147,7 +2172,7 @@ describe('Admin cabinet', () => {
       },
     ]
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     openPath('/admin/users/7?tab=receivings')
     renderAdmin()
@@ -2204,7 +2229,7 @@ describe('Admin cabinet', () => {
       { ...PENDING_ACTIVITY_REQUEST },
       { ...PENDING_ACTIVITY_REQUEST, id: 'ar-maria', requestedByName: 'Maria' },
     ]
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     openPath('/admin/requests')
     renderAdmin()
@@ -2230,7 +2255,7 @@ describe('Admin cabinet', () => {
       { ...PENDING_ACTIVITY_REQUEST, id: 'ar-maria', requestedByName: 'Maria' },
       { ...PENDING_ACTIVITY_REQUEST, id: 'ar-other-user', userId: '8' },
     ]
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     openPath('/admin/users/7?tab=requests')
     renderAdmin()
@@ -2258,7 +2283,7 @@ describe('Admin cabinet', () => {
       { ...PENDING_ACTIVITY_REQUEST, id: 'ar-maria', requestedByName: 'Maria' },
       { ...PENDING_ACTIVITY_REQUEST, id: 'ar-other-user', userId: '8' },
     ]
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     openPath('/admin/users/7?tab=requests')
     renderAdmin()
 
@@ -2293,7 +2318,7 @@ describe('Admin cabinet', () => {
         usdAmount: '1199.76',
       },
     ]
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     openPath('/admin/requests')
     renderAdmin()
@@ -2333,7 +2358,7 @@ describe('Admin cabinet', () => {
   it('lets Super Admin approve a pending request from the Requests tab', async () => {
     listedActivityRequests = [{ ...PENDING_ACTIVITY_REQUEST }]
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: 'Requests' }))
@@ -2406,7 +2431,7 @@ describe('Admin cabinet', () => {
 
   it('restores the profile tab from the query string and lists that user', async () => {
     listedSendings = [{ ...PENDING_SENDING, userId: '7' }]
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
 
@@ -2419,7 +2444,7 @@ describe('Admin cabinet', () => {
 
   it('adds a cryptocurrency from the Assets header menu', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await user.click(await screen.findByRole('link', { name: /james@example.com/i }))
@@ -2462,7 +2487,7 @@ describe('Admin cabinet', () => {
 
   it('finds a user by wallet address', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     expect(await screen.findByText('james@example.com')).toBeInTheDocument()
@@ -2484,7 +2509,7 @@ describe('Admin cabinet', () => {
 
   it('pins a user above the directory and unpins them back into the list', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     expect(await screen.findByText('james@example.com')).toBeInTheDocument()
@@ -2531,7 +2556,7 @@ describe('Admin cabinet', () => {
         symbol: 'ETH',
       },
     ]
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
 
@@ -2578,7 +2603,7 @@ describe('Admin cabinet', () => {
         symbol: 'ETH',
       },
     ]
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
 
@@ -2609,7 +2634,7 @@ describe('Admin cabinet', () => {
     ]
 
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
 
@@ -2686,7 +2711,7 @@ describe('Admin cabinet', () => {
 
     try {
       const user = userEvent.setup()
-      localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+      localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
       openPath('/admin/users/7?tab=sendings')
       renderAdmin()
 
@@ -2731,7 +2756,7 @@ describe('Admin cabinet', () => {
 
     try {
       const user = userEvent.setup()
-      localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+      localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
       openPath('/admin/users/7?tab=sendings')
       renderAdmin()
 
@@ -2767,7 +2792,7 @@ describe('Admin cabinet', () => {
 
     try {
       const user = userEvent.setup()
-      localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+      localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
       openPath('/admin/users/7?tab=receivings')
       renderAdmin()
 
@@ -2809,7 +2834,7 @@ describe('Admin cabinet', () => {
     ]
 
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     openPath('/admin/users/7?tab=sendings')
     renderAdmin()
 
@@ -2857,7 +2882,7 @@ describe('Admin cabinet', () => {
     ]
 
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     openPath('/admin/users/7?tab=receivings')
     renderAdmin()
 
@@ -2933,7 +2958,7 @@ describe('Admin cabinet', () => {
 
     const user = userEvent.setup()
     openPath('/admin/users/7')
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'james@example.com' })).toBeInTheDocument()
@@ -2950,7 +2975,7 @@ describe('Admin cabinet', () => {
 
   it('shows a toast for a new pending request on any cabinet tab', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
@@ -2978,7 +3003,7 @@ describe('Admin cabinet', () => {
 
   it('immediately shows pending requests already in the directory', async () => {
     listedActivityRequests = [{ ...PENDING_ACTIVITY_REQUEST }]
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
@@ -2991,7 +3016,7 @@ describe('Admin cabinet', () => {
 
   it('does not toast a pending sending as an activity request', async () => {
     listedSendings = [PENDING_SENDING]
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
@@ -3006,7 +3031,7 @@ describe('Admin cabinet', () => {
       createdAt: `2026-09-12T12:0${String(index)}:00.000Z`,
       amount: String(index),
     }))
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     expect(await screen.findByRole('heading', { name: 'Users' })).toBeInTheDocument()
@@ -3018,7 +3043,7 @@ describe('Admin cabinet', () => {
   })
 
   it('toasts approved, rejected, and cancelled requests without Handle', async () => {
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await screen.findByRole('heading', { name: 'Users' })
@@ -3071,7 +3096,7 @@ describe('Admin cabinet', () => {
   })
 
   it('toasts a receiving request and replaces pending with the later status', async () => {
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await screen.findByRole('heading', { name: 'Users' })
@@ -3110,7 +3135,7 @@ describe('Admin cabinet', () => {
 
   it('a request toast can be dismissed without opening Handle', async () => {
     const user = userEvent.setup()
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '9100')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '9100')
     renderAdmin()
 
     await screen.findByRole('heading', { name: 'Users' })
@@ -3140,7 +3165,7 @@ describe('Admin cabinet', () => {
   })
 
   it('toasts only Super approve or reject of the signed-in admin name', async () => {
-    localStorage.setItem(ADMIN_PIN_STORAGE_KEY, '4200')
+    localStorage.setItem(ADMIN_PASS_STORAGE_KEY, '4200')
     localStorage.setItem(ADMIN_NAME_STORAGE_KEY, 'Alex')
     renderAdmin()
 

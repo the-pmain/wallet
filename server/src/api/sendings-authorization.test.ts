@@ -6,8 +6,8 @@ import { RUNTIME_MODE, type IServerConfig } from '../config.ts'
 import { MemorySendingsRepository } from '../sendings/MemorySendingsRepository.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
-process.env['ADMIN_PIN'] = '4200'
-process.env['SUPER_ADMIN_PIN'] = '9100'
+process.env['ADMIN_PASS'] = '4200'
+process.env['SUPER_ADMIN_PASS'] = '9100'
 
 const CONFIG: IServerConfig = {
   mode: RUNTIME_MODE.Test,
@@ -32,8 +32,8 @@ const CONFIG: IServerConfig = {
   r2Endpoint: null,
   r2Bucket: null,
   emailWebhookSecret: null,
-  adminPin: null,
-  superAdminPin: null,
+  adminPass: null,
+  superAdminPass: null,
 }
 
 const SEED_PHRASE =
@@ -74,7 +74,7 @@ describe('public.sendings authorization', () => {
     const funded = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/users/${userId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         assets: {
           quoteCurrency: 'USD',
@@ -206,7 +206,7 @@ describe('public.sendings authorization', () => {
     expect(sendings.records[0]?.amount).toBe('0.01')
   })
 
-  it('without a PIN blocks the cabinet; with a PIN — only declared admin operations', async () => {
+  it('without a password blocks the cabinet; with a password — only declared admin operations', async () => {
     const id = await seedUser('james@example.com', 'demo')
     const sendingId = await seedSending(id, 'james@example.com', 'demo')
 
@@ -214,12 +214,12 @@ describe('public.sendings authorization', () => {
     const listed = await app.inject({
       method: 'GET',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
     })
     const rejected = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         status: 'success',
         recipientAddress: RECIPIENT,
@@ -232,7 +232,7 @@ describe('public.sendings authorization', () => {
     const updated = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         status: 'failure',
         failureMessage: 'rejected',
@@ -302,19 +302,19 @@ describe('public.sendings authorization', () => {
     expect(response.body).not.toContain('demo')
   })
 
-  it('a read PIN lists cabinet sendings but does not write', async () => {
+  it('a read password lists cabinet sendings but does not write', async () => {
     const id = await seedUser('james@example.com', 'demo')
     const sendingId = await seedSending(id, 'james@example.com', 'demo')
 
     const listed = await app.inject({
       method: 'GET',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         userId: id,
         recipientAddress: RECIPIENT,
@@ -325,7 +325,7 @@ describe('public.sendings authorization', () => {
     const patched = await app.inject({
       method: 'PATCH',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
       payload: {
         status: 'success',
         failureMessage: null,
@@ -337,7 +337,7 @@ describe('public.sendings authorization', () => {
     const removed = await app.inject({
       method: 'DELETE',
       url: `/v1/admin/sendings/${sendingId}`,
-      headers: { 'x-admin-pin': '4200' },
+      headers: { 'x-admin-pass': '4200' },
     })
 
     expect(listed.statusCode).toBe(200)
@@ -354,7 +354,7 @@ describe('public.sendings authorization', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/v1/admin/sendings',
-      headers: { 'x-admin-pin': '9100' },
+      headers: { 'x-admin-pass': '9100' },
       payload: {
         userId: id,
         recipientAddress: RECIPIENT,

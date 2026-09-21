@@ -39,8 +39,8 @@ function configWithStatic(staticRoot: string | null): IServerConfig {
     r2Endpoint: null,
     r2Bucket: null,
     emailWebhookSecret: null,
-    adminPin: null,
-    superAdminPin: null,
+    adminPass: null,
+    superAdminPass: null,
   }
 }
 

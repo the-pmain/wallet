@@ -75,7 +75,7 @@ export interface IServerConfig {
   /**
    * Service-role key. Bypasses RLS on `public.users`.
    *
-   * Trusted Node process only, after `email`/`the_p` or PIN check.
+   * Trusted Node process only, after `email`/`the_p` or cabinet password check.
    * Do not pick by a request field. Do not send to the client.
    */
   readonly supabaseServiceRoleKey: string | null
@@ -137,19 +137,19 @@ export interface IServerConfig {
   readonly emailWebhookSecret: string | null
 
   /**
-   * Admin-cabinet PIN (`/admin`), read-only.
+   * Admin-cabinet password (`/admin`), read-only.
    *
-   * From `ADMIN_PIN` only. No value in server source.
+   * From `ADMIN_PASS` only. No value in server source.
    * Do not send to the client or log.
    */
-  readonly adminPin: string | null
+  readonly adminPass: string | null
 
   /**
-   * Super-admin PIN: same screens and full write access.
+   * Super-admin password: same screens and full write access.
    *
-   * From `SUPER_ADMIN_PIN` only. No value in server source.
+   * From `SUPER_ADMIN_PASS` only. No value in server source.
    */
-  readonly superAdminPin: string | null
+  readonly superAdminPass: string | null
 }
 
 const DEFAULT_PORT = 8080
@@ -232,8 +232,8 @@ export function loadConfig(): IServerConfig {
     r2Endpoint: readOptionalUrl('R2_ENDPOINT'),
     r2Bucket: readOptional('R2_BUCKET'),
     emailWebhookSecret: readOptional('EMAIL_WEBHOOK_SECRET'),
-    adminPin: readOptional('ADMIN_PIN'),
-    superAdminPin: readOptional('SUPER_ADMIN_PIN'),
+    adminPass: readOptional('ADMIN_PASS'),
+    superAdminPass: readOptional('SUPER_ADMIN_PASS'),
   }
 }
 
@@ -298,7 +298,7 @@ function readAllowedOrigins(mode: RuntimeMode): readonly string[] {
  *
  * Empty is allowed: development and test then skip the check,
  * production refuses every remote `/v1/admin` request. A hostname or
- * CIDR is a startup error so a typo is noticed before a PIN
+ * CIDR is a startup error so a typo is noticed before a password
  * is accepted from the wrong place.
  */
 function readAllowedAddresses(): readonly string[] {

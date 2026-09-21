@@ -5,7 +5,7 @@
 --   amount, user_id, asset_symbol
 --
 -- Owner is user_id (text copy of public.users.id), not auth.uid().
--- The Node server proves identity with email + the_p, or x-admin-pin.
+-- The Node server proves identity with email + the_p, or x-admin-pass.
 -- sendings.id → users(id) is a leftover FK; user_id is the owner column.
 -- Policies using auth.uid() = user_id would lock every existing client out.
 --
