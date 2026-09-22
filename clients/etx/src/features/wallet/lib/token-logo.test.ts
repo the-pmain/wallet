@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { BUILT_IN_CHAIN_ID, toAddress, toChainId } from '@/core'
+import { BITCOIN_LEDGER_CHAIN_ID, BUILT_IN_CHAIN_ID, toAddress, toChainId } from '@/core'
 
 import { findTokenLogo } from './token-logo'
 
@@ -36,6 +36,7 @@ describe('findTokenLogo: знак полагается только провер
     /* У сетей второго уровня нативная валюта — эфир, и знак у неё
        эфирный: это не упрощение, а то, чем там платят. */
     expect(findTokenLogo(BUILT_IN_CHAIN_ID.Base, null)?.src).toBe('/logos/eth.svg')
+    expect(findTokenLogo(BITCOIN_LEDGER_CHAIN_ID, null)?.src).toBe('/logos/btc.svg')
   })
 
   it('молчит о неизвестной сети вместо догадки', () => {

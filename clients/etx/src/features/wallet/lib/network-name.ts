@@ -1,4 +1,11 @@
-import { BUILT_IN_NETWORKS, type Address, type ChainId, type INetworkConfig } from '@/core'
+import {
+  BITCOIN_LEDGER_CHAIN_ID,
+  BITCOIN_NAME,
+  BUILT_IN_NETWORKS,
+  type Address,
+  type ChainId,
+  type INetworkConfig,
+} from '@/core'
 
 /** Встроенная сеть по номеру. Нет в списке — `null`, не выдуманная запись. */
 export function networkForChainId(chainId: ChainId): INetworkConfig | null {
@@ -7,6 +14,10 @@ export function networkForChainId(chainId: ChainId): INetworkConfig | null {
 
 /** Имя сети для подписи строки. Неизвестная сеть — номер, не выдумка. */
 export function networkNameForChainId(chainId: ChainId): string {
+  if (chainId === BITCOIN_LEDGER_CHAIN_ID) {
+    return BITCOIN_NAME
+  }
+
   const match = networkForChainId(chainId)
 
   return match === null ? `Chain ${chainId.toString()}` : match.name

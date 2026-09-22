@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
 
-import type { ChainId } from '@/core'
+import { BITCOIN_LEDGER_CHAIN_ID, type ChainId } from '@/core'
 import { useDisplayedAssets } from '@/features/onboarding'
 
 import type { ITokenBalance } from './contracts'
 import { useWalletSnapshot } from './wallet-context'
 
 interface ISendAssets {
-  /** Активы, доступные для отправки в текущей сети. */
+  /** Активы активной сети и учётный BTC, если портфель пришёл с сервера. */
   readonly assets: readonly ITokenBalance[]
   readonly isLoading: boolean
   readonly isRemote: boolean
@@ -21,6 +21,9 @@ interface ISendAssets {
  *
  * Берёт тот же источник, что главный экран и раздел Assets: для записи
  * справочника — `users.assets` с сервера, иначе — снимок локальной сессии.
+ * У записи справочника в списке остаётся учётный BTC: у него нет
+ * EVM-сети, на которую можно переключиться. Локальный кошелёк
+ * остаётся на активной сети.
  */
 export function useSendAssets(): ISendAssets {
   const snapshot = useWalletSnapshot()
@@ -39,8 +42,12 @@ export function useSendAssets(): ISendAssets {
       return tokens
     }
 
-    return tokens.filter((item) => item.token.chainId === activeChainId)
-  }, [activeChainId, displayed.tokens])
+    return tokens.filter(
+      (item) =>
+        item.token.chainId === activeChainId ||
+        (displayed.isRemote && item.token.chainId === BITCOIN_LEDGER_CHAIN_ID),
+    )
+  }, [activeChainId, displayed.isRemote, displayed.tokens])
 
   const chainId = activeChainId ?? assets[0]?.token.chainId ?? null
 

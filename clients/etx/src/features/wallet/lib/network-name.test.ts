@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { toAddress, toChainId } from '@/core'
+import { BITCOIN_LEDGER_CHAIN_ID, toAddress, toChainId } from '@/core'
 
 import { networkNameForChainId, tokenExplorerUrl } from './network-name'
 
@@ -22,5 +22,10 @@ describe('tokenExplorerUrl', () => {
   it('для неизвестной сети ссылки нет', () => {
     expect(tokenExplorerUrl(UNKNOWN, USDC)).toBeNull()
     expect(networkNameForChainId(UNKNOWN)).toBe('Chain 999')
+  })
+
+  it('называет учётный bitcoin без ссылки на обозреватель', () => {
+    expect(networkNameForChainId(BITCOIN_LEDGER_CHAIN_ID)).toBe('Bitcoin')
+    expect(tokenExplorerUrl(BITCOIN_LEDGER_CHAIN_ID, null)).toBeNull()
   })
 })

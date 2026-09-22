@@ -1,4 +1,14 @@
-import { BUILT_IN_CHAIN_ID, BUILT_IN_NETWORKS, listVerifiedTokens, toChainId, type ChainId } from '@/core'
+import {
+  BITCOIN_DECIMALS,
+  BITCOIN_LEDGER_CHAIN_ID,
+  BITCOIN_NAME,
+  BITCOIN_SYMBOL,
+  BUILT_IN_CHAIN_ID,
+  BUILT_IN_NETWORKS,
+  listVerifiedTokens,
+  toChainId,
+  type ChainId,
+} from '@/core'
 import type {
   IRemoteAssetToken,
   IRemoteSending,
@@ -26,6 +36,10 @@ export function remoteAssetKey(token: Pick<IRemoteAssetToken, 'chainId' | 'addre
 
 /** Имя сети для подписи строки. Неизвестная сеть — номер, не выдумка. */
 export function networkNameForChain(chainId: string): string {
+  if (chainId === BITCOIN_LEDGER_CHAIN_ID.toString()) {
+    return BITCOIN_NAME
+  }
+
   const match = BUILT_IN_NETWORKS.find((network) => network.chainId.toString() === chainId)
 
   return match === undefined ? `Chain ${chainId}` : match.name
@@ -79,6 +93,24 @@ function verifiedAsset(
   }
 }
 
+function bitcoinLedgerAsset(): IAddableAsset {
+  return {
+    id: remoteAssetKey({ chainId: BITCOIN_LEDGER_CHAIN_ID.toString(), address: null }),
+    chainId: BITCOIN_LEDGER_CHAIN_ID,
+    chainName: BITCOIN_NAME,
+    token: {
+      chainId: BITCOIN_LEDGER_CHAIN_ID.toString(),
+      standard: 'native',
+      address: null,
+      symbol: BITCOIN_SYMBOL,
+      name: BITCOIN_NAME,
+      decimals: BITCOIN_DECIMALS,
+      balance: '0',
+      isVerified: true,
+    },
+  }
+}
+
 function buildAddableAssets(): readonly IAddableAsset[] {
   const items: IAddableAsset[] = []
 
@@ -89,6 +121,8 @@ function buildAddableAssets(): readonly IAddableAsset[] {
       items.push(verifiedAsset(network, token))
     }
   }
+
+  items.push(bitcoinLedgerAsset())
 
   return items
 }

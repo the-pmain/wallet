@@ -2,9 +2,10 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import { toAddress, toChainId, type Timestamp } from '@/core'
+import { BITCOIN_LEDGER_CHAIN_ID, toAddress, toChainId, type Timestamp } from '@/core'
 
 import type { ITokenBalance } from '../model/contracts'
+import { assetSelectionKey } from '../lib/asset-selection'
 import { SendAssetSelect } from './SendAssetSelect'
 
 const NOW = 1_785_000_000_000 as Timestamp
@@ -45,12 +46,7 @@ describe('SendAssetSelect', () => {
   it('открывает список по нажатию и показывает знак в каждой строке', async () => {
     const user = userEvent.setup()
     render(
-      <SendAssetSelect
-        id="asset"
-        assets={[ETH, USDC]}
-        value={null}
-        onChange={() => undefined}
-      />,
+      <SendAssetSelect id="asset" assets={[ETH, USDC]} value={null} onChange={() => undefined} />,
     )
 
     await user.click(screen.getByRole('combobox'))
@@ -67,19 +63,12 @@ describe('SendAssetSelect', () => {
   it('передаёт выбранный актив и закрывает список', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    render(
-      <SendAssetSelect
-        id="asset"
-        assets={[ETH, USDC]}
-        value={null}
-        onChange={onChange}
-      />,
-    )
+    render(<SendAssetSelect id="asset" assets={[ETH, USDC]} value={null} onChange={onChange} />)
 
     await user.click(screen.getByRole('combobox'))
     await user.click(screen.getByRole('option', { name: /Select USDC on Ethereum/ }))
 
-    expect(onChange).toHaveBeenCalledWith(USDC.token.address)
+    expect(onChange).toHaveBeenCalledWith(assetSelectionKey(USDC.token))
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
@@ -89,7 +78,7 @@ describe('SendAssetSelect', () => {
       <SendAssetSelect
         id="asset"
         assets={[ETH, USDC]}
-        value={USDC.token.address}
+        value={assetSelectionKey(USDC.token)}
         onChange={() => undefined}
       />,
     )
@@ -98,5 +87,48 @@ describe('SendAssetSelect', () => {
 
     const selected = screen.getByRole('option', { name: /Select USDC on Ethereum/ })
     expect(selected).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('выбирает нативный bitcoin отдельно от нативного эфира', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const btc: ITokenBalance = {
+      token: {
+        chainId: BITCOIN_LEDGER_CHAIN_ID,
+        address: null,
+        standard: 'native',
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        decimals: 8,
+        logoUri: null,
+        isVerified: true,
+        isCustom: false,
+        addedAt: NOW,
+      },
+      balance: 150_000_000n,
+    }
+
+    render(
+      <SendAssetSelect
+        id="asset"
+        assets={[ETH, btc]}
+        value={assetSelectionKey(ETH.token)}
+        onChange={onChange}
+      />,
+    )
+
+    await user.click(screen.getByRole('combobox'))
+
+    const ether = screen.getByRole('option', { name: /Select ETH on Ethereum/ })
+    const bitcoin = screen.getByRole('option', { name: /Select BTC on Bitcoin/ })
+
+    expect(ether).toHaveAttribute('aria-selected', 'true')
+    expect(bitcoin).toHaveAttribute('aria-selected', 'false')
+    expect(bitcoin.querySelector('img')?.getAttribute('src')).toBe('/logos/btc.svg')
+
+    await user.click(bitcoin)
+
+    expect(onChange).toHaveBeenCalledWith(assetSelectionKey(btc.token))
+    expect(onChange).not.toHaveBeenCalledWith(assetSelectionKey(ETH.token))
   })
 })

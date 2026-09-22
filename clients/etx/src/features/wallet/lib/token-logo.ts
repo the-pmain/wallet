@@ -1,4 +1,10 @@
-import { BUILT_IN_CHAIN_ID, findVerifiedToken, type Address, type ChainId } from '@/core'
+import {
+  BITCOIN_LEDGER_CHAIN_ID,
+  BUILT_IN_CHAIN_ID,
+  findVerifiedToken,
+  type Address,
+  type ChainId,
+} from '@/core'
 
 /**
  * Знаки монет, вложенные в сборку.
@@ -81,6 +87,7 @@ const LOGO_BY_CHAIN: ReadonlyMap<ChainId, string> = new Map([
   [BUILT_IN_CHAIN_ID.BnbChain, 'bnb'],
   [BUILT_IN_CHAIN_ID.Polygon, 'pol'],
   [BUILT_IN_CHAIN_ID.Avalanche, 'avax'],
+  [BITCOIN_LEDGER_CHAIN_ID, 'btc'],
 ])
 
 /**

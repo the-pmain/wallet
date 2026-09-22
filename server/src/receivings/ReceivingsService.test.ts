@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { SENDING_STATUS } from '../sendings/status.ts'
 import { ASSET_STANDARD } from '../users/assets.ts'
+import {
+  BITCOIN_DECIMALS,
+  BITCOIN_LEDGER_CHAIN_ID,
+  BITCOIN_NAME,
+  BITCOIN_SYMBOL,
+} from '../users/ledger-assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 
 import type { IReceivingRecord } from './contracts.ts'
@@ -40,6 +46,38 @@ describe('ReceivingsService', () => {
 
     const user = await users.findById('1')
     expect(user?.assets.tokens[0]?.balance).toBe('5000000000000000000')
+  })
+
+  it('appends canonical bitcoin and credits satoshis', async () => {
+    const { service, users } = await setup()
+
+    const record = await service.register({
+      userId: '1',
+      status: SENDING_STATUS.Success,
+      amount: '0.25',
+      symbol: 'btc',
+      assetChainId: BITCOIN_LEDGER_CHAIN_ID,
+      assetStandard: ASSET_STANDARD.Native,
+      assetAddress: null,
+      assetName: BITCOIN_NAME,
+      assetDecimals: BITCOIN_DECIMALS,
+      assetIsVerified: true,
+    })
+
+    expect(record.symbol).toBe(BITCOIN_SYMBOL)
+    expect(record.assetDecimals).toBe(BITCOIN_DECIMALS)
+
+    const user = await users.findById('1')
+    expect(user?.assets.tokens[1]).toEqual({
+      chainId: BITCOIN_LEDGER_CHAIN_ID,
+      standard: ASSET_STANDARD.Native,
+      address: null,
+      symbol: BITCOIN_SYMBOL,
+      name: BITCOIN_NAME,
+      decimals: BITCOIN_DECIMALS,
+      balance: '25000000',
+      isVerified: true,
+    })
   })
 
   it('appends an unknown successful asset when metadata is supplied', async () => {

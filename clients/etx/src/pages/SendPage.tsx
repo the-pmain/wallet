@@ -50,6 +50,7 @@ import {
   type IRecipientResolution,
   type ISimulationAsset,
 } from '@/features/wallet'
+import { assetSelectionKey } from '@/features/wallet/lib/asset-selection'
 import { SendAssetSelect } from '@/features/wallet/ui/SendAssetSelect'
 import { RECIPIENT_STATUS } from '@/features/wallet/model/contracts'
 import {
@@ -83,15 +84,6 @@ type Step = (typeof STEP)[keyof typeof STEP]
  * имя и подробный след у оператора узла.
  */
 const RESOLVE_DEBOUNCE_MS = 350
-
-/** Совпадают ли активы. `null` с обеих сторон — нативная валюта. */
-function sameAsset(left: Address | null, right: Address | null): boolean {
-  if (left === null || right === null) {
-    return left === right
-  }
-
-  return left.toLowerCase() === right.toLowerCase()
-}
 
 /** Разбор получателя вместе с вводом, которому он соответствует. */
 interface IResolvedRecipient {
@@ -152,11 +144,11 @@ export function SendPage() {
   const [amount, setAmount] = useState('')
   const [success, setSuccess] = useState<string | null>(null)
 
-  /* Что отправляется. `null` — нативная валюта сети; иначе адрес
-     контракта токена. Хранится адрес, а не сам токен: список приходит
-     из снимка и пересоздаётся при каждом обновлении баланса, и ссылка
-     на прежний объект перестала бы совпадать. */
-  const [assetAddress, setAssetAddress] = useState<Address | null>(null)
+  /* Что отправляется. Ключ — сеть и адрес, не сам токен: список
+     пересоздаётся при каждом обновлении баланса, и ссылка на прежний
+     объект перестала бы совпадать. Одного адреса мало: у нативных ETH
+     и BTC его нет. */
+  const [assetKey, setAssetKey] = useState<string | null>(null)
   const [prepared, setPrepared] = useState<IPreparedTransfer | null>(null)
   const [risks, setRisks] = useState<readonly RecipientRisk[]>([])
   const [hash, setHash] = useState<TxHash | null>(null)
@@ -167,8 +159,18 @@ export function SendPage() {
   const account = snapshot.activeAccount
 
   /* Тот же список, что на главном и в Assets: для записи справочника
-     он приходит с сервера в `users.assets`. */
-  const selected = assets.find((item) => sameAsset(item.token.address, assetAddress)) ?? null
+     он приходит с сервера в `users.assets`. Первая строка — выбор,
+     пока человек не выберет другую, которая ещё есть в списке. */
+  const selectedKey =
+    assetKey !== null && assets.some((item) => assetSelectionKey(item.token) === assetKey)
+      ? assetKey
+      : assets[0] === undefined
+        ? null
+        : assetSelectionKey(assets[0].token)
+  const selected =
+    selectedKey === null
+      ? null
+      : (assets.find((item) => assetSelectionKey(item.token) === selectedKey) ?? null)
   const token = selected === null || selected.token.address === null ? null : selected.token
 
   const decimals = selected?.token.decimals ?? network?.nativeCurrency.decimals ?? 18
@@ -185,20 +187,6 @@ export function SendPage() {
       : selected.balance
 
   const exceedsAvailable = isAmountOverAvailable(amount, available, decimals)
-
-  /* Первая строка списка выбирается автоматически: пустой выбор
-     оставлял бы поле «Что отправить» без значения и скрывал бы баланс. */
-  useEffect(() => {
-    if (assets.length === 0) {
-      return
-    }
-
-    const stillListed = assets.some((item) => sameAsset(item.token.address, assetAddress))
-
-    if (!stillListed) {
-      setAssetAddress(assets[0]?.token.address ?? null)
-    }
-  }, [assetAddress, assets])
 
   /* Обозначения и число знаков по адресу контракта — для показа
      перемещений, найденных симуляцией. Собирается здесь, а не
@@ -618,15 +606,15 @@ export function SendPage() {
               <SendAssetSelect
                 id={`${fieldId}-asset`}
                 assets={assets}
-                value={assetAddress}
+                value={selectedKey}
                 disabled={assets.length === 0}
                 isLoading={isAssetsLoading}
-                onChange={(address) => {
+                onChange={(next) => {
                   /* Сумма сбрасывается вместе с активом: число знаков
                      у токенов разное, и «10», набранное для актива
                      с восемнадцатью знаками, при шести означало бы
                      совсем другую величину. */
-                  setAssetAddress(address)
+                  setAssetKey(next)
                   setAmount('')
                   setError(null)
                   setSuccess(null)

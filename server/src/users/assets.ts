@@ -1,4 +1,11 @@
 import { hasAddressShape, toChecksumAddress } from '../lib/address.ts'
+import {
+  BITCOIN_DECIMALS,
+  BITCOIN_LEDGER_CHAIN_ID,
+  BITCOIN_NAME,
+  BITCOIN_SYMBOL,
+  isBitcoinSymbol,
+} from './ledger-assets.ts'
 
 /**
  * Asset snapshot in the `assets` column.
@@ -281,6 +288,30 @@ function readToken(value: unknown): IAssetToken | null {
     typeof isVerified !== 'boolean'
   ) {
     return null
+  }
+
+  if (isBitcoinSymbol(symbol)) {
+    if (
+      chainId !== BITCOIN_LEDGER_CHAIN_ID ||
+      standard !== ASSET_STANDARD.Native ||
+      address !== null ||
+      name !== BITCOIN_NAME ||
+      decimals !== BITCOIN_DECIMALS ||
+      isVerified !== true
+    ) {
+      return null
+    }
+
+    return {
+      chainId: BITCOIN_LEDGER_CHAIN_ID,
+      standard: ASSET_STANDARD.Native,
+      address: null,
+      symbol: BITCOIN_SYMBOL,
+      name: BITCOIN_NAME,
+      decimals: BITCOIN_DECIMALS,
+      balance,
+      isVerified: true,
+    }
   }
 
   return {

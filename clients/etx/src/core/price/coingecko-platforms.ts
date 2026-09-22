@@ -1,5 +1,7 @@
 import { toChainId, type ChainId } from '@/core/types'
 
+import { BITCOIN_LEDGER_CHAIN_ID } from '../network/ledger-assets'
+
 /**
  * Соответствие сетей идентификаторам CoinGecko.
  *
@@ -30,6 +32,9 @@ const PLATFORMS: ReadonlyMap<string, ICoinGeckoPlatform> = new Map([
   ['10', { platformId: 'optimistic-ethereum', nativeCoinId: 'ethereum' }],
   ['8453', { platformId: 'base', nativeCoinId: 'ethereum' }],
   ['43114', { platformId: 'avalanche', nativeCoinId: 'avalanche-2' }],
+  /* Учётный Bitcoin. Позиция нативная, поэтому курс — id монеты.
+     Каталога контрактов на этой сети нет. */
+  [BITCOIN_LEDGER_CHAIN_ID.toString(), { platformId: 'bitcoin', nativeCoinId: 'bitcoin' }],
 ])
 
 /**

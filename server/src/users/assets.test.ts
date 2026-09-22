@@ -12,6 +12,7 @@ import {
   withZeroTokenBalances,
   type IUserAssets,
 } from './assets.ts'
+import { BITCOIN_LEDGER_CHAIN_ID, BITCOIN_SYMBOL } from './ledger-assets.ts'
 
 const ETH_HOLDING = {
   quoteCurrency: 'USD' as const,
@@ -132,6 +133,70 @@ describe('assets', () => {
       isVerified: true,
     })
     expect(JSON.stringify(cleaned)).not.toMatch(/priceUsd|valueUsd|totalValueUsd|change24hPercent/u)
+  })
+
+  it('accepts native bitcoin and folds the ticker to BTC', () => {
+    const parsed = parseAssets({
+      quoteCurrency: 'USD',
+      updatedAt: '2026-08-20T12:00:00.000Z',
+      tokens: [
+        {
+          chainId: BITCOIN_LEDGER_CHAIN_ID,
+          standard: 'native',
+          address: null,
+          symbol: 'btc',
+          name: 'Bitcoin',
+          decimals: 8,
+          balance: '150000000',
+          isVerified: true,
+        },
+      ],
+    })
+
+    expect(parsed.tokens[0]).toMatchObject({
+      chainId: BITCOIN_LEDGER_CHAIN_ID,
+      standard: 'native',
+      address: null,
+      symbol: BITCOIN_SYMBOL,
+      name: 'Bitcoin',
+      decimals: 8,
+      balance: '150000000',
+      isVerified: true,
+    })
+  })
+
+  it('rejects a bitcoin row that is not the ledger holding', () => {
+    const base = {
+      quoteCurrency: 'USD' as const,
+      updatedAt: '2026-08-20T12:00:00.000Z',
+      tokens: [
+        {
+          chainId: BITCOIN_LEDGER_CHAIN_ID,
+          standard: 'native' as const,
+          address: null,
+          symbol: 'BTC',
+          name: 'Bitcoin',
+          decimals: 18,
+          balance: '150000000',
+          isVerified: true,
+        },
+      ],
+    }
+
+    expect(readAssetsPayload(base)).toBeNull()
+    expect(
+      readAssetsPayload({
+        ...base,
+        tokens: [
+          {
+            ...base.tokens[0],
+            decimals: 8,
+            standard: 'ERC-20',
+            address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
+          },
+        ],
+      }),
+    ).toBeNull()
   })
 
   it('withZeroTokenBalances zeros any incoming balance', () => {

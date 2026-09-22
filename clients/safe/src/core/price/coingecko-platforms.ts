@@ -1,5 +1,7 @@
 import { toChainId, type ChainId } from '@/core/types'
 
+import { BITCOIN_LEDGER_CHAIN_ID } from '../network/ledger-assets'
+
 /**
  * Mapping of networks to CoinGecko identifiers.
  *
@@ -31,6 +33,9 @@ const PLATFORMS: ReadonlyMap<string, ICoinGeckoPlatform> = new Map([
   ['10', { platformId: 'optimistic-ethereum', nativeCoinId: 'ethereum' }],
   ['8453', { platformId: 'base', nativeCoinId: 'ethereum' }],
   ['43114', { platformId: 'avalanche', nativeCoinId: 'avalanche-2' }],
+  /* Ledger Bitcoin. The holding is native, so the rate is the coin id.
+     There is no contract catalog on this chain. */
+  [BITCOIN_LEDGER_CHAIN_ID.toString(), { platformId: 'bitcoin', nativeCoinId: 'bitcoin' }],
 ])
 
 /**

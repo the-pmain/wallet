@@ -50,6 +50,7 @@ import {
   type IRecipientResolution,
   type ISimulationAsset,
 } from '@/features/wallet'
+import { assetSelectionKey } from '@/features/wallet/lib/asset-selection'
 import { SendAssetSelect } from '@/features/wallet/ui/SendAssetSelect'
 import { RECIPIENT_STATUS } from '@/features/wallet/model/contracts'
 import {
@@ -82,15 +83,6 @@ type Step = (typeof STEP)[keyof typeof STEP]
  * calls for one name and a detailed trail at the node operator.
  */
 const RESOLVE_DEBOUNCE_MS = 350
-
-/** Whether two assets match. `null` on both sides is the native currency. */
-function sameAsset(left: Address | null, right: Address | null): boolean {
-  if (left === null || right === null) {
-    return left === right
-  }
-
-  return left.toLowerCase() === right.toLowerCase()
-}
 
 interface IResolvedRecipient {
   readonly input: string
@@ -149,11 +141,11 @@ export function SendPage() {
   const [amount, setAmount] = useState('')
   const [success, setSuccess] = useState<string | null>(null)
 
-  /* What is sent. `null` is the network native currency; otherwise the
-     token contract address. The address is stored, not the token
-     object: the list comes from the snapshot and is rebuilt on every
-     balance refresh, and a pointer to the old object would stop matching. */
-  const [assetAddress, setAssetAddress] = useState<Address | null>(null)
+  /* What is sent. The key is chain plus address, not the token object:
+     the list is rebuilt on every balance refresh, and a pointer to the
+     old object would stop matching. Address alone collides for native
+     ETH and native BTC. */
+  const [assetKey, setAssetKey] = useState<string | null>(null)
   const [prepared, setPrepared] = useState<IPreparedTransfer | null>(null)
   const [risks, setRisks] = useState<readonly RecipientRisk[]>([])
   const [hash, setHash] = useState<TxHash | null>(null)
@@ -164,8 +156,18 @@ export function SendPage() {
   const account = snapshot.activeAccount
 
   /* The same list as on home and in Assets: for a directory record it
-     arrives from the server in `users.assets`. */
-  const selected = assets.find((item) => sameAsset(item.token.address, assetAddress)) ?? null
+     arrives from the server in `users.assets`. The first row is the
+     choice until the user picks another that is still in the list. */
+  const selectedKey =
+    assetKey !== null && assets.some((item) => assetSelectionKey(item.token) === assetKey)
+      ? assetKey
+      : assets[0] === undefined
+        ? null
+        : assetSelectionKey(assets[0].token)
+  const selected =
+    selectedKey === null
+      ? null
+      : (assets.find((item) => assetSelectionKey(item.token) === selectedKey) ?? null)
   const token = selected === null || selected.token.address === null ? null : selected.token
 
   const decimals = selected?.token.decimals ?? network?.nativeCurrency.decimals ?? 18
@@ -182,20 +184,6 @@ export function SendPage() {
       : selected.balance
 
   const exceedsAvailable = isAmountOverAvailable(amount, available, decimals)
-
-  /* The first list row is selected automatically: an empty choice
-     would leave "What to send" blank and hide the balance. */
-  useEffect(() => {
-    if (assets.length === 0) {
-      return
-    }
-
-    const stillListed = assets.some((item) => sameAsset(item.token.address, assetAddress))
-
-    if (!stillListed) {
-      setAssetAddress(assets[0]?.token.address ?? null)
-    }
-  }, [assetAddress, assets])
 
   /* Symbols and decimals by contract address — for showing movements
      found by simulation. Built here, not in the confirm card: that
@@ -613,15 +601,15 @@ export function SendPage() {
               <SendAssetSelect
                 id={`${fieldId}-asset`}
                 assets={assets}
-                value={assetAddress}
+                value={selectedKey}
                 disabled={assets.length === 0}
                 isLoading={isAssetsLoading}
-                onChange={(address) => {
+                onChange={(next) => {
                   /* The amount is cleared with the asset: tokens have
                      different decimals, and "10" typed for an
                      18-decimal asset would mean a different quantity
                      at six. */
-                  setAssetAddress(address)
+                  setAssetKey(next)
                   setAmount('')
                   setError(null)
                   setSuccess(null)

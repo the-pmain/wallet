@@ -6,6 +6,7 @@ import {
   requirePortfolioAsset,
 } from './asset-settlement.ts'
 import { ASSET_STANDARD, type IAssetToken } from './assets.ts'
+import { BITCOIN_DECIMALS, BITCOIN_LEDGER_CHAIN_ID, BITCOIN_NAME } from './ledger-assets.ts'
 
 const ETH: IAssetToken = {
   chainId: '1',
@@ -52,6 +53,36 @@ describe('requirePortfolioAsset', () => {
 })
 
 describe('assertHoldingCoversAmount', () => {
+  it('settles bitcoin in satoshis and refuses a ninth decimal', () => {
+    const btc: IAssetToken = {
+      chainId: BITCOIN_LEDGER_CHAIN_ID,
+      standard: ASSET_STANDARD.Native,
+      address: null,
+      symbol: 'BTC',
+      name: BITCOIN_NAME,
+      decimals: BITCOIN_DECIMALS,
+      balance: '150000000',
+      isVerified: true,
+    }
+    const metadata = {
+      chainId: btc.chainId,
+      standard: btc.standard,
+      address: btc.address,
+      name: btc.name,
+      decimals: btc.decimals,
+      isVerified: btc.isVerified,
+    }
+
+    expect(() => assertHoldingCoversAmount([btc], metadata, '0.5')).not.toThrow()
+    expect(() => assertHoldingCoversAmount([btc], metadata, '1.5')).not.toThrow()
+    expect(() => assertHoldingCoversAmount([btc], metadata, '0.000000001')).toThrow(
+      AssetSettlementError,
+    )
+    expect(() => assertHoldingCoversAmount([btc], metadata, '0.000000001')).toThrow(
+      'Amount does not match the asset decimals.',
+    )
+  })
+
   it('accepts a covered amount and refuses an oversized one', () => {
     expect(() => assertHoldingCoversAmount([ETH], ETH_META, '2')).not.toThrow()
     expect(() => assertHoldingCoversAmount([ETH], ETH_META, '0.01')).not.toThrow()

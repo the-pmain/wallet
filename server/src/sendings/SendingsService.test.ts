@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { ASSET_STANDARD } from '../users/assets.ts'
+import {
+  BITCOIN_DECIMALS,
+  BITCOIN_LEDGER_CHAIN_ID,
+  BITCOIN_NAME,
+  BITCOIN_SYMBOL,
+} from '../users/ledger-assets.ts'
 import { MemoryUsersRepository } from '../users/MemoryUsersRepository.ts'
 import type { ISendingRecord } from './contracts.ts'
 import { MemorySendingsRepository } from './MemorySendingsRepository.ts'
@@ -169,6 +175,53 @@ describe('SendingsService settlement', () => {
         symbol: 'ETH',
       }),
     ).rejects.toThrow('Insufficient ETH balance.')
+  })
+
+  it('debits bitcoin in satoshis and refuses an extra decimal', async () => {
+    const users = new MemoryUsersRepository()
+    await users.create({
+      email: 'owner@example.com',
+      balance: '0',
+      theP: 'secret',
+      assets: {
+        quoteCurrency: 'USD',
+        updatedAt: '2026-09-10T00:00:00.000Z',
+        tokens: [
+          {
+            chainId: BITCOIN_LEDGER_CHAIN_ID,
+            standard: ASSET_STANDARD.Native,
+            address: null,
+            symbol: BITCOIN_SYMBOL,
+            name: BITCOIN_NAME,
+            decimals: BITCOIN_DECIMALS,
+            balance: '150000000',
+            isVerified: true,
+          },
+        ],
+      },
+    })
+    const service = new SendingsService(new MemorySendingsRepository(), users)
+    const recipient = '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
+
+    await service.registerByAdmin({
+      userId: '1',
+      status: SENDING_STATUS.Success,
+      recipientAddress: recipient,
+      amount: '0.5',
+      symbol: 'btc',
+    })
+
+    expect((await users.findById('1'))?.assets.tokens[0]?.balance).toBe('100000000')
+
+    await expect(
+      service.registerByAdmin({
+        userId: '1',
+        status: SENDING_STATUS.Pending,
+        recipientAddress: recipient,
+        amount: '0.000000001',
+        symbol: 'BTC',
+      }),
+    ).rejects.toBeInstanceOf(SendingsValidationError)
   })
 
   it('accepts a non-EVM wallet address as the recipient', async () => {
@@ -341,9 +394,7 @@ class MatchSendingIdRepository extends MemorySendingsRepository {
   ): Promise<readonly ISendingRecord[]> {
     const limit = options?.limit ?? 100
 
-    return Promise.resolve(
-      this.records.filter((entry) => entry.id === userId).slice(0, limit),
-    )
+    return Promise.resolve(this.records.filter((entry) => entry.id === userId).slice(0, limit))
   }
 }
 

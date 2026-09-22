@@ -1,10 +1,11 @@
 import { Check, ChevronDown } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 
-import { safeText, type Address } from '@/core'
+import { safeText } from '@/core'
 import { UntrustedText } from '@/features/security'
 import { cn } from '@/shared/lib/utils'
 
+import { assetSelectionKey } from '../lib/asset-selection'
 import { formatTokenAmount } from '../lib/format'
 import { networkNameForChainId } from '../lib/network-name'
 import type { ITokenBalance } from '../model/contracts'
@@ -13,19 +14,10 @@ import { TokenAvatar } from './TokenAvatar'
 interface SendAssetSelectProps {
   readonly id: string
   readonly assets: readonly ITokenBalance[]
-  readonly value: Address | null
+  readonly value: string | null
   readonly disabled?: boolean
   readonly isLoading?: boolean
-  readonly onChange: (address: Address | null) => void
-}
-
-/** Whether two assets match. `null` on both sides is native currency. */
-function sameAsset(left: Address | null, right: Address | null): boolean {
-  if (left === null || right === null) {
-    return left === right
-  }
-
-  return left.toLowerCase() === right.toLowerCase()
+  readonly onChange: (assetKey: string) => void
 }
 
 /**
@@ -48,7 +40,7 @@ export function SendAssetSelect({
   const [open, setOpen] = useState(false)
 
   const selected =
-    assets.find((item) => sameAsset(item.token.address, value)) ?? assets[0] ?? null
+    assets.find((item) => assetSelectionKey(item.token) === value) ?? assets[0] ?? null
 
   const isDisabled = disabled || isLoading || assets.length === 0
 
@@ -115,7 +107,10 @@ export function SendAssetSelect({
         )}
 
         <ChevronDown
-          className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
+          className={cn(
+            'size-4 shrink-0 text-muted-foreground transition-transform',
+            open && 'rotate-180',
+          )}
           aria-hidden
         />
       </button>
@@ -128,7 +123,9 @@ export function SendAssetSelect({
           className="absolute top-full right-0 left-0 z-30 mt-2 max-h-80 overflow-y-auto rounded-xl border border-border/70 bg-card py-1 shadow-surface"
         >
           {assets.map((item) => {
-            const isSelected = sameAsset(item.token.address, value)
+            const isSelected =
+              selected !== null &&
+              assetSelectionKey(item.token) === assetSelectionKey(selected.token)
             const networkName = networkNameForChainId(item.token.chainId)
             const symbol = safeText(item.token.symbol)
             const balanceLabel =
@@ -145,7 +142,7 @@ export function SendAssetSelect({
                   aria-label={`Select ${symbol} on ${networkName}, ${balanceLabel}`}
                   className="focus-ring flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left hover:bg-accent"
                   onClick={() => {
-                    onChange(item.token.address)
+                    onChange(assetSelectionKey(item.token))
                     setOpen(false)
                   }}
                 >

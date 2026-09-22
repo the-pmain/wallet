@@ -1,4 +1,11 @@
-import { BUILT_IN_NETWORKS, type Address, type ChainId, type INetworkConfig } from '@/core'
+import {
+  BITCOIN_LEDGER_CHAIN_ID,
+  BITCOIN_NAME,
+  BUILT_IN_NETWORKS,
+  type Address,
+  type ChainId,
+  type INetworkConfig,
+} from '@/core'
 
 /** Built-in network by id. Missing from the list is `null`, not a made-up record. */
 export function networkForChainId(chainId: ChainId): INetworkConfig | null {
@@ -7,6 +14,10 @@ export function networkForChainId(chainId: ChainId): INetworkConfig | null {
 
 /** Chain name for a row label. An unknown chain is its number, not an invention. */
 export function networkNameForChainId(chainId: ChainId): string {
+  if (chainId === BITCOIN_LEDGER_CHAIN_ID) {
+    return BITCOIN_NAME
+  }
+
   const match = networkForChainId(chainId)
 
   return match === null ? `Chain ${chainId.toString()}` : match.name

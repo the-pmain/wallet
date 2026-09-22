@@ -11,6 +11,7 @@ export const TOKEN_SYMBOL = {
   DAI: 'DAI',
   WBTC: 'WBTC',
   WETH: 'WETH',
+  BTC: 'BTC',
 } as const
 
 export const TOKEN_SYMBOLS = [
@@ -20,6 +21,7 @@ export const TOKEN_SYMBOLS = [
   TOKEN_SYMBOL.DAI,
   TOKEN_SYMBOL.WBTC,
   TOKEN_SYMBOL.WETH,
+  TOKEN_SYMBOL.BTC,
 ] as const
 
 export type TokenSymbol = (typeof TOKEN_SYMBOLS)[number]

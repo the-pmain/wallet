@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { BUILT_IN_CHAIN_ID, toAddress, toChainId } from '@/core'
+import { BITCOIN_LEDGER_CHAIN_ID, BUILT_IN_CHAIN_ID, toAddress, toChainId } from '@/core'
 
 import { findTokenLogo } from './token-logo'
 
@@ -35,6 +35,7 @@ describe('findTokenLogo: a mark is granted only to a verified token', () => {
     /* L2 native currency is ether, so the mark is ether's: that is
        what they pay gas with, not a shortcut. */
     expect(findTokenLogo(BUILT_IN_CHAIN_ID.Base, null)?.src).toBe('/logos/eth.svg')
+    expect(findTokenLogo(BITCOIN_LEDGER_CHAIN_ID, null)?.src).toBe('/logos/btc.svg')
   })
 
   it('stays silent on an unknown chain instead of guessing', () => {

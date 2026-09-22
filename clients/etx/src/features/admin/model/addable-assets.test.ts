@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { BUILT_IN_CHAIN_ID, BUILT_IN_NETWORKS, listVerifiedTokens, toAddress } from '@/core'
+import {
+  BITCOIN_LEDGER_CHAIN_ID,
+  BUILT_IN_CHAIN_ID,
+  BUILT_IN_NETWORKS,
+  listVerifiedTokens,
+  toAddress,
+} from '@/core'
 import { findTokenLogo } from '@/features/wallet/lib/token-logo'
 
 import {
@@ -19,7 +25,8 @@ describe('addable-assets', () => {
       BUILT_IN_NETWORKS.reduce(
         (count, network) => count + listVerifiedTokens(network.chainId).length,
         0,
-      )
+      ) +
+      1
 
     expect(ADDABLE_ASSETS).toHaveLength(expected)
     expect(
@@ -32,6 +39,16 @@ describe('addable-assets', () => {
     ).toBe(true)
     expect(
       ADDABLE_ASSETS.some((item) => item.token.symbol === 'USDC' && item.token.address !== null),
+    ).toBe(true)
+    expect(
+      ADDABLE_ASSETS.some(
+        (item) =>
+          item.token.symbol === 'BTC' &&
+          item.token.standard === 'native' &&
+          item.token.decimals === 8 &&
+          item.chainId === BITCOIN_LEDGER_CHAIN_ID &&
+          item.chainName === 'Bitcoin',
+      ),
     ).toBe(true)
   })
 
@@ -69,6 +86,7 @@ describe('addable-assets', () => {
 
   it('подписывает известную сеть именем, неизвестную — номером', () => {
     expect(networkNameForChain('1')).toBe('Ethereum')
+    expect(networkNameForChain(BITCOIN_LEDGER_CHAIN_ID.toString())).toBe('Bitcoin')
     expect(networkNameForChain('999999')).toBe('Chain 999999')
   })
 
@@ -79,6 +97,8 @@ describe('addable-assets', () => {
     expect(eth?.token.name).toBe('Ether')
     expect(eth?.chainName).toBe('Ethereum')
     expect(addableAssetBySymbol('USDC')?.token.symbol).toBe('USDC')
+    expect(addableAssetBySymbol('btc')?.token.name).toBe('Bitcoin')
+    expect(addableAssetBySymbol('btc')?.chainName).toBe('Bitcoin')
     expect(addableAssetBySymbol(null)).toBeNull()
   })
 
