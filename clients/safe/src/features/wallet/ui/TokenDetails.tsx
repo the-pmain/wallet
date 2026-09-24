@@ -1,18 +1,16 @@
-import { Check, Copy, ExternalLink, TrendingDown, TrendingUp } from 'lucide-react'
+import { ExternalLink, TrendingDown, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 
 import {
   CHART_RANGE,
   TOKEN_STANDARD,
   safeText,
-  type Address,
   type ChartRange,
   type IPortfolioSummary,
   type IToken,
 } from '@/core'
-import { copyWithAutoClear } from '@/features/security'
 import { cn } from '@/shared/lib/utils'
-import { Badge, Button } from '@/shared/ui'
+import { Badge } from '@/shared/ui'
 
 import { findQuote } from '../lib/asset-value'
 import { networkNameForChainId, tokenExplorerUrl } from '../lib/network-name'
@@ -37,8 +35,7 @@ const RANGE_OPTIONS: readonly { readonly value: ChartRange; readonly label: stri
  *
  * This is not a second balance card. Quantity and estimate already
  * sit in the row; repeating them at 18 digits and the same dollar
- * would spend height for nothing. Here: the rate, its movement, and
- * contract identification.
+ * would spend height for nothing. Here: the rate and its movement.
  */
 export function TokenDetails({ detailsId, token, portfolio }: TokenDetailsProps) {
   const [range, setRange] = useState<ChartRange>(CHART_RANGE.Hours24)
@@ -154,12 +151,7 @@ export function TokenDetails({ detailsId, token, portfolio }: TokenDetailsProps)
           <p className="text-xs text-muted-foreground">
             No contract — native currency of the network
           </p>
-        ) : (
-          <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 flex-1 font-mono text-[11px] leading-5 break-all">{token.address}</p>
-            <CopyAddressButton address={token.address} symbol={token.symbol} />
-          </div>
-        )}
+        ) : null}
 
         {token.address === null || token.isVerified ? null : (
           <p className="text-xs text-muted-foreground">
@@ -184,33 +176,5 @@ export function TokenDetails({ detailsId, token, portfolio }: TokenDetailsProps)
 
       <span className="sr-only">{`${symbol} on ${networkName}`}</span>
     </div>
-  )
-}
-
-function CopyAddressButton({ address, symbol }: { readonly address: Address; readonly symbol: string }) {
-  const [copied, setCopied] = useState(false)
-  const label = safeText(symbol)
-
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      className="h-7 w-fit shrink-0 px-2"
-      aria-label={copied ? `Copied ${label} contract address` : `Copy ${label} contract address`}
-      onClick={() => {
-        void copyWithAutoClear(address)
-          .then(() => {
-            setCopied(true)
-          })
-          .catch(() => {
-            /* Clipboard is unavailable on an insecure connection.
-               The panel must not unmount because of that. */
-          })
-      }}
-    >
-      {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
-      {copied ? 'Copied' : 'Copy'}
-    </Button>
   )
 }

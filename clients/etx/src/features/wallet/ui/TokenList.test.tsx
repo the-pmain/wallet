@@ -231,7 +231,7 @@ describe('TokenList: сведения об активе', () => {
     expect(screen.queryByText(USDC.address as string)).not.toBeInTheDocument()
   })
 
-  it('раскрывает контракт ERC-20 с полным адресом и курсом', async () => {
+  it('раскрывает контракт ERC-20 с курсом', async () => {
     const user = userEvent.setup()
 
     renderList(
@@ -256,13 +256,13 @@ describe('TokenList: сведения об активе', () => {
     await user.click(screen.getByRole('button', { name: 'USDC on Ethereum — asset details' }))
 
     expect(screen.getByText('ERC-20')).toBeInTheDocument()
-    expect(screen.getByText(USDC.address as string)).toBeInTheDocument()
+    expect(screen.queryByText(USDC.address as string)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Copy USDC contract address' })).not.toBeInTheDocument()
     expect(screen.getByText('-0.42 %')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open in Ethereum explorer' })).toHaveAttribute(
       'href',
       `https://etherscan.io/token/${USDC.address as string}`,
     )
-    expect(screen.getByRole('button', { name: 'Copy USDC contract address' })).toBeInTheDocument()
   })
 
   it('повторное нажатие закрывает панель', async () => {
