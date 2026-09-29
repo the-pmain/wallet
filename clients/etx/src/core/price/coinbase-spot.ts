@@ -1,5 +1,19 @@
-const COINBASE_SPOT_URL = 'https://api.coinbase.com/v2/prices/ETH-USD/spot'
+const COINBASE_SPOT_URL = 'https://api.coinbase.com/v2/prices'
 const REQUEST_TIMEOUT_MS = 10_000
+
+/** Известные стейблкоины. Курс берётся только если список рынка не загрузился. */
+const FALLBACK_STABLES = [
+  { id: 'usd-coin', symbol: 'USDC', name: 'USDC', product: 'USDC-USD' },
+  { id: 'tether', symbol: 'USDT', name: 'Tether', product: 'USDT-USD' },
+  { id: 'dai', symbol: 'DAI', name: 'Dai', product: 'DAI-USD' },
+] as const
+
+export interface ICoinbaseStablePrice {
+  readonly id: string
+  readonly symbol: string
+  readonly name: string
+  readonly priceUsd: number
+}
 
 /**
  * Курс ETH/USD с Coinbase.
@@ -10,8 +24,37 @@ const REQUEST_TIMEOUT_MS = 10_000
 export async function fetchCoinbaseEthUsd(
   fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
 ): Promise<number | null> {
+  return fetchCoinbaseSpotUsd('ETH-USD', fetchImpl)
+}
+
+/**
+ * Спотовые курсы стейблкоинов, которые витрина уже умеет узнавать.
+ *
+ * Только после отказа `/coins/markets`. Пары публичные и не называют
+ * кошелёк. Нет пары — монеты нет в оценке, единица не подставляется.
+ */
+export async function fetchCoinbaseStableUsd(
+  fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+): Promise<readonly ICoinbaseStablePrice[]> {
+  const priced = await Promise.all(
+    FALLBACK_STABLES.map(async (stable) => {
+      const priceUsd = await fetchCoinbaseSpotUsd(stable.product, fetchImpl)
+
+      return priceUsd === null
+        ? null
+        : { id: stable.id, symbol: stable.symbol, name: stable.name, priceUsd }
+    }),
+  )
+
+  return priced.filter((entry) => entry !== null)
+}
+
+async function fetchCoinbaseSpotUsd(
+  product: string,
+  fetchImpl: typeof fetch,
+): Promise<number | null> {
   try {
-    const response = await fetchImpl(COINBASE_SPOT_URL, {
+    const response = await fetchImpl(`${COINBASE_SPOT_URL}/${product}/spot`, {
       headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       credentials: 'omit',

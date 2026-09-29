@@ -1,6 +1,6 @@
 import type { Timestamp } from '@/core/types'
 
-import { fetchCoinbaseEthUsd } from './coinbase-spot'
+import { fetchCoinbaseEthUsd, fetchCoinbaseStableUsd, type ICoinbaseStablePrice } from './coinbase-spot'
 import { CoinGeckoMarketClient } from './CoinGeckoMarketClient'
 import { findCoinGeckoPlatform } from './coingecko-platforms'
 import { knownMarketCoinId } from './known-market-tokens'
@@ -21,6 +21,11 @@ export interface IMarketAssetRef extends IPriceRef {
 export interface IMarketCatalogOptions {
   readonly loadMarkets?: (signal?: AbortSignal) => Promise<readonly IMarketCoin[]>
   readonly loadEthUsd?: () => Promise<number | null>
+  /**
+   * Споты стейблкоинов только когда список рынка не загрузился.
+   * В публичную таблицу курсов они не попадают.
+   */
+  readonly loadStableUsd?: () => Promise<readonly ICoinbaseStablePrice[]>
 }
 
 const EMPTY_SNAPSHOT: IMarketCatalogSnapshot = { status: 'idle', coins: [] }
@@ -36,6 +41,7 @@ const EMPTY_SNAPSHOT: IMarketCatalogSnapshot = { status: 'idle', coins: [] }
 export class MarketCatalog {
   #loadMarkets: (signal?: AbortSignal) => Promise<readonly IMarketCoin[]>
   #loadEthUsd: () => Promise<number | null>
+  #loadStableUsd: () => Promise<readonly ICoinbaseStablePrice[]>
 
   #status: MarketCatalogStatus = 'idle'
   #coins: readonly IMarketCoin[] = []
@@ -46,12 +52,15 @@ export class MarketCatalog {
 
   readonly #byId = new Map<string, IMarketCoin>()
   readonly #bySymbol = new Map<string, IMarketCoin>()
+  /** Курсы известных стейблкоинов. Не входят в публичный список монет. */
+  readonly #fallbackStables = new Map<string, IMarketCoin>()
   readonly #listeners = new Set<() => void>()
 
   constructor(options: IMarketCatalogOptions = {}) {
     this.#loadMarkets =
       options.loadMarkets ?? ((signal) => new CoinGeckoMarketClient().getMarkets(signal))
     this.#loadEthUsd = options.loadEthUsd ?? fetchCoinbaseEthUsd
+    this.#loadStableUsd = options.loadStableUsd ?? fetchCoinbaseStableUsd
   }
 
   configure(options: IMarketCatalogOptions): void {
@@ -65,6 +74,10 @@ export class MarketCatalog {
 
     if (options.loadEthUsd !== undefined) {
       this.#loadEthUsd = options.loadEthUsd
+    }
+
+    if (options.loadStableUsd !== undefined) {
+      this.#loadStableUsd = options.loadStableUsd
     }
   }
 
@@ -106,6 +119,7 @@ export class MarketCatalog {
     this.#quotedAt = 0 as Timestamp
     this.#byId.clear()
     this.#bySymbol.clear()
+    this.#fallbackStables.clear()
     this.#snapshot = EMPTY_SNAPSHOT
     this.#notify()
   }
@@ -177,6 +191,7 @@ export class MarketCatalog {
         return
       }
 
+      this.#fallbackStables.clear()
       this.#apply(coins, 'ready')
     } catch {
       if (generation !== this.#generation) {
@@ -194,7 +209,29 @@ export class MarketCatalog {
   }
 
   async #ethereumFallback(): Promise<readonly IMarketCoin[]> {
-    const ethUsd = await this.#loadEthUsd()
+    const [ethUsd, stables] = await Promise.all([this.#loadEthUsd(), this.#loadStableUsd()])
+
+    this.#fallbackStables.clear()
+
+    for (const stable of stables) {
+      if (!Number.isFinite(stable.priceUsd) || stable.priceUsd <= 0) {
+        continue
+      }
+
+      this.#fallbackStables.set(stable.id, {
+        id: stable.id,
+        symbol: stable.symbol,
+        name: stable.name,
+        rank: 0,
+        priceUsd: stable.priceUsd,
+        change1hPercent: null,
+        change24hPercent: null,
+        change7dPercent: null,
+        volume24hUsd: null,
+        marketCapUsd: null,
+        sparkline7d: null,
+      })
+    }
 
     if (ethUsd === null) {
       return []
@@ -261,6 +298,14 @@ export class MarketCatalog {
 
     if (byId !== undefined) {
       return byId
+    }
+
+    if (knownId !== null) {
+      const stable = this.#fallbackStables.get(knownId)
+
+      if (stable !== undefined) {
+        return stable
+      }
     }
 
     if (ref.symbol === undefined || ref.symbol.trim() === '') {

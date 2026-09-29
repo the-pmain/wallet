@@ -7,6 +7,7 @@ const ETH_USD = 3284.12
 const CHAIN = toChainId(1)
 const OP = toChainId(10)
 const USDC = toAddress('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48')
+const USDT = toAddress('0xdAC17F958D2ee523a2206206994597C13D831ec7')
 const OP_USDC = toAddress('0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85')
 
 function ethereumCoin(price = ETH_USD) {
@@ -80,11 +81,64 @@ describe('MarketCatalog', () => {
         throw new Error('429')
       },
       loadEthUsd: async () => 2500,
+      loadStableUsd: async () => [],
     })
 
     await catalog.ensureLoaded()
 
     expect(catalog.status).toBe('ready')
     expect(catalog.quoteForRef({ chainId: CHAIN, address: null })?.price).toBe(2500)
+  })
+
+  it('prices known stablecoins after a market-list failure without listing them publicly', async () => {
+    const catalog = new MarketCatalog({
+      loadMarkets: async () => {
+        throw new Error('429')
+      },
+      loadEthUsd: async () => 2500,
+      loadStableUsd: async () => [
+        { id: 'usd-coin', symbol: 'USDC', name: 'USDC', priceUsd: 1 },
+        { id: 'tether', symbol: 'USDT', name: 'Tether', priceUsd: 0.999 },
+      ],
+    })
+
+    await catalog.ensureLoaded()
+
+    expect(catalog.coins.map((coin) => coin.id)).toEqual(['ethereum'])
+    expect(catalog.quoteForRef({ chainId: CHAIN, address: USDC })?.price).toBe(1)
+    expect(catalog.quoteForRef({ chainId: CHAIN, address: USDT })?.price).toBe(0.999)
+    expect(catalog.quoteForRef({ chainId: CHAIN, address: null })?.price).toBe(2500)
+  })
+
+  it('keeps the live stablecoin rate when the market list loads', async () => {
+    let stableCalls = 0
+    const catalog = new MarketCatalog({
+      loadMarkets: async () => [
+        ethereumCoin(),
+        {
+          id: 'usd-coin',
+          symbol: 'USDC',
+          name: 'USD Coin',
+          rank: 7,
+          priceUsd: 1.02,
+          change1hPercent: 0,
+          change24hPercent: 0,
+          change7dPercent: 0,
+          volume24hUsd: 1,
+          marketCapUsd: 2,
+          sparkline7d: null,
+        },
+      ],
+      loadStableUsd: async () => {
+        stableCalls += 1
+
+        return [{ id: 'usd-coin', symbol: 'USDC', name: 'USDC', priceUsd: 1 }]
+      },
+    })
+
+    await catalog.ensureLoaded()
+
+    expect(stableCalls).toBe(0)
+    expect(catalog.quoteForRef({ chainId: CHAIN, address: USDC })?.price).toBe(1.02)
   })
 })
