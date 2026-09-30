@@ -1,4 +1,4 @@
-import { HARDENED_OFFSET } from '@/core/hdwallet'
+import { HARDENED_OFFSET } from '../../hdwallet/path'
 import type { DerivationPath } from '@/core/types'
 
 import { HardwareDeviceError } from './errors'

@@ -179,14 +179,18 @@ export {
 } from './address'
 
 /* --- HD-кошелёк BIP-32 / BIP-44 --- */
+/*
+ * Только помощники путей. `HDWalletService` остаётся в бочке и
+ * грузится через `import('@/core/hdwallet')`, когда открывается сессия.
+ * Реэкспорт класса отсюда положил бы этот модуль в начальный чанк,
+ * и отложенный импорт перестал бы его отделять.
+ */
 export {
   BIP44_PURPOSE,
   CHANGE_EXTERNAL,
   CHANGE_INTERNAL,
   EVM_COIN_TYPE,
   HARDENED_OFFSET,
-  HDWalletService,
-  MAX_ACCOUNTS_PER_CALL,
   assertValidIndex,
   buildAccountPath,
   buildAddressPath,
@@ -194,11 +198,11 @@ export {
   parseBip44Path,
   toDerivationPath,
   type IDerivationPathOptions,
-  type IHDWalletOptions,
-  type IHDWalletService,
-  type IHdAccount,
   type IParsedBip44Path,
-} from './hdwallet'
+} from './hdwallet/path'
+export { MAX_ACCOUNTS_PER_CALL, type IHdAccount } from './hdwallet/types'
+export type { IHDWalletOptions, IHDWalletService } from './hdwallet/contracts'
+export type { HDWalletService } from './hdwallet/HDWalletService'
 
 /* --- Политика экспорта секретов и паролей --- */
 export {

@@ -122,6 +122,14 @@ export default defineConfig(({ mode }) => {
       /* Source maps are off in production: they make wallet code easier
        to analyse and grow the artefact. Build with `--sourcemap` to debug. */
       sourcemap: false,
+      /*
+       The home shell is about 550 kB minified (about 183 kB gzip):
+       React plus the screens opened before navigation. Splitting
+       vendors out of it was measured to increase the initial gzip,
+       so the warning line stays above this shell and still fires
+       if the shell grows further.
+      */
+      chunkSizeWarningLimit: 600,
     },
 
     test: {
